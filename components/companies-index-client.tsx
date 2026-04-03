@@ -6,6 +6,7 @@ import { Search } from "lucide-react";
 import type { CompanyCardRecord } from "@/lib/db/types";
 
 import { CompanyCard } from "@/components/company-card";
+import { EmptyState } from "@/components/empty-state";
 import { Input } from "@/components/ui/input";
 
 type CompaniesIndexClientProps = {
@@ -47,16 +48,25 @@ export function CompaniesIndexClient({ records }: CompaniesIndexClientProps) {
         <span>Supabase-backed index</span>
       </div>
 
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {filteredRecords.map((record) => (
-          <CompanyCard
-            key={record.company.slug}
-            company={record.company}
-            activityCount={record.activityCount}
-            momentum={record.momentum}
-          />
-        ))}
-      </div>
+      {filteredRecords.length > 0 ? (
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {filteredRecords.map((record) => (
+            <CompanyCard
+              key={record.company.slug}
+              company={record.company}
+              activityCount={record.activityCount}
+              momentum={record.momentum}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="No companies matched that search"
+          description="Try a broader company name, product family, or theme like reasoning, chips, enterprise, or open-weight."
+          actionHref="/companies"
+          actionLabel="Reset search"
+        />
+      )}
     </>
   );
 }

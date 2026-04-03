@@ -1,10 +1,16 @@
 import { format } from "date-fns";
+import type { Metadata } from "next";
 
 import { getDailyDigestData } from "@/lib/db/queries";
 import { companiesBySlug } from "@/lib/seed/data";
 
 import { DailyDigestBlock } from "@/components/daily-digest-block";
 import { SectionHeader } from "@/components/section-header";
+
+export const metadata: Metadata = {
+  title: "Daily Digest",
+  description: "Read the AI Company Tracker daily digest for the ten stories that mattered most and what to watch next.",
+};
 
 export default async function DailyDigestPage() {
   const { digest, topStories, biggestWinnerMomentum, biggestLoserMomentum, mostImportantStory } =

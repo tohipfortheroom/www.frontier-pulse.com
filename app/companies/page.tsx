@@ -1,7 +1,14 @@
+import type { Metadata } from "next";
+
 import { getCompaniesIndexData } from "@/lib/db/queries";
 
 import { CompaniesIndexClient } from "@/components/companies-index-client";
 import { SectionHeader } from "@/components/section-header";
+
+export const metadata: Metadata = {
+  title: "Companies",
+  description: "Browse the tracked AI companies, compare momentum, and open full editorial profiles for each player in the race.",
+};
 
 export default async function CompaniesPage() {
   const records = await getCompaniesIndexData();

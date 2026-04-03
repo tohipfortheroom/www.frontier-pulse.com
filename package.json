@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "seed": "node --experimental-strip-types lib/supabase/seed.ts"
+    "seed": "node --experimental-strip-types --experimental-specifier-resolution=node lib/supabase/seed.ts",
+    "ingest": "node --experimental-strip-types --experimental-specifier-resolution=node lib/ingestion/cron.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.101.1",

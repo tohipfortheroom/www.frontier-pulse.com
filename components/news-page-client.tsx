@@ -8,6 +8,7 @@ import type { NewsItem, NewsCategory } from "@/lib/seed/data";
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { seedNow } from "@/lib/seed/data";
 
+import { EmptyState } from "@/components/empty-state";
 import { NewsCard } from "@/components/news-card";
 import { Input } from "@/components/ui/input";
 
@@ -99,11 +100,20 @@ export function NewsPageClient({ newsItems, companies, categories }: NewsPageCli
         <span>Supabase-backed stream</span>
       </div>
 
-      <div className="grid gap-5">
-        {filteredNews.map((item) => (
-          <NewsCard key={item.slug} news={item} />
-        ))}
-      </div>
+      {filteredNews.length > 0 ? (
+        <div className="grid gap-5">
+          {filteredNews.map((item) => (
+            <NewsCard key={item.slug} news={item} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="No updates matched the current filters"
+          description="Try widening the timeframe, clearing the company filter, or searching with fewer keywords."
+          actionHref="/news"
+          actionLabel="Reset filters"
+        />
+      )}
     </>
   );
 }

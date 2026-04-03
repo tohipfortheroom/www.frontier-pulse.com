@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getCompaniesIndexData, getCompanyDetailData } from "@/lib/db/queries";
@@ -10,6 +11,26 @@ import { TrendSparkline } from "@/components/trend-sparkline";
 
 export function generateStaticParams() {
   return getCompaniesIndexData().then((records) => records.map(({ company }) => ({ slug: company.slug })));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const record = await getCompanyDetailData(slug);
+
+  if (!record) {
+    return {
+      title: "Company Not Found",
+    };
+  }
+
+  return {
+    title: record.company.name,
+    description: record.company.description,
+  };
 }
 
 export default async function CompanyDetailPage({

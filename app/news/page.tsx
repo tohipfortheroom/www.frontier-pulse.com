@@ -1,8 +1,15 @@
+import type { Metadata } from "next";
+
 import { getCompaniesIndexData, getNewsItemsData } from "@/lib/db/queries";
 import { categories } from "@/lib/seed/data";
 
 import { NewsPageClient } from "@/components/news-page-client";
 import { SectionHeader } from "@/components/section-header";
+
+export const metadata: Metadata = {
+  title: "News",
+  description: "Filter the AI news stream by company, category, timeframe, and importance to find the signal that matters.",
+};
 
 export default async function NewsPage() {
   const [newsItems, companyRecords] = await Promise.all([getNewsItemsData(), getCompaniesIndexData()]);

@@ -1,6 +1,6 @@
-import { companiesBySlug } from "@/lib/seed/data";
+import { companiesBySlug } from "../seed/data.ts";
 
-import type { ScoredCandidate } from "@/lib/ingestion/types";
+import type { ScoredCandidate } from "./types.ts";
 
 function firstSentence(text?: string | null) {
   if (!text) {

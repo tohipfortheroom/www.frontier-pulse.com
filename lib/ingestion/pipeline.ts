@@ -1,11 +1,11 @@
-import { getSupabaseServerClient } from "@/lib/db/client";
-import type { RawIngestedItem, PipelineRunResult, SourceDefinition, SummarizedCandidate } from "@/lib/ingestion/types";
-import { normalizeIngestedItem } from "@/lib/ingestion/normalizer";
-import { scoreCandidate } from "@/lib/ingestion/scorer";
-import { summarizeCandidate } from "@/lib/ingestion/summarizer";
-import { ingest as ingestBlog } from "@/lib/ingestion/sources/blog-scraper";
-import { ingest as ingestManual } from "@/lib/ingestion/sources/manual";
-import { ingest as ingestRss } from "@/lib/ingestion/sources/rss";
+import { getSupabaseServerClient } from "../db/client.ts";
+import type { RawIngestedItem, PipelineRunResult, SourceDefinition, SummarizedCandidate } from "./types.ts";
+import { normalizeIngestedItem } from "./normalizer.ts";
+import { scoreCandidate } from "./scorer.ts";
+import { summarizeCandidate } from "./summarizer.ts";
+import { ingest as ingestBlog } from "./sources/blog-scraper.ts";
+import { ingest as ingestManual } from "./sources/manual.ts";
+import { ingest as ingestRss } from "./sources/rss.ts";
 
 export const sourceRegistry: SourceDefinition[] = [
   {

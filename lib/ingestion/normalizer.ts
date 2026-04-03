@@ -1,6 +1,6 @@
-import { companiesBySlug } from "@/lib/seed/data";
+import { companiesBySlug } from "../seed/data.ts";
 
-import type { NormalizedCandidate, RawIngestedItem } from "@/lib/ingestion/types";
+import type { NormalizedCandidate, RawIngestedItem } from "./types.ts";
 
 const companyKeywordMap: Record<string, string[]> = {
   openai: ["openai", "chatgpt", "gpt-5", "gpt 5", "sora"],

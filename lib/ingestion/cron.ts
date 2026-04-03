@@ -1,4 +1,4 @@
-import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
+import { runIngestionPipeline } from "./pipeline.ts";
 
 export async function runCronIngestion() {
   return runIngestionPipeline();
@@ -7,7 +7,17 @@ export async function runCronIngestion() {
 if (process.argv[1]?.endsWith("cron.ts")) {
   runCronIngestion()
     .then((result) => {
-      console.log(JSON.stringify(result, null, 2));
+      console.log(
+        JSON.stringify(
+          {
+            ...result,
+            previewHeadlines: result.items.slice(0, 5).map((item) => item.headline),
+            items: undefined,
+          },
+          null,
+          2,
+        ),
+      );
     })
     .catch((error) => {
       console.error(error);

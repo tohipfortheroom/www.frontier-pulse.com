@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { SectionHeader } from "@/components/section-header";
 
 const trackItems = [
@@ -12,6 +14,11 @@ const audienceItems = [
   "Developers, investors, founders, and operators looking for clean signal",
   "Readers who care less about hype cycles and more about momentum with context",
 ];
+
+export const metadata: Metadata = {
+  title: "About",
+  description: "Learn what the AI Company Tracker covers, how momentum scoring works, and who the product is built for.",
+};
 
 export default function AboutPage() {
   return (

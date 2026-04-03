@@ -1,4 +1,4 @@
-import type { ImpactDirection } from "@/lib/seed/data";
+import type { ImpactDirection } from "../seed/data.ts";
 
 export type SourceKind = "rss" | "blog-scraper" | "manual";
 

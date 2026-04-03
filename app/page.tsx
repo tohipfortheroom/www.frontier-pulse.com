@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { getHomePageData } from "@/lib/db/queries";
 
@@ -11,6 +12,12 @@ import { TimelineItem } from "@/components/timeline-item";
 import { TopMoverCard } from "@/components/top-mover-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+export const metadata: Metadata = {
+  title: "Home",
+  description:
+    "Track the AI race in real time with a premium editorial homepage covering breaking moves, leaderboard shifts, launches, and the daily digest.",
+};
 
 export default async function HomePage() {
   const { todayStories, breakingStories, leaderboard, launches, timeline, topMovers, trendingTopics } =

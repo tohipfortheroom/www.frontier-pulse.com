@@ -1,4 +1,4 @@
-import type { RawIngestedItem, SourceDefinition } from "@/lib/ingestion/types";
+import type { RawIngestedItem, SourceDefinition } from "../types.ts";
 
 function readMeta(html: string, key: string) {
   const expression = new RegExp(`<meta[^>]+(?:name|property)=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i");

@@ -1,4 +1,4 @@
-import type { NormalizedCandidate, RawIngestedItem } from "@/lib/ingestion/types";
+import type { NormalizedCandidate, RawIngestedItem } from "./types.ts";
 
 function clamp(value: number, min = 1, max = 10) {
   return Math.max(min, Math.min(max, value));

@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+
 import { getLeaderboardData, getRecentMomentumEventsData } from "@/lib/db/queries";
 import { companiesBySlug } from "@/lib/seed/data";
 import { formatScore } from "@/lib/utils";
@@ -5,6 +7,11 @@ import { formatScore } from "@/lib/utils";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { SectionHeader } from "@/components/section-header";
 import { Collapsible } from "@/components/ui/collapsible";
+
+export const metadata: Metadata = {
+  title: "Leaderboard",
+  description: "See the full AI race ranking, momentum changes, and the events that moved the board most recently.",
+};
 
 const eventWeights = [
   { label: "Major model release", delta: "+10" },

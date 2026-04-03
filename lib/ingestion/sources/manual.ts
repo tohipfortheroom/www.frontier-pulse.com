@@ -1,4 +1,4 @@
-import type { RawIngestedItem, SourceDefinition } from "@/lib/ingestion/types";
+import type { RawIngestedItem, SourceDefinition } from "../types.ts";
 
 export async function ingest(source: SourceDefinition): Promise<RawIngestedItem[]> {
   return (source.items ?? []).map((item) => ({

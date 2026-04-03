@@ -1,4 +1,4 @@
-import type { RawIngestedItem, SourceDefinition } from "@/lib/ingestion/types";
+import type { RawIngestedItem, SourceDefinition } from "../types.ts";
 
 function decodeXmlEntities(input: string) {
   return input

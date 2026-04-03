@@ -1,4 +1,4 @@
-import type { EventType } from "@/lib/scoring/momentum";
+import type { EventType } from "../scoring/momentum.ts";
 
 export const seedNow = new Date("2026-04-03T14:30:00-05:00");
 

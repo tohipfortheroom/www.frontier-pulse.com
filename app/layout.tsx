@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { DM_Sans, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 
 import { Footer } from "@/components/footer";
@@ -23,9 +23,44 @@ const monoFont = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The AI Company Tracker",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://aicompanytracker.vercel.app"),
+  title: {
+    default: "The AI Company Tracker",
+    template: "%s | The AI Company Tracker",
+  },
   description:
     "Track the AI race in real time with a live editorial scoreboard covering launches, funding, partnerships, regulation, and momentum shifts.",
+  applicationName: "The AI Company Tracker",
+  openGraph: {
+    title: "The AI Company Tracker",
+    description:
+      "Track the AI race in real time with a live editorial scoreboard covering launches, funding, partnerships, regulation, and momentum shifts.",
+    type: "website",
+    siteName: "The AI Company Tracker",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "The AI Company Tracker",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "The AI Company Tracker",
+    description:
+      "Track the AI race in real time with a live editorial scoreboard covering launches, funding, partnerships, regulation, and momentum shifts.",
+    images: ["/opengraph-image"],
+  },
+  icons: {
+    icon: "/favicon.svg",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0A0A0F",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({
