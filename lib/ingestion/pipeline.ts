@@ -2,7 +2,7 @@ import { getSupabaseServerClient } from "../db/client.ts";
 import type { RawIngestedItem, PipelineRunResult, SourceDefinition, SummarizedCandidate } from "./types.ts";
 import { normalizeIngestedItem } from "./normalizer.ts";
 import { scoreCandidate } from "./scorer.ts";
-import { summarizeCandidate } from "./summarizer.ts";
+import { resetSummarizerRunState, summarizeCandidate } from "./summarizer.ts";
 import { ingest as ingestApi } from "./sources/api.ts";
 import { ingest as ingestBlog } from "./sources/blog-scraper.ts";
 import { ingest as ingestManual } from "./sources/manual.ts";
@@ -276,9 +276,39 @@ async function storeCandidates(candidates: SummarizedCandidate[]) {
   };
 }
 
+async function getExistingSummaries(slugs: string[]) {
+  const client = getSupabaseServerClient();
+
+  if (!client || slugs.length === 0) {
+    return new Map<string, { summary: string; shortSummary: string; whyItMatters: string }>();
+  }
+
+  const { data, error } = await client
+    .from("news_items")
+    .select("slug, summary, short_summary, why_it_matters")
+    .in("slug", slugs);
+
+  if (error || !data) {
+    return new Map<string, { summary: string; shortSummary: string; whyItMatters: string }>();
+  }
+
+  return new Map(
+    data.map((row) => [
+      row.slug,
+      {
+        summary: row.summary,
+        shortSummary: row.short_summary,
+        whyItMatters: row.why_it_matters,
+      },
+    ]),
+  );
+}
+
 export async function runIngestionPipeline(
   selectedSourceIds: string[] = sourceRegistry.map((source) => source.id),
 ): Promise<PipelineRunResult> {
+  resetSummarizerRunState();
+
   const selectedSources = sourceRegistry.filter((source) => selectedSourceIds.includes(source.id));
   const errors: string[] = [];
   const rawItems: RawIngestedItem[] = [];
@@ -312,10 +342,13 @@ export async function runIngestionPipeline(
     })
     .filter(Boolean) as Array<{ item: RawIngestedItem; candidate: ReturnType<typeof scoreCandidate> & ReturnType<typeof normalizeIngestedItem> }>;
 
+  const existingSummaries = await getExistingSummaries(normalized.map((entry) => entry.candidate.slug));
   const summarized: SummarizedCandidate[] = [];
 
   for (const entry of normalized) {
-    const summary = await summarizeCandidate(entry.candidate);
+    const summary = await summarizeCandidate(entry.candidate, {
+      existingSummary: existingSummaries.get(entry.candidate.slug) ?? null,
+    });
     summarized.push({
       ...entry.candidate,
       ...summary,

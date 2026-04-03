@@ -1,7 +1,14 @@
+import { generateDailyDigest } from "./digest-generator.ts";
 import { runIngestionPipeline } from "./pipeline.ts";
 
 export async function runCronIngestion() {
-  return runIngestionPipeline();
+  const ingestion = await runIngestionPipeline();
+  const digest = await generateDailyDigest();
+
+  return {
+    ...ingestion,
+    digest,
+  };
 }
 
 if (process.argv[1]?.endsWith("cron.ts")) {

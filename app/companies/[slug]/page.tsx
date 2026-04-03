@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCompaniesIndexData, getCompanyDetailData } from "@/lib/db/queries";
 import { formatScore } from "@/lib/utils";
 
+import { CompanyChat } from "@/components/company-chat";
 import { NewsCard } from "@/components/news-card";
 import { SectionHeader } from "@/components/section-header";
 import { ScorePill } from "@/components/score-pill";
@@ -222,6 +223,8 @@ export default async function CompanyDetailPage({
           </div>
         </div>
       </section>
+
+      <CompanyChat companySlug={company.slug} companyName={company.name} />
     </div>
   );
 }

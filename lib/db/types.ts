@@ -117,5 +117,7 @@ export type DailyDigestRow = {
   biggest_winner_company_id: string;
   biggest_loser_company_id: string;
   most_important_news_item_id: string | null;
+  top_story_slugs: string[];
+  watch_next: string[];
   created_at: string;
 };

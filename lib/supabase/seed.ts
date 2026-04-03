@@ -223,6 +223,8 @@ async function main() {
       biggest_winner_company_id: companyIdBySlug[dailyDigest.biggestWinnerCompanySlug],
       biggest_loser_company_id: companyIdBySlug[dailyDigest.biggestLoserCompanySlug],
       most_important_news_item_id: newsIdBySlug[dailyDigest.mostImportantNewsSlug],
+      top_story_slugs: dailyDigest.topStorySlugs,
+      watch_next: dailyDigest.watchNext,
       created_at: seedNow.toISOString(),
     },
     { onConflict: "digest_date" },

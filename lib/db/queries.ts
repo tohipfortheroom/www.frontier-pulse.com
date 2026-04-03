@@ -734,7 +734,7 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
 
   const companyById = Object.fromEntries(companyRows.map((row) => [row.id, row]));
   const newsSlugById = Object.fromEntries(newsRows.map((row) => [row.id, row.slug]));
-  const topStories = news
+  const inferredTopStories = news
     .filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === digestRow.digest_date)
     .sort((left, right) => right.importanceScore - left.importanceScore || new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
     .slice(0, 10);
@@ -744,9 +744,12 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
   const mostImportantSlug = digestRow.most_important_news_item_id
     ? newsSlugById[digestRow.most_important_news_item_id]
     : undefined;
+  const digestTopStorySlugs = digestRow.top_story_slugs?.length ? digestRow.top_story_slugs : inferredTopStories.map((item) => item.slug);
+  const topStories = digestTopStorySlugs.map((slug) => news.find((item) => item.slug === slug)).filter(Boolean) as typeof news;
   const mostImportantStory =
     news.find((item) => item.slug === mostImportantSlug) ??
     topStories[0] ??
+    inferredTopStories[0] ??
     newsItemsBySlug[dailyDigest.mostImportantNewsSlug];
 
   return {
@@ -757,10 +760,10 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
       biggestWinnerCompanySlug: winnerSlug,
       biggestLoserCompanySlug: loserSlug,
       mostImportantNewsSlug: mostImportantStory.slug,
-      topStorySlugs: topStories.map((item) => item.slug),
-      watchNext: dailyDigest.watchNext,
+      topStorySlugs: digestTopStorySlugs,
+      watchNext: digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext,
     },
-    topStories: topStories.length > 0 ? topStories : fallbackDailyDigest().topStories,
+    topStories: topStories.length > 0 ? topStories : inferredTopStories.length > 0 ? inferredTopStories : fallbackDailyDigest().topStories,
     biggestWinnerMomentum: leaderboard.find((row) => row.companySlug === winnerSlug),
     biggestLoserMomentum: leaderboard.find((row) => row.companySlug === loserSlug),
     mostImportantStory,
