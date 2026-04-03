@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { usePathname } from "next/navigation";
 
 import { BookmarkCountBadge } from "@/components/bookmark-button";
+import { GlobalSearch } from "@/components/global-search";
 import { NotificationBell } from "@/components/notification-bell";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
@@ -15,6 +16,7 @@ const navItems = [
   { href: "/companies", label: "Companies" },
   { href: "/news", label: "News" },
   { href: "/leaderboard", label: "Leaderboard" },
+  { href: "/compare", label: "Compare" },
   { href: "/daily-digest", label: "Daily Digest" },
   { href: "/about", label: "About" },
 ];
@@ -73,6 +75,7 @@ export function Navbar() {
             ))}
           </div>
           <div className="flex items-center gap-2">
+            <GlobalSearch />
             <BookmarkCountBadge />
             <NotificationBell />
             <ThemeToggle />

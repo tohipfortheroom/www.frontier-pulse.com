@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -65,7 +66,15 @@ export default async function CompanyDetailPage({
               <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-5xl">
                 {company.name}
               </h1>
-              <ShareButton path={`/companies/${company.slug}`} title={company.name} text={company.description} />
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/feed/${company.slug}`}
+                  className="rounded-full border border-[var(--border)] px-3 py-2 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-all duration-200 hover:border-[rgba(77,159,255,0.24)] hover:text-[var(--text-primary)]"
+                >
+                  RSS Feed
+                </Link>
+                <ShareButton path={`/companies/${company.slug}`} title={company.name} text={company.description} />
+              </div>
             </div>
             <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--text-secondary)]">{company.overview}</p>
             <div className="mt-6 flex flex-wrap gap-2">

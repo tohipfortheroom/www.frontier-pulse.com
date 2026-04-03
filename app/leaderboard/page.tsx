@@ -41,7 +41,7 @@ export default async function LeaderboardPage() {
           tone="blue"
         />
         <MomentumHistoryChart rows={leaderboard} />
-        <LeaderboardTable rows={leaderboard} mode="full" />
+        <LeaderboardTable rows={leaderboard} mode="full" realtime />
       </section>
 
       <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.08s" }}>

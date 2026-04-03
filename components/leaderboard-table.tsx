@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
+import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
 import { companiesBySlug, type MomentumSnapshot } from "@/lib/seed/data";
 import { cn, formatScore } from "@/lib/utils";
 
@@ -14,6 +16,7 @@ type LeaderboardTableProps = {
   mode?: "preview" | "full";
   footerHref?: string;
   footerLabel?: string;
+  realtime?: boolean;
 };
 
 export function LeaderboardTable({
@@ -21,10 +24,13 @@ export function LeaderboardTable({
   mode = "preview",
   footerHref,
   footerLabel,
+  realtime = false,
 }: LeaderboardTableProps) {
+  const router = useRouter();
   const sortedRows = [...rows].sort((left, right) => left.rank - right.rank);
   const previousScores = useRef<Record<string, number>>({});
   const [flashingRows, setFlashingRows] = useState<string[]>([]);
+  const refreshTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const changed = sortedRows
@@ -41,6 +47,39 @@ export function LeaderboardTable({
 
     return undefined;
   }, [rows, sortedRows]);
+
+  useEffect(() => {
+    if (!realtime) {
+      return;
+    }
+
+    const supabase = getSupabaseBrowserClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const channel = supabase
+      .channel("momentum-scores-live")
+      .on("postgres_changes", { event: "*", schema: "public", table: "momentum_scores" }, () => {
+        if (refreshTimeoutRef.current) {
+          window.clearTimeout(refreshTimeoutRef.current);
+        }
+
+        refreshTimeoutRef.current = window.setTimeout(() => {
+          router.refresh();
+        }, 250);
+      })
+      .subscribe();
+
+    return () => {
+      if (refreshTimeoutRef.current) {
+        window.clearTimeout(refreshTimeoutRef.current);
+      }
+
+      void supabase.removeChannel(channel);
+    };
+  }, [realtime, router]);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] backdrop-blur-sm">

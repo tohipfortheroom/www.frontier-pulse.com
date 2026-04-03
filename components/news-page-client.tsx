@@ -1,12 +1,15 @@
 "use client";
 
-import { useDeferredValue, useState } from "react";
+import { useDeferredValue, useEffect, useRef, useState, useTransition } from "react";
 import { differenceInDays, differenceInHours, format, subDays } from "date-fns";
-import { Filter, Search } from "lucide-react";
+import { Filter, RefreshCcw, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 
+import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
 import type { NewsItem, NewsCategory } from "@/lib/seed/data";
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { seedNow } from "@/lib/seed/data";
+import { matchesSearchQuery } from "@/lib/search/syntax";
 import { cn } from "@/lib/utils";
 
 import { EmptyState } from "@/components/empty-state";
@@ -23,12 +26,16 @@ type NewsPageClientProps = {
 };
 
 export function NewsPageClient({ newsItems, companies, categories }: NewsPageClientProps) {
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [timeframe, setTimeframe] = useState("7d");
   const [importance, setImportance] = useState("all");
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [pendingRealtimeCount, setPendingRealtimeCount] = useState(0);
+  const [isRefreshing, startRefreshTransition] = useTransition();
+  const pendingRealtimeSlugs = useRef(new Set<string>());
   const deferredQuery = useDeferredValue(query);
   const activityDays = Array.from({ length: 30 }, (_, index) => {
     const day = subDays(seedNow, 29 - index);
@@ -42,13 +49,52 @@ export function NewsPageClient({ newsItems, companies, categories }: NewsPageCli
     };
   });
 
+  useEffect(() => {
+    pendingRealtimeSlugs.current.clear();
+    setPendingRealtimeCount(0);
+  }, [newsItems]);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const channel = supabase
+      .channel("news-items-live")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "news_items" }, (payload) => {
+        const slug = typeof payload.new.slug === "string" ? payload.new.slug : null;
+
+        if (slug) {
+          if (pendingRealtimeSlugs.current.has(slug)) {
+            return;
+          }
+
+          pendingRealtimeSlugs.current.add(slug);
+        }
+
+        setPendingRealtimeCount((count) => count + 1);
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, []);
+
+  function loadRealtimeStories() {
+    pendingRealtimeSlugs.current.clear();
+    setPendingRealtimeCount(0);
+    startRefreshTransition(() => {
+      router.refresh();
+    });
+  }
+
   const filteredNews = newsItems.filter((item) => {
     const matchesQuery =
       !deferredQuery.trim() ||
-      [item.headline, item.summary, item.whyItMatters]
-        .join(" ")
-        .toLowerCase()
-        .includes(deferredQuery.trim().toLowerCase());
+      matchesSearchQuery([item.headline, item.summary, item.shortSummary, item.whyItMatters, item.sourceName].join(" "), deferredQuery);
 
     const matchesCompany = companyFilter === "all" || item.companySlugs.includes(companyFilter);
     const matchesCategory = categoryFilter === "all" || item.categorySlugs.includes(categoryFilter);
@@ -65,6 +111,23 @@ export function NewsPageClient({ newsItems, companies, categories }: NewsPageCli
 
   return (
     <>
+      {pendingRealtimeCount > 0 ? (
+        <button
+          type="button"
+          onClick={loadRealtimeStories}
+          className="flex w-full items-center justify-between gap-4 rounded-2xl border border-[rgba(0,230,138,0.18)] bg-[rgba(0,230,138,0.08)] px-4 py-3 text-left text-sm text-[var(--text-primary)] transition-all duration-200 hover:border-[rgba(0,230,138,0.28)]"
+        >
+          <span className="flex items-center gap-3">
+            <span className="h-2.5 w-2.5 rounded-full bg-[var(--accent-green)] animate-[pulse_2s_infinite]" />
+            {pendingRealtimeCount} new {pendingRealtimeCount === 1 ? "story" : "stories"} available
+          </span>
+          <span className="inline-flex items-center gap-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--accent-green)]">
+            <RefreshCcw className={cn("h-3.5 w-3.5", isRefreshing && "animate-spin")} />
+            {isRefreshing ? "Refreshing" : "Load now"}
+          </span>
+        </button>
+      ) : null}
+
       <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-4 backdrop-blur-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -118,7 +181,7 @@ export function NewsPageClient({ newsItems, companies, categories }: NewsPageCli
             <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search the stream"
+              placeholder='Search the stream. Try "GPT-5" OR Claude -policy'
               className="pl-11"
             />
           </div>
@@ -167,9 +230,9 @@ export function NewsPageClient({ newsItems, companies, categories }: NewsPageCli
           ))}
         </div>
       ) : (
-        <EmptyState
-          title="No updates matched the current filters"
-          description="Try widening the timeframe, clearing the company filter, or searching with fewer keywords."
+          <EmptyState
+            title="No updates matched the current filters"
+          description="Try widening the timeframe, clearing a filter, or using a broader search with quotes and OR operators."
           actionHref="/news"
           actionLabel="Reset filters"
         />

@@ -4,6 +4,7 @@ import { useDeferredValue, useState } from "react";
 import { Search } from "lucide-react";
 
 import type { CompanyCardRecord } from "@/lib/db/types";
+import { matchesSearchQuery } from "@/lib/search/syntax";
 
 import { CompanyCard } from "@/components/company-card";
 import { EmptyState } from "@/components/empty-state";
@@ -16,17 +17,23 @@ type CompaniesIndexClientProps = {
 export function CompaniesIndexClient({ records }: CompaniesIndexClientProps) {
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query);
-  const normalizedQuery = deferredQuery.trim().toLowerCase();
+  const normalizedQuery = deferredQuery.trim();
 
   const filteredRecords = records.filter(({ company }) => {
     if (!normalizedQuery) {
       return true;
     }
 
-    return [company.name, company.description, company.overview, ...company.tags]
-      .join(" ")
-      .toLowerCase()
-      .includes(normalizedQuery);
+    return matchesSearchQuery(
+      [
+        company.name,
+        company.description,
+        company.overview,
+        ...company.tags,
+        ...company.products.map((product) => product.name),
+      ].join(" "),
+      normalizedQuery,
+    );
   });
 
   return (
@@ -37,7 +44,7 @@ export function CompaniesIndexClient({ records }: CompaniesIndexClientProps) {
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search companies, products, or themes"
+            placeholder='Search companies, products, or themes. Try "open-weight" OR agents'
             className="pl-11"
           />
         </div>
