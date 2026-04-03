@@ -6,12 +6,12 @@ import { getHomePageData } from "@/lib/db/queries";
 import { Hero } from "@/components/hero";
 import { LaunchCard } from "@/components/launch-card";
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { NewsletterForm } from "@/components/newsletter-form";
 import { NewsCard } from "@/components/news-card";
 import { SectionHeader } from "@/components/section-header";
 import { TimelineItem } from "@/components/timeline-item";
 import { TopMoverCard } from "@/components/top-mover-card";
 import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 export const metadata: Metadata = {
   title: "Home",
@@ -173,12 +173,7 @@ export default async function HomePage() {
             <p className="text-base text-[var(--text-secondary)]">
               Get the biggest daily moves and launches in one clean summary.
             </p>
-            <form className="flex flex-col gap-3 sm:flex-row">
-              <Input type="email" placeholder="Email address" className="flex-1" />
-              <button type="submit" className={buttonVariants({ variant: "primary", className: "sm:min-w-[150px]" })}>
-                Subscribe
-              </button>
-            </form>
+            <NewsletterForm />
             <p className="font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
               Free. No spam. Unsubscribe anytime.
             </p>

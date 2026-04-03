@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { usePathname } from "next/navigation";
 
+import { BookmarkCountBadge } from "@/components/bookmark-button";
+import { NotificationBell } from "@/components/notification-bell";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -53,20 +55,26 @@ export function Navbar() {
         </div>
       </div>
       <nav className="scrollbar-none overflow-x-auto border-t border-[rgba(255,255,255,0.02)]">
-        <div className="mx-auto flex min-w-max items-center gap-1 px-4 py-3 text-sm text-[var(--text-secondary)]">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "rounded-full px-4 py-2 transition-all duration-200 hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-primary)]",
-                isActive(pathname, item.href) &&
-                  "bg-[rgba(255,255,255,0.04)] text-[var(--text-primary)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]",
-              )}
-            >
-              {item.label}
-            </Link>
-          ))}
+        <div className="mx-auto flex min-w-max items-center justify-between gap-4 px-4 py-3 text-sm text-[var(--text-secondary)]">
+          <div className="flex min-w-max items-center gap-1">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "rounded-full px-4 py-2 transition-all duration-200 hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-primary)]",
+                  isActive(pathname, item.href) &&
+                    "bg-[rgba(255,255,255,0.04)] text-[var(--text-primary)] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)]",
+                )}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <BookmarkCountBadge />
+            <NotificationBell />
+          </div>
         </div>
       </nav>
     </header>

@@ -142,6 +142,13 @@ export type DailyDigest = {
   watchNext: string[];
 };
 
+export type SubscriberSeed = {
+  email: string;
+  confirmed: boolean;
+  subscribedAt: string;
+  unsubscribeToken: string;
+};
+
 export const categories: NewsCategory[] = [
   { slug: "model-release", name: "Model Release", accent: "green" },
   { slug: "product-launch", name: "Product Launch", accent: "blue" },
@@ -1017,6 +1024,21 @@ export const companies: CompanyProfile[] = [
       },
     ],
     sparkline: [1.1, 1.4, 1.8, 2.3, 2.9, 3.5, 4.3],
+  },
+];
+
+export const newsletterSubscribers: SubscriberSeed[] = [
+  {
+    email: "briefing@northstarcapital.com",
+    confirmed: true,
+    subscribedAt: "2026-04-01T08:15:00-05:00",
+    unsubscribeToken: "northstar-briefing-token",
+  },
+  {
+    email: "product@signalstack.dev",
+    confirmed: false,
+    subscribedAt: "2026-04-03T09:42:00-05:00",
+    unsubscribeToken: "signalstack-product-token",
   },
 ];
 

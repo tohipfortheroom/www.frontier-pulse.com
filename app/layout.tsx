@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { DM_Sans, IBM_Plex_Mono, Instrument_Sans } from "next/font/google";
 
+import { AppProviders } from "@/components/app-providers";
 import { Footer } from "@/components/footer";
 import { Navbar } from "@/components/navbar";
 
@@ -73,11 +74,13 @@ export default function RootLayout({
       <body
         className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable} min-h-screen bg-[var(--bg-primary)] font-[family-name:var(--font-body)] text-[var(--text-primary)] antialiased`}
       >
-        <div className="relative flex min-h-screen flex-col">
-          <Navbar />
-          <main className="relative flex-1">{children}</main>
-          <Footer />
-        </div>
+        <AppProviders>
+          <div className="relative flex min-h-screen flex-col">
+            <Navbar />
+            <main className="relative flex-1">{children}</main>
+            <Footer />
+          </div>
+        </AppProviders>
       </body>
     </html>
   );

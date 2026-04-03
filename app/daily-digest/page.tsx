@@ -6,6 +6,7 @@ import { companiesBySlug } from "@/lib/seed/data";
 
 import { DailyDigestBlock } from "@/components/daily-digest-block";
 import { SectionHeader } from "@/components/section-header";
+import { ShareButton } from "@/components/share-button";
 
 export const metadata: Metadata = {
   title: "Daily Digest",
@@ -21,12 +22,15 @@ export default async function DailyDigestPage() {
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
       <section className="fade-slide-up space-y-8">
-        <SectionHeader
-          label="DAILY DIGEST"
-          title={format(new Date(digest.date), "EEEE, MMMM d, yyyy")}
-          subtitle={digest.summary}
-          tone="blue"
-        />
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <SectionHeader
+            label="DAILY DIGEST"
+            title={format(new Date(digest.date), "EEEE, MMMM d, yyyy")}
+            subtitle={digest.summary}
+            tone="blue"
+          />
+          <ShareButton path="/daily-digest" title="AI Company Tracker Daily Digest" text={digest.summary} />
+        </div>
 
         <div className="grid gap-5 xl:grid-cols-3">
           <div className="rounded-2xl border border-[rgba(0,230,138,0.24)] bg-[rgba(0,230,138,0.08)] p-6">

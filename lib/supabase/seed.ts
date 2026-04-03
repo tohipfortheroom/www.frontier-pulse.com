@@ -6,6 +6,7 @@ import {
   dailyDigest,
   momentumEvents,
   momentumSnapshots,
+  newsletterSubscribers,
   seedNow,
   sortedNewsItems,
   tags,
@@ -234,8 +235,22 @@ async function main() {
     throw digestError;
   }
 
+  const { error: subscribersError } = await supabase.from("subscribers").upsert(
+    newsletterSubscribers.map((subscriber) => ({
+      email: subscriber.email,
+      confirmed: subscriber.confirmed,
+      subscribed_at: subscriber.subscribedAt,
+      unsubscribe_token: subscriber.unsubscribeToken,
+    })),
+    { onConflict: "email" },
+  );
+
+  if (subscribersError) {
+    throw subscribersError;
+  }
+
   console.log(
-    `Seeded ${companies.length} companies, ${sortedNewsItems.length} news items, ${momentumEvents.length} events, and 1 daily digest.`,
+    `Seeded ${companies.length} companies, ${sortedNewsItems.length} news items, ${momentumEvents.length} events, 1 daily digest, and ${newsletterSubscribers.length} subscribers.`,
   );
 }
 

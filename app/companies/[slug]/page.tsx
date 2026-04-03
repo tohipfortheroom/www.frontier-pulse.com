@@ -7,6 +7,7 @@ import { formatScore } from "@/lib/utils";
 import { CompanyChat } from "@/components/company-chat";
 import { NewsCard } from "@/components/news-card";
 import { SectionHeader } from "@/components/section-header";
+import { ShareButton } from "@/components/share-button";
 import { ScorePill } from "@/components/score-pill";
 import { TrendSparkline } from "@/components/trend-sparkline";
 
@@ -59,9 +60,12 @@ export default async function CompanyDetailPage({
                 Company Profile
               </p>
             </div>
-            <h1 className="mt-6 font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-5xl">
-              {company.name}
-            </h1>
+            <div className="mt-6 flex flex-wrap items-start justify-between gap-4">
+              <h1 className="font-[family-name:var(--font-display)] text-4xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-5xl">
+                {company.name}
+              </h1>
+              <ShareButton path={`/companies/${company.slug}`} title={company.name} text={company.description} />
+            </div>
             <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--text-secondary)]">{company.overview}</p>
             <div className="mt-6 flex flex-wrap gap-2">
               {company.tags.map((tag) => (

@@ -1,7 +1,11 @@
-import { categoriesBySlug, companiesBySlug, seedNow, type NewsItem } from "@/lib/seed/data";
+"use client";
+
+import { categoriesBySlug, seedNow, type NewsItem } from "@/lib/seed/data";
 import { accentClasses, cn, formatRelativeTime, formatTimestamp } from "@/lib/utils";
 
+import { BookmarkButton } from "@/components/bookmark-button";
 import { CompanyBadge } from "@/components/company-badge";
+import { ShareButton } from "@/components/share-button";
 import { CategoryPill, TagPill } from "@/components/tag-pill";
 
 type NewsCardProps = {
@@ -41,6 +45,7 @@ export function NewsCard({ news, mode = "default" }: NewsCardProps) {
 
   return (
     <article
+      id={news.slug}
       className={cn(
         "group relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.9)] p-5 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)]",
         breaking && "hover:shadow-[0_0_20px_rgba(255,184,77,0.12)]",
@@ -49,14 +54,20 @@ export function NewsCard({ news, mode = "default" }: NewsCardProps) {
       <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: accentBorderColor }} />
 
       <div className="space-y-4 pl-3">
-        <div className="flex flex-wrap items-center gap-2">
-          {breaking ? (
-            <span className="inline-flex items-center rounded-full border border-[rgba(255,184,77,0.25)] bg-[rgba(255,184,77,0.12)] px-2.5 py-1 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.16em] text-[var(--accent-amber)]">
-              BREAKING
-            </span>
-          ) : (
-            <CategoryPill categorySlug={news.categorySlugs[0]} />
-          )}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {breaking ? (
+              <span className="inline-flex items-center rounded-full border border-[rgba(255,184,77,0.25)] bg-[rgba(255,184,77,0.12)] px-2.5 py-1 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.16em] text-[var(--accent-amber)]">
+                BREAKING
+              </span>
+            ) : (
+              <CategoryPill categorySlug={news.categorySlugs[0]} />
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <BookmarkButton slug={news.slug} />
+            <ShareButton path={`/news#${news.slug}`} title={news.headline} text={news.shortSummary} />
+          </div>
         </div>
 
         <div className="space-y-2">

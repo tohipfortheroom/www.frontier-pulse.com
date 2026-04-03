@@ -1,6 +1,7 @@
 import { getSupabaseServerClient } from "../db/client.ts";
 import type { RawIngestedItem, PipelineRunResult, SourceDefinition, SummarizedCandidate } from "./types.ts";
 import { normalizeIngestedItem } from "./normalizer.ts";
+import { sendBreakingNewsNotifications } from "../notifications/web-push.ts";
 import { scoreCandidate } from "./scorer.ts";
 import { resetSummarizerRunState, summarizeCandidate } from "./summarizer.ts";
 import { ingest as ingestApi } from "./sources/api.ts";
@@ -356,6 +357,15 @@ export async function runIngestionPipeline(
   }
 
   const storage = await storeCandidates(summarized);
+  const newBreakingItems = summarized.filter((item) => item.importanceScore >= 8 && !existingSummaries.has(item.slug));
+
+  if (!storage.dryRun && newBreakingItems.length > 0) {
+    try {
+      await sendBreakingNewsNotifications(newBreakingItems);
+    } catch (error) {
+      errors.push(`push-notifications: ${error instanceof Error ? error.message : "Unknown push notification error"}`);
+    }
+  }
 
   return {
     sourceCount: selectedSources.length,
