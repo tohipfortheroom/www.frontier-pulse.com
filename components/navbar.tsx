@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 
 import { BookmarkCountBadge } from "@/components/bookmark-button";
 import { NotificationBell } from "@/components/notification-bell";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -74,6 +75,7 @@ export function Navbar() {
           <div className="flex items-center gap-2">
             <BookmarkCountBadge />
             <NotificationBell />
+            <ThemeToggle />
           </div>
         </div>
       </nav>

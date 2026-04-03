@@ -1,7 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 
 import { companiesBySlug, type MomentumSnapshot } from "@/lib/seed/data";
-import { formatScore } from "@/lib/utils";
+import { cn, formatScore } from "@/lib/utils";
 
 import { ScorePill } from "@/components/score-pill";
 import { TrendSparkline } from "@/components/trend-sparkline";
@@ -20,6 +23,24 @@ export function LeaderboardTable({
   footerLabel,
 }: LeaderboardTableProps) {
   const sortedRows = [...rows].sort((left, right) => left.rank - right.rank);
+  const previousScores = useRef<Record<string, number>>({});
+  const [flashingRows, setFlashingRows] = useState<string[]>([]);
+
+  useEffect(() => {
+    const changed = sortedRows
+      .filter((row) => previousScores.current[row.companySlug] !== undefined && previousScores.current[row.companySlug] !== row.score)
+      .map((row) => row.companySlug);
+
+    previousScores.current = Object.fromEntries(sortedRows.map((row) => [row.companySlug, row.score]));
+
+    if (changed.length > 0) {
+      setFlashingRows(changed);
+      const timeout = window.setTimeout(() => setFlashingRows([]), 650);
+      return () => window.clearTimeout(timeout);
+    }
+
+    return undefined;
+  }, [rows, sortedRows]);
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] backdrop-blur-sm">
@@ -60,7 +81,13 @@ export function LeaderboardTable({
                     </div>
                   </td>
                   <td className="px-5 py-4">
-                    <span className={row.score >= 0 ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]"}>
+                    <span
+                      className={cn(
+                        row.score >= 0 ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]",
+                        flashingRows.includes(row.companySlug) &&
+                          (row.scoreChange24h >= 0 ? "rounded-md bg-[rgba(0,230,138,0.08)] px-2 py-1" : "rounded-md bg-[rgba(255,77,106,0.08)] px-2 py-1"),
+                      )}
+                    >
                       {formatScore(row.score)}
                     </span>
                   </td>

@@ -4,12 +4,12 @@ import type { Metadata } from "next";
 import { getHomePageData } from "@/lib/db/queries";
 
 import { Hero } from "@/components/hero";
+import { InteractiveTimeline } from "@/components/interactive-timeline";
 import { LaunchCard } from "@/components/launch-card";
 import { LeaderboardTable } from "@/components/leaderboard-table";
 import { NewsletterForm } from "@/components/newsletter-form";
 import { NewsCard } from "@/components/news-card";
 import { SectionHeader } from "@/components/section-header";
-import { TimelineItem } from "@/components/timeline-item";
 import { TopMoverCard } from "@/components/top-mover-card";
 import { buttonVariants } from "@/components/ui/button";
 
@@ -116,11 +116,7 @@ export default async function HomePage() {
             subtitle="A live view of the moments shaping the AI race."
             tone="blue"
           />
-          <div className="space-y-6">
-            {timeline.slice(0, 8).map((entry, index) => (
-              <TimelineItem key={entry.slug} entry={entry} align={index % 2 === 0 ? "left" : "right"} />
-            ))}
-          </div>
+          <InteractiveTimeline entries={timeline.slice(0, 10)} />
         </section>
 
         <section className="fade-slide-up mt-20 space-y-8 lg:mt-28" style={{ animationDelay: "0.44s" }}>

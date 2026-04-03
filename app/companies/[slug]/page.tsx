@@ -5,6 +5,7 @@ import { getCompaniesIndexData, getCompanyDetailData } from "@/lib/db/queries";
 import { formatScore } from "@/lib/utils";
 
 import { CompanyChat } from "@/components/company-chat";
+import { CategoryDonut } from "@/components/category-donut";
 import { NewsCard } from "@/components/news-card";
 import { SectionHeader } from "@/components/section-header";
 import { ShareButton } from "@/components/share-button";
@@ -47,7 +48,7 @@ export default async function CompanyDetailPage({
     notFound();
   }
 
-  const { company, momentum, recentNews, partnerships, milestones } = record;
+  const { company, momentum, recentNews, partnerships, milestones, categoryBreakdown } = record;
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -198,6 +199,18 @@ export default async function CompanyDetailPage({
         </div>
 
         <div className="space-y-5">
+          <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-6 backdrop-blur-sm">
+            <SectionHeader label="CATEGORY MIX" title="Coverage breakdown" tone="amber" />
+            <CategoryDonut data={categoryBreakdown} />
+            <div className="mt-4 flex flex-wrap gap-2">
+              {categoryBreakdown.map((entry) => (
+                <span key={entry.slug} className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)]">
+                  {entry.name} · {entry.count}
+                </span>
+              ))}
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-6 backdrop-blur-sm">
             <SectionHeader label="PARTNERSHIPS" title="Strategic ties" tone="green" />
             <div className="mt-6 space-y-4">

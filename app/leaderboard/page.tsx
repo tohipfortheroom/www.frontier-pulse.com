@@ -5,6 +5,7 @@ import { companiesBySlug } from "@/lib/seed/data";
 import { formatScore } from "@/lib/utils";
 
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { MomentumHistoryChart } from "@/components/momentum-history-chart";
 import { SectionHeader } from "@/components/section-header";
 import { Collapsible } from "@/components/ui/collapsible";
 
@@ -39,6 +40,7 @@ export default async function LeaderboardPage() {
           subtitle="Momentum scores are based on weighted recent events with time decay. Every movement on the board maps back to specific news, launches, partnerships, or setbacks."
           tone="blue"
         />
+        <MomentumHistoryChart rows={leaderboard} />
         <LeaderboardTable rows={leaderboard} mode="full" />
       </section>
 

@@ -12,10 +12,7 @@ type CompanyCardProps = {
 
 export function CompanyCard({ company, activityCount, momentum }: CompanyCardProps) {
   return (
-    <Link
-      href={`/companies/${company.slug}`}
-      className="group rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.9)] p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-[0_22px_40px_rgba(0,0,0,0.28)]"
-    >
+    <article className="group rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.9)] p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-[0_22px_40px_rgba(0,0,0,0.28)]">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
@@ -51,10 +48,18 @@ export function CompanyCard({ company, activityCount, momentum }: CompanyCardPro
         ))}
       </div>
 
-      <div className="mt-6 flex items-center gap-2 text-sm text-[var(--accent-blue)]">
-        <span>Open profile</span>
-        <span aria-hidden="true">→</span>
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <Link href={`/companies/${company.slug}`} className="flex items-center gap-2 text-sm text-[var(--accent-blue)]">
+          <span>Open profile</span>
+          <span aria-hidden="true">→</span>
+        </Link>
+        <Link
+          href={`/compare?companies=${company.slug}`}
+          className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-all duration-200 hover:border-[rgba(77,159,255,0.24)] hover:text-[var(--text-primary)]"
+        >
+          Compare
+        </Link>
       </div>
-    </Link>
+    </article>
   );
 }

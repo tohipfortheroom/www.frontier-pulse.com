@@ -15,6 +15,7 @@ import type {
   NewsItemRow,
 } from "@/lib/db/types";
 import {
+  categories,
   companies,
   companiesBySlug,
   dailyDigest,
@@ -166,12 +167,22 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
     return null;
   }
 
+  const companyNews = sortedNewsItems.filter((item) => item.companySlugs.includes(slug));
+  const categoryBreakdown = categories
+    .map((category) => ({
+      slug: category.slug,
+      name: category.name,
+      count: companyNews.filter((item) => item.categorySlugs.includes(category.slug)).length,
+    }))
+    .filter((item) => item.count > 0);
+
   return {
     company,
     momentum: getCompanyMomentum(slug),
-    recentNews: sortedNewsItems.filter((item) => item.companySlugs.includes(slug)).slice(0, 5),
+    recentNews: companyNews.slice(0, 5),
     partnerships: company.partnerships,
     milestones: company.milestones,
+    categoryBreakdown,
   };
 }
 
@@ -685,6 +696,13 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
     }));
 
   const recentNews = news.filter((item) => item.companySlugs.includes(slug)).slice(0, 5);
+  const categoryBreakdown = categories
+    .map((category) => ({
+      slug: category.slug,
+      name: category.name,
+      count: news.filter((item) => item.companySlugs.includes(slug) && item.categorySlugs.includes(category.slug)).length,
+    }))
+    .filter((item) => item.count > 0);
   const partnerships = recentNews
     .filter((item) => item.categorySlugs.includes("partnership"))
     .slice(0, 2)
@@ -708,6 +726,7 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
     recentNews,
     partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
     milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
+    categoryBreakdown,
   };
 });
 

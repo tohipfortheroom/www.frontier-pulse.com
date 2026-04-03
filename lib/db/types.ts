@@ -23,6 +23,11 @@ export type CompanyDetailRecord = {
   recentNews: NewsItem[];
   partnerships: Partnership[];
   milestones: Milestone[];
+  categoryBreakdown: Array<{
+    slug: string;
+    name: string;
+    count: number;
+  }>;
 };
 
 export type HomePageData = {
