@@ -1,43 +1,9 @@
+import { createHash } from "node:crypto";
+
 import { companiesBySlug } from "../seed/data.ts";
+import { companyKeywordMap, matchesAnyKeyword, tagKeywordMap } from "./keywords.ts";
 
 import type { NormalizedCandidate, RawIngestedItem } from "./types.ts";
-
-const companyKeywordMap: Record<string, string[]> = {
-  openai: ["openai", "chatgpt", "gpt-5", "gpt 5", "sora"],
-  anthropic: ["anthropic", "claude"],
-  "google-deepmind": ["google deepmind", "deepmind", "gemini"],
-  "meta-ai": ["meta ai", "llama", "meta"],
-  xai: ["xai", "grok", "colossus"],
-  "microsoft-ai": ["microsoft ai", "copilot", "azure ai", "phi-4", "phi 4"],
-  "amazon-aws-ai": ["aws ai", "amazon bedrock", "bedrock", "trainium", "nova"],
-  mistral: ["mistral", "le chat", "codestral"],
-  deepseek: ["deepseek", "r2 reasoning", "deepseek coder"],
-  nvidia: ["nvidia", "blackwell", "dgx", "nim"],
-};
-
-const tagKeywordMap: Record<string, string[]> = {
-  "gpt-5": ["gpt-5", "gpt 5"],
-  "claude-4-6": ["claude 4.6", "claude 4 6"],
-  "gemini-3": ["gemini 3", "gemini 3.0"],
-  "open-weight": ["open-weight", "open weight", "open-source", "open source"],
-  enterprise: ["enterprise", "workplace", "workspace"],
-  reasoning: ["reasoning", "agentic", "multi-step"],
-  safety: ["safety", "governance", "alignment", "red-team", "red team"],
-  chips: ["chip", "chips", "gpu", "accelerator", "silicon"],
-  "data-centers": ["data center", "datacenter", "cluster", "capacity"],
-  agents: ["agent", "agents", "automation", "workflow"],
-  "eu-ai-act": ["eu ai act", "regulation", "complaint", "policy"],
-  multimodal: ["multimodal", "video", "vision", "audio"],
-  api: ["api", "sdk", "endpoint"],
-  video: ["video", "sora"],
-  robotics: ["robotics", "robot", "embodied"],
-  finance: ["bank", "finance", "financial"],
-  copilot: ["copilot"],
-  "training-clusters": ["cluster", "training", "compute"],
-  pricing: ["pricing", "discount", "cost", "margin"],
-  governance: ["governance", "compliance", "policy"],
-  benchmarks: ["benchmark", "eval", "evaluation"],
-};
 
 function slugify(value: string) {
   return value
@@ -52,9 +18,8 @@ function cleanText(input?: string) {
 }
 
 function detectCompanies(text: string, companyHint?: string) {
-  const normalized = text.toLowerCase();
   const matches = Object.entries(companyKeywordMap)
-    .filter(([, keywords]) => keywords.some((keyword) => normalized.includes(keyword)))
+    .filter(([, keywords]) => matchesAnyKeyword(text, keywords))
     .map(([slug]) => slug);
 
   if (matches.length > 0) {
@@ -80,6 +45,10 @@ function detectCategories(text: string) {
     categories.add("partnership");
   }
 
+  if (/(acquires|acquisition|acquire|merger|merges with|buyout|takes stake)/i.test(normalized)) {
+    categories.add("partnership");
+  }
+
   if (/(funding|valuation|raises|financing|round)/i.test(normalized)) {
     categories.add("funding");
   }
@@ -96,7 +65,7 @@ function detectCategories(text: string) {
     categories.add("infrastructure");
   }
 
-  if (/(appoints|hires|steps down|advisory|chief|executive)/i.test(normalized)) {
+  if (/(appoints|hires|recruits|poaches|steps down|joins from|former .* joins|advisory|chief|executive|leadership|talent)/i.test(normalized)) {
     categories.add("leadership");
   }
 
@@ -108,10 +77,8 @@ function detectCategories(text: string) {
 }
 
 function detectTags(text: string) {
-  const normalized = text.toLowerCase();
-
   return Object.entries(tagKeywordMap)
-    .filter(([, keywords]) => keywords.some((keyword) => normalized.includes(keyword)))
+    .filter(([, keywords]) => matchesAnyKeyword(text, keywords))
     .map(([slug]) => slug);
 }
 
@@ -122,7 +89,7 @@ function detectImpactDirection(text: string) {
     return "negative";
   }
 
-  if (/(launch|release|ships|wins|agreement|expands|tops|opens|preview)/i.test(normalized)) {
+  if (/(launch|release|ships|wins|agreement|expands|tops|opens|preview|acquires|hires|recruits)/i.test(normalized)) {
     return "positive";
   }
 
@@ -135,6 +102,7 @@ export function normalizeIngestedItem(item: RawIngestedItem): NormalizedCandidat
   const companySlugs = detectCompanies(text, item.companyHint);
   const categorySlugs = detectCategories(text);
   const tagSlugs = detectTags(text);
+  const slugSuffix = createHash("sha1").update(item.url || `${item.sourceId}:${item.title}`).digest("hex").slice(0, 8);
 
   if (!item.title) {
     return null;
@@ -142,9 +110,9 @@ export function normalizeIngestedItem(item: RawIngestedItem): NormalizedCandidat
 
   return {
     headline: item.title,
-    slug: slugify(item.title),
+    slug: `${slugify(item.title)}-${slugSuffix}`,
     sourceName: item.sourceName,
-    sourceUrl: item.url,
+    sourceUrl: item.sourceUrl,
     publishedAt: item.publishedAt ?? item.fetchedAt,
     rawText: item.rawText ?? null,
     cleanedText: cleanedText || null,

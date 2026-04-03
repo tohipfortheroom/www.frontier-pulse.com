@@ -5,6 +5,8 @@ export async function ingest(source: SourceDefinition): Promise<RawIngestedItem[
     sourceId: source.id,
     sourceName: source.name,
     sourceUrl: source.url ?? item.url,
+    sourceReliability: source.reliability,
+    sourcePriority: source.priority,
     url: item.url,
     title: item.title,
     excerpt: item.excerpt,

@@ -3,9 +3,36 @@ import type { RawIngestedItem, PipelineRunResult, SourceDefinition, SummarizedCa
 import { normalizeIngestedItem } from "./normalizer.ts";
 import { scoreCandidate } from "./scorer.ts";
 import { summarizeCandidate } from "./summarizer.ts";
+import { ingest as ingestApi } from "./sources/api.ts";
 import { ingest as ingestBlog } from "./sources/blog-scraper.ts";
 import { ingest as ingestManual } from "./sources/manual.ts";
 import { ingest as ingestRss } from "./sources/rss.ts";
+
+const metaAiFeedKeywords = [
+  "meta ai",
+  "artificial intelligence",
+  "generative ai",
+  "llama",
+  "executorch",
+  "mtia",
+  "segment anything",
+  "dino",
+  "risk review",
+  "data center silicon",
+];
+
+const nvidiaAiFeedKeywords = [
+  "ai",
+  "artificial intelligence",
+  "blackwell",
+  "dgx",
+  "nim",
+  "inference",
+  "training",
+  "data center",
+  "robotics",
+  "foundation model",
+];
 
 export const sourceRegistry: SourceDefinition[] = [
   {
@@ -16,7 +43,102 @@ export const sourceRegistry: SourceDefinition[] = [
     companyHint: "openai",
     reliability: 0.98,
     priority: 1,
+    maxItems: 12,
   },
+  {
+    id: "anthropic-newsroom",
+    name: "Anthropic Newsroom",
+    kind: "rss",
+    url: "https://www.anthropic.com/sitemap.xml",
+    companyHint: "anthropic",
+    reliability: 0.96,
+    priority: 1,
+    maxItems: 10,
+    itemUrlPrefixes: ["https://www.anthropic.com/news/"],
+  },
+  {
+    id: "google-deepmind-blog",
+    name: "Google DeepMind Blog",
+    kind: "rss",
+    url: "https://deepmind.google/blog/rss.xml",
+    companyHint: "google-deepmind",
+    reliability: 0.97,
+    priority: 1,
+    maxItems: 12,
+  },
+  {
+    id: "meta-ai-news",
+    name: "Meta AI News",
+    kind: "rss",
+    url: "https://about.fb.com/news/feed/",
+    companyHint: "meta-ai",
+    reliability: 0.92,
+    priority: 1,
+    maxItems: 12,
+    includeKeywords: metaAiFeedKeywords,
+  },
+  {
+    id: "microsoft-ai-news",
+    name: "Microsoft AI News",
+    kind: "rss",
+    url: "https://news.microsoft.com/source/topics/ai/feed/",
+    companyHint: "microsoft-ai",
+    reliability: 0.96,
+    priority: 1,
+    maxItems: 12,
+  },
+  {
+    id: "mistral-news",
+    name: "Mistral News",
+    kind: "rss",
+    url: "https://mistral.ai/sitemap.xml",
+    companyHint: "mistral",
+    reliability: 0.95,
+    priority: 1,
+    maxItems: 10,
+    itemUrlPrefixes: ["https://mistral.ai/news/"],
+  },
+  {
+    id: "nvidia-blog",
+    name: "NVIDIA Blog",
+    kind: "rss",
+    url: "https://blogs.nvidia.com/feed/",
+    companyHint: "nvidia",
+    reliability: 0.94,
+    priority: 1,
+    maxItems: 12,
+    includeKeywords: nvidiaAiFeedKeywords,
+  },
+  {
+    id: "hacker-news-ai",
+    name: "Hacker News AI",
+    kind: "api",
+    url: "https://hn.algolia.com/api/v1/search_by_date?query=AI&tags=story&hitsPerPage=30",
+    reliability: 0.7,
+    priority: 2,
+    maxItems: 15,
+    api: {
+      provider: "hacker-news",
+      query: "AI",
+      hitsPerPage: 30,
+    },
+  },
+  {
+    id: "reddit-ai-communities",
+    name: "Reddit AI Communities",
+    kind: "api",
+    reliability: 0.65,
+    priority: 2,
+    maxItems: 16,
+    api: {
+      provider: "reddit",
+      subreddits: ["MachineLearning", "artificial"],
+      timeframe: "day",
+      limit: 20,
+    },
+  },
+  // xAI does not currently expose a server-fetchable official feed endpoint,
+  // so it stays off the registry until an official source becomes available.
   {
     id: "manual-watchlist",
     name: "Manual Watchlist",
@@ -44,6 +166,8 @@ function dedupeRawItems(items: RawIngestedItem[]) {
 
 async function ingestSource(source: SourceDefinition) {
   switch (source.kind) {
+    case "api":
+      return ingestApi(source);
     case "rss":
       return ingestRss(source);
     case "blog-scraper":

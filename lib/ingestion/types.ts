@@ -1,6 +1,6 @@
 import type { ImpactDirection } from "../seed/data.ts";
 
-export type SourceKind = "rss" | "blog-scraper" | "manual";
+export type SourceKind = "rss" | "blog-scraper" | "manual" | "api";
 
 export type ManualSourceItem = {
   title: string;
@@ -8,6 +8,19 @@ export type ManualSourceItem = {
   publishedAt?: string;
   excerpt?: string;
 };
+
+export type ApiSourceConfig =
+  | {
+      provider: "hacker-news";
+      query: string;
+      hitsPerPage?: number;
+    }
+  | {
+      provider: "reddit";
+      subreddits: string[];
+      timeframe?: "day" | "week" | "month" | "year";
+      limit?: number;
+    };
 
 export type SourceDefinition = {
   id: string;
@@ -17,13 +30,19 @@ export type SourceDefinition = {
   companyHint?: string;
   reliability: number;
   priority: number;
+  maxItems?: number;
+  itemUrlPrefixes?: string[];
+  includeKeywords?: string[];
   items?: ManualSourceItem[];
+  api?: ApiSourceConfig;
 };
 
 export type RawIngestedItem = {
   sourceId: string;
   sourceName: string;
   sourceUrl: string;
+  sourceReliability: number;
+  sourcePriority: number;
   url: string;
   title: string;
   excerpt?: string;

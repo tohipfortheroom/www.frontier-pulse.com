@@ -26,11 +26,13 @@ function isActive(pathname: string, href: string) {
 
 export function Navbar() {
   const pathname = usePathname();
-  const [clock, setClock] = useState(() => new Date());
+  const [clock, setClock] = useState<string | null>(null);
 
   useEffect(() => {
+    setClock(format(new Date(), "HH:mm:ss"));
+
     const interval = window.setInterval(() => {
-      setClock(new Date());
+      setClock(format(new Date(), "HH:mm:ss"));
     }, 1000);
 
     return () => window.clearInterval(interval);
@@ -43,7 +45,7 @@ export function Navbar() {
           AI COMPANY TRACKER
         </div>
         <div className="font-[family-name:var(--font-mono)] text-[12px] text-[var(--text-tertiary)]">
-          {format(clock, "HH:mm:ss")}
+          {clock ?? "--:--:--"}
         </div>
         <div className="flex items-center gap-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--accent-green)]">
           <span className="h-2 w-2 rounded-full bg-[var(--accent-green)] animate-[pulse_2s_infinite]" />

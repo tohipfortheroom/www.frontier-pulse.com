@@ -155,8 +155,14 @@ export const categories: NewsCategory[] = [
 
 export const tags: NewsTag[] = [
   { slug: "gpt-5", name: "GPT-5" },
+  { slug: "o3", name: "o3" },
+  { slug: "o4-mini", name: "o4-mini" },
+  { slug: "claude-4", name: "Claude 4" },
   { slug: "claude-4-6", name: "Claude 4.6" },
+  { slug: "gemini-2-5", name: "Gemini 2.5" },
   { slug: "gemini-3", name: "Gemini 3.0" },
+  { slug: "llama-4", name: "Llama 4" },
+  { slug: "grok-5", name: "Grok 5" },
   { slug: "open-weight", name: "Open-Weight" },
   { slug: "enterprise", name: "Enterprise" },
   { slug: "reasoning", name: "Reasoning" },
@@ -175,6 +181,11 @@ export const tags: NewsTag[] = [
   { slug: "pricing", name: "Pricing" },
   { slug: "governance", name: "Governance" },
   { slug: "benchmarks", name: "Benchmarks" },
+  { slug: "code-generation", name: "Code Generation" },
+  { slug: "search", name: "Search" },
+  { slug: "image-generation", name: "Image Generation" },
+  { slug: "voice", name: "Voice" },
+  { slug: "on-device", name: "On-Device" },
 ];
 
 export const companies: CompanyProfile[] = [

@@ -6,7 +6,15 @@ function clamp(value: number, min = 1, max = 10) {
 
 export function scoreCandidate(candidate: NormalizedCandidate, rawItem: RawIngestedItem) {
   let importanceScore = 4;
-  let confidenceScore = Math.round(rawItem.sourceId.includes("manual") ? 6 : rawItem.sourceId.includes("openai") ? 9 : 8);
+  let confidenceScore = Math.round((rawItem.sourceReliability ?? 0.75) * 10);
+
+  if ((rawItem.sourcePriority ?? 2) === 1) {
+    confidenceScore += 1;
+  }
+
+  if (rawItem.sourceId.includes("manual")) {
+    confidenceScore = Math.min(confidenceScore, 6);
+  }
 
   if (candidate.categorySlugs.includes("model-release")) {
     importanceScore += 3;

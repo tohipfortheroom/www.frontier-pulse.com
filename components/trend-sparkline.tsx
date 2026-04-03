@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
-import { Area, AreaChart, Line, LineChart, ResponsiveContainer } from "recharts";
+import { useId } from "react";
 
 type TrendSparklineProps = {
   data: number[];
@@ -17,36 +16,48 @@ export function TrendSparkline({
   height = 48,
 }: TrendSparklineProps) {
   const gradientId = useId();
-  const [mounted, setMounted] = useState(false);
-  const chartData = data.map((value, index) => ({ index, value }));
+  const width = 120;
+  const safeData = data.length > 1 ? data : [0, ...(data.length === 1 ? data : [0])];
+  const minValue = Math.min(...safeData);
+  const maxValue = Math.max(...safeData);
+  const range = maxValue - minValue || 1;
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const points = safeData.map((value, index) => {
+    const x = (index / (safeData.length - 1)) * width;
+    const y = 36 - ((value - minValue) / range) * 30;
+    return { x, y };
+  });
 
-  if (!mounted) {
-    return <div style={{ height }} className="w-full rounded-xl bg-[rgba(255,255,255,0.03)]" />;
-  }
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+    .join(" ");
+
+  const areaPath = `${linePath} L ${width} 40 L 0 40 Z`;
 
   return (
     <div style={{ height }} className="w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        {variant === "area" ? (
-          <AreaChart data={chartData}>
-            <defs>
-              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor={color} stopOpacity={0.45} />
-                <stop offset="100%" stopColor={color} stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <Area type="monotone" dataKey="value" stroke={color} strokeWidth={2} fill={`url(#${gradientId})`} />
-          </AreaChart>
-        ) : (
-          <LineChart data={chartData}>
-            <Line type="monotone" dataKey="value" stroke={color} strokeWidth={2} dot={false} />
-          </LineChart>
-        )}
-      </ResponsiveContainer>
+      <svg
+        viewBox={`0 0 ${width} 40`}
+        preserveAspectRatio="none"
+        className="h-full w-full overflow-visible"
+        aria-hidden="true"
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.4} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        {variant === "area" ? <path d={areaPath} fill={`url(#${gradientId})`} /> : null}
+        <path
+          d={linePath}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
     </div>
   );
 }
