@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { getCompanyBySlug, getCompanyMomentum, getCompanyNews, companies } from "@/lib/seed/data";
+import { getCompaniesIndexData, getCompanyDetailData } from "@/lib/db/queries";
 import { formatScore } from "@/lib/utils";
 
 import { NewsCard } from "@/components/news-card";
@@ -9,7 +9,7 @@ import { ScorePill } from "@/components/score-pill";
 import { TrendSparkline } from "@/components/trend-sparkline";
 
 export function generateStaticParams() {
-  return companies.map((company) => ({ slug: company.slug }));
+  return getCompaniesIndexData().then((records) => records.map(({ company }) => ({ slug: company.slug })));
 }
 
 export default async function CompanyDetailPage({
@@ -18,14 +18,13 @@ export default async function CompanyDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const company = getCompanyBySlug(slug);
+  const record = await getCompanyDetailData(slug);
 
-  if (!company) {
+  if (!record) {
     notFound();
   }
 
-  const momentum = getCompanyMomentum(slug);
-  const companyNews = getCompanyNews(slug).slice(0, 5);
+  const { company, momentum, recentNews, partnerships, milestones } = record;
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -148,7 +147,7 @@ export default async function CompanyDetailPage({
           tone="amber"
         />
         <div className="grid gap-5 xl:grid-cols-2">
-          {companyNews.map((item) => (
+          {recentNews.map((item) => (
             <NewsCard key={item.slug} news={item} />
           ))}
         </div>
@@ -158,7 +157,7 @@ export default async function CompanyDetailPage({
         <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-6 backdrop-blur-sm">
           <SectionHeader label="MILESTONES" title="Recent timeline" tone="purple" />
           <div className="mt-6 space-y-5">
-            {company.milestones.map((milestone) => (
+            {milestones.map((milestone) => (
               <div key={milestone.title} className="border-l border-[var(--border)] pl-5">
                 <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
                   {milestone.date}
@@ -176,7 +175,7 @@ export default async function CompanyDetailPage({
           <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-6 backdrop-blur-sm">
             <SectionHeader label="PARTNERSHIPS" title="Strategic ties" tone="green" />
             <div className="mt-6 space-y-4">
-              {company.partnerships.map((partnership) => (
+              {partnerships.map((partnership) => (
                 <div key={partnership.name} className="rounded-2xl border border-[var(--border)] bg-[rgba(10,10,15,0.5)] p-4">
                   <h3 className="font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--text-primary)]">
                     {partnership.name}

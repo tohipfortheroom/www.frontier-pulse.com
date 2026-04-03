@@ -1,4 +1,5 @@
-import { companiesBySlug, momentumEvents, momentumSnapshots, newsItemsBySlug } from "@/lib/seed/data";
+import { getLeaderboardData, getRecentMomentumEventsData } from "@/lib/db/queries";
+import { companiesBySlug } from "@/lib/seed/data";
 import { formatScore } from "@/lib/utils";
 
 import { LeaderboardTable } from "@/components/leaderboard-table";
@@ -19,7 +20,9 @@ const eventWeights = [
   { label: "Regulatory setback", delta: "-6" },
 ];
 
-export default function LeaderboardPage() {
+export default async function LeaderboardPage() {
+  const [leaderboard, recentEvents] = await Promise.all([getLeaderboardData(), getRecentMomentumEventsData()]);
+
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
       <section className="fade-slide-up space-y-8">
@@ -29,7 +32,7 @@ export default function LeaderboardPage() {
           subtitle="Momentum scores are based on weighted recent events with time decay. Every movement on the board maps back to specific news, launches, partnerships, or setbacks."
           tone="blue"
         />
-        <LeaderboardTable rows={momentumSnapshots} mode="full" />
+        <LeaderboardTable rows={leaderboard} mode="full" />
       </section>
 
       <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.08s" }}>
@@ -39,13 +42,12 @@ export default function LeaderboardPage() {
           tone="amber"
         />
         <div className="grid gap-5 md:grid-cols-2">
-          {momentumEvents.slice(0, 10).map((event) => {
+          {recentEvents.map((event) => {
             const company = companiesBySlug[event.companySlug];
-            const story = newsItemsBySlug[event.newsSlug];
 
             return (
               <div
-                key={`${event.companySlug}-${event.newsSlug}`}
+                key={`${event.companySlug}-${event.eventType}-${event.headline}`}
                 className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-5 backdrop-blur-sm"
               >
                 <div className="flex items-center justify-between gap-4">
@@ -66,7 +68,7 @@ export default function LeaderboardPage() {
                 <p className="mt-4 font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--text-primary)]">
                   {event.eventType}
                 </p>
-                <p className="mt-2 text-sm text-[var(--text-secondary)]">{story.headline}</p>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">{event.headline}</p>
                 <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{event.explanation}</p>
               </div>
             );

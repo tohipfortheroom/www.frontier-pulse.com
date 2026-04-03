@@ -1,14 +1,6 @@
 import Link from "next/link";
 
-import {
-  homePageConfig,
-  launches,
-  momentumSnapshots,
-  newsItemsBySlug,
-  timelineEntries,
-  topMovers,
-  trendingTopics,
-} from "@/lib/seed/data";
+import { getHomePageData } from "@/lib/db/queries";
 
 import { Hero } from "@/components/hero";
 import { LaunchCard } from "@/components/launch-card";
@@ -20,10 +12,10 @@ import { TopMoverCard } from "@/components/top-mover-card";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-const todayStories = homePageConfig.todayStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean);
-const breakingStories = homePageConfig.breakingStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean);
+export default async function HomePage() {
+  const { todayStories, breakingStories, leaderboard, launches, timeline, topMovers, trendingTopics } =
+    await getHomePageData();
 
-export default function HomePage() {
   return (
     <div className="relative z-10">
       <Hero />
@@ -70,7 +62,7 @@ export default function HomePage() {
             tone="blue"
           />
           <LeaderboardTable
-            rows={momentumSnapshots}
+            rows={leaderboard}
             mode="preview"
             footerHref="/leaderboard"
             footerLabel="Full leaderboard →"
@@ -118,7 +110,7 @@ export default function HomePage() {
             tone="blue"
           />
           <div className="space-y-6">
-            {timelineEntries.slice(0, 8).map((entry, index) => (
+            {timeline.slice(0, 8).map((entry, index) => (
               <TimelineItem key={entry.slug} entry={entry} align={index % 2 === 0 ? "left" : "right"} />
             ))}
           </div>

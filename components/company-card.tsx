@@ -1,19 +1,16 @@
 import Link from "next/link";
 
-import type { CompanyProfile } from "@/lib/seed/data";
-import { companyActivityCounts, getCompanyMomentum } from "@/lib/seed/data";
+import type { CompanyProfile, MomentumSnapshot } from "@/lib/seed/data";
 
 import { ScorePill } from "@/components/score-pill";
-import { TagPill } from "@/components/tag-pill";
 
 type CompanyCardProps = {
   company: CompanyProfile;
+  activityCount: number;
+  momentum?: MomentumSnapshot;
 };
 
-export function CompanyCard({ company }: CompanyCardProps) {
-  const momentum = getCompanyMomentum(company.slug);
-  const activityCount = companyActivityCounts[company.slug] ?? 0;
-
+export function CompanyCard({ company, activityCount, momentum }: CompanyCardProps) {
   return (
     <Link
       href={`/companies/${company.slug}`}
