@@ -1,0 +1,63 @@
+import Link from "next/link";
+
+import type { CompanyProfile } from "@/lib/seed/data";
+import { companyActivityCounts, getCompanyMomentum } from "@/lib/seed/data";
+
+import { ScorePill } from "@/components/score-pill";
+import { TagPill } from "@/components/tag-pill";
+
+type CompanyCardProps = {
+  company: CompanyProfile;
+};
+
+export function CompanyCard({ company }: CompanyCardProps) {
+  const momentum = getCompanyMomentum(company.slug);
+  const activityCount = companyActivityCounts[company.slug] ?? 0;
+
+  return (
+    <Link
+      href={`/companies/${company.slug}`}
+      className="group rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.9)] p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-[0_22px_40px_rgba(0,0,0,0.28)]"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3">
+            <span className="h-4 w-4 rounded-full border border-white/10" style={{ backgroundColor: company.color }} />
+            <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
+              {company.name}
+            </h3>
+          </div>
+          <p className="max-w-sm text-sm leading-6 text-[var(--text-secondary)]">{company.description}</p>
+        </div>
+        {momentum ? <ScorePill value={momentum.score} /> : null}
+      </div>
+
+      <div className="mt-6 flex items-center justify-between gap-3">
+        <span className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+          {activityCount} recent moves
+        </span>
+        {momentum ? (
+          <span className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+            {momentum.trend} 7d trend
+          </span>
+        ) : null}
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        {company.tags.slice(0, 3).map((tag) => (
+          <span
+            key={tag}
+            className="inline-flex items-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-xs text-[var(--text-secondary)]"
+          >
+            {tag}
+          </span>
+        ))}
+      </div>
+
+      <div className="mt-6 flex items-center gap-2 text-sm text-[var(--accent-blue)]">
+        <span>Open profile</span>
+        <span aria-hidden="true">→</span>
+      </div>
+    </Link>
+  );
+}
