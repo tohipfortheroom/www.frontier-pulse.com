@@ -601,11 +601,15 @@ async function storeNewCandidates(candidates: SummarizedCandidate[]) {
 
   const { data: insertedNews, error: newsError } = await client
     .from("news_items")
-    .upsert(newsPayload, { onConflict: "canonical_url" })
+    .upsert(newsPayload, { onConflict: "slug" })
     .select("id, slug");
 
   if (newsError || !insertedNews) {
-    throw newsError ?? new Error("Unable to store ingested news items.");
+    const message =
+      newsError && typeof newsError === "object" && "message" in newsError && typeof newsError.message === "string"
+        ? newsError.message
+        : "Unable to store ingested news items.";
+    throw new Error(message);
   }
 
   const newsIdBySlug = Object.fromEntries(insertedNews.map((row) => [row.slug, row.id]));
