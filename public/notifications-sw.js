@@ -1,10 +1,10 @@
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || "AI Company Tracker";
+  const title = data.title || "Frontier Pulse";
   const options = {
     body: data.body || "A new breaking story just landed.",
-    icon: "/favicon.svg",
-    badge: "/favicon.svg",
+    icon: "/brand/frontier-pulse-icon-512.png",
+    badge: "/brand/frontier-pulse-icon-32.png",
     data: {
       url: data.url || "/news",
     },

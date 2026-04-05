@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { format } from "date-fns";
+import { differenceInMinutes, eachDayOfInterval, format, subDays } from "date-fns";
 
 import { getSupabaseServerClient } from "@/lib/db/client";
 import type {
@@ -10,8 +10,11 @@ import type {
   DailyDigestRecord,
   DailyDigestRow,
   EventRow,
+  HeatmapCell,
+  HeatmapData,
   HomePageData,
   MomentumScoreRow,
+  NewsDetailRecord,
   NewsItemRow,
 } from "@/lib/db/types";
 import {
@@ -20,12 +23,15 @@ import {
   companiesBySlug,
   dailyDigest,
   getCompanyMomentum,
+  homeTickerItems,
   launches,
   momentumEvents,
   momentumSnapshots,
   newsItemsBySlug,
+  pastDigests,
   seedNow,
   sortedNewsItems,
+  tags,
   timelineEntries,
   topMovers,
   trendingTopics,
@@ -69,6 +75,85 @@ type TagRow = {
 };
 
 type LaunchTypeMap = "MODEL" | "PRODUCT" | "PLATFORM" | "API";
+
+function impactToScore(impact: NewsItem["impactDirection"]) {
+  if (impact === "positive") {
+    return 1;
+  }
+
+  if (impact === "negative") {
+    return -1;
+  }
+
+  return 0;
+}
+
+function deriveCompanyEnrichment(companyNews: NewsItem[], momentum?: MomentumSnapshot): CompanyProfile["enrichmentData"] {
+  if (companyNews.length === 0) {
+    return undefined;
+  }
+
+  const sortedByDate = companyNews
+    .slice()
+    .sort((left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime());
+  const categoryCounts = new Map<string, number>();
+  const lastThirtyDays = companyNews.filter((item) => new Date(item.publishedAt) >= subDays(seedNow, 30));
+  const sentimentHistory = eachDayOfInterval({
+    start: subDays(seedNow, 29),
+    end: seedNow,
+  }).map((day) => {
+    const label = format(day, "yyyy-MM-dd");
+    const items = companyNews.filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === label);
+
+    return {
+      date: label,
+      score: items.length > 0 ? Number((items.reduce((sum, item) => sum + impactToScore(item.impactDirection), 0) / items.length).toFixed(2)) : 0,
+    };
+  });
+
+  companyNews.forEach((item) => {
+    item.categorySlugs.forEach((slug) => {
+      categoryCounts.set(slug, (categoryCounts.get(slug) ?? 0) + 1);
+    });
+  });
+
+  let activeStreak = 0;
+
+  for (const day of eachDayOfInterval({ start: subDays(seedNow, 29), end: seedNow }).reverse()) {
+    const label = format(day, "yyyy-MM-dd");
+    const hasStory = companyNews.some((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === label);
+
+    if (!hasStory) {
+      break;
+    }
+
+    activeStreak += 1;
+  }
+
+  return {
+    totalNewsCount: companyNews.length,
+    avgImportanceScore:
+      lastThirtyDays.length > 0
+        ? Number((lastThirtyDays.reduce((sum, item) => sum + item.importanceScore, 0) / lastThirtyDays.length).toFixed(1))
+        : Number((companyNews.reduce((sum, item) => sum + item.importanceScore, 0) / companyNews.length).toFixed(1)),
+    topCategories: [...categoryCounts.entries()]
+      .sort((left, right) => right[1] - left[1])
+      .slice(0, 3)
+      .map(([slug]) => categories.find((category) => category.slug === slug)?.name ?? slug),
+    sentimentTrend:
+      sentimentHistory.length > 0
+        ? Number(
+            (
+              sentimentHistory.slice(-7).reduce((sum, item) => sum + item.score, 0) /
+              Math.max(1, sentimentHistory.slice(-7).length)
+            ).toFixed(2),
+          )
+        : 0,
+    peakMomentumDate: momentum ? format(seedNow, "yyyy-MM-dd") : sortedByDate[0]?.publishedAt?.slice(0, 10) ?? format(seedNow, "yyyy-MM-dd"),
+    activeStreak,
+    sentimentHistory,
+  };
+}
 
 function toTrendDirection(scoreChange7d: number): TrendDirection {
   if (scoreChange7d >= 4) {
@@ -142,6 +227,7 @@ function mergeCompanyRow(companyRow: CompanyRow): CompanyProfile {
     partnerships: presentation?.partnerships ?? [],
     milestones: presentation?.milestones ?? [],
     sparkline: presentation?.sparkline ?? [0, 0, 0, 0, 0, 0, 0],
+    enrichmentData: companyRow.enrichment_data ?? presentation?.enrichmentData,
   };
 }
 
@@ -182,6 +268,17 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
     recentNews: companyNews.slice(0, 5),
     partnerships: company.partnerships,
     milestones: company.milestones,
+    enrichment: company.enrichmentData ?? deriveCompanyEnrichment(companyNews, getCompanyMomentum(slug)),
+    scoreBreakdown: momentumEvents
+      .filter((event) => event.companySlug === slug)
+      .map((event) => ({
+        date: format(new Date(event.eventDate), "yyyy-MM-dd"),
+        label: format(new Date(event.eventDate), "MMM d"),
+        total: event.scoreDelta,
+        eventType: event.eventType,
+        scoreDelta: event.scoreDelta,
+        explanation: event.explanation,
+      })),
     categoryBreakdown,
   };
 }
@@ -197,6 +294,8 @@ function fallbackDailyDigest(): DailyDigestRecord {
 }
 
 function fallbackHomePage(): HomePageData {
+  const latestPublishedAt = sortedNewsItems[0]?.publishedAt ?? seedNow.toISOString();
+
   return {
     todayStories: sortedNewsItems.filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === dailyDigest.date).slice(0, 5),
     breakingStories: sortedNewsItems.filter((item) => item.importanceLevel === "Critical").slice(0, 3),
@@ -206,6 +305,14 @@ function fallbackHomePage(): HomePageData {
     topMovers,
     trendingTopics,
     digest: dailyDigest,
+    tickerItems: homeTickerItems,
+    stats: {
+      totalStories: sortedNewsItems.length,
+      totalCompanies: companies.length,
+      totalLaunches: launches.length,
+      updatedMinutesAgo: Math.max(0, differenceInMinutes(seedNow, new Date(latestPublishedAt))),
+      seedMode: true,
+    },
   };
 }
 
@@ -436,11 +543,12 @@ function buildNewsFromDatabase(
     slug: row.slug,
     headline: row.headline,
     sourceName: row.source_name,
-    sourceUrl: row.source_url,
+    sourceUrl: row.canonical_url ?? row.source_url,
     publishedAt: row.published_at,
     summary: row.summary,
     shortSummary: row.short_summary,
     whyItMatters: row.why_it_matters,
+    summarizerModel: row.summarizer_model ?? undefined,
     importanceScore: row.importance_score,
     importanceLevel: getImportanceLabel(row.importance_score) as NewsItem["importanceLevel"],
     confidenceScore: row.confidence_score,
@@ -531,6 +639,36 @@ export const getNewsItemsData = cache(async (): Promise<NewsItem[]> => {
   }
 
   return buildNewsFromDatabase(newsRows, companyRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows);
+});
+
+export const getNewsItemDetailData = cache(async (slug: string): Promise<NewsDetailRecord | null> => {
+  const news = await getNewsItemsData();
+  const newsItem = news.find((item) => item.slug === slug);
+
+  if (!newsItem) {
+    return null;
+  }
+
+  const relatedStories = news
+    .filter((item) => item.slug !== slug)
+    .filter((item) => item.companySlugs.some((companySlug) => newsItem.companySlugs.includes(companySlug)))
+    .sort(
+      (left, right) =>
+        right.importanceScore - left.importanceScore ||
+        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
+    )
+    .slice(0, 3);
+  const moreFromCompany = news
+    .filter((item) => item.slug !== slug)
+    .filter((item) => item.companySlugs.some((companySlug) => newsItem.companySlugs.includes(companySlug)))
+    .sort((left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
+    .slice(0, 3);
+
+  return {
+    news: newsItem,
+    relatedStories,
+    moreFromCompany,
+  };
 });
 
 export const getLeaderboardData = cache(async (): Promise<MomentumSnapshot[]> => {
@@ -696,11 +834,12 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
     }));
 
   const recentNews = news.filter((item) => item.companySlugs.includes(slug)).slice(0, 5);
+  const companyNews = news.filter((item) => item.companySlugs.includes(slug));
   const categoryBreakdown = categories
     .map((category) => ({
       slug: category.slug,
       name: category.name,
-      count: news.filter((item) => item.companySlugs.includes(slug) && item.categorySlugs.includes(category.slug)).length,
+      count: companyNews.filter((item) => item.categorySlugs.includes(category.slug)).length,
     }))
     .filter((item) => item.count > 0);
   const partnerships = recentNews
@@ -719,6 +858,18 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
       title: row.event_type,
       detail: row.explanation,
     }));
+  const scoreBreakdown = eventRows
+    .filter((row) => row.company_id === companyRow.id)
+    .slice()
+    .sort((left, right) => new Date(left.event_date).getTime() - new Date(right.event_date).getTime())
+    .map((row) => ({
+      date: format(new Date(row.event_date), "yyyy-MM-dd"),
+      label: format(new Date(row.event_date), "MMM d"),
+      total: row.score_delta,
+      eventType: row.event_type,
+      scoreDelta: row.score_delta,
+      explanation: row.explanation,
+    }));
 
   return {
     company,
@@ -726,6 +877,8 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
     recentNews,
     partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
     milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
+    enrichment: company.enrichmentData ?? deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
+    scoreBreakdown,
     categoryBreakdown,
   };
 });
@@ -776,6 +929,9 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
       date: digestRow.digest_date,
       title: digestRow.title,
       summary: digestRow.summary,
+      narrative: digestRow.narrative ?? dailyDigest.narrative,
+      headlineOfTheDay: digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay,
+      themes: digestRow.themes?.length ? digestRow.themes : dailyDigest.themes,
       biggestWinnerCompanySlug: winnerSlug,
       biggestLoserCompanySlug: loserSlug,
       mostImportantNewsSlug: mostImportantStory.slug,
@@ -787,6 +943,52 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
     biggestLoserMomentum: leaderboard.find((row) => row.companySlug === loserSlug),
     mostImportantStory,
   };
+});
+
+export const getDailyDigestByDate = cache(async (date: string): Promise<DailyDigestRecord> => {
+  const client = getSupabaseServerClient();
+
+  if (client) {
+    const result = await getDailyDigestData(date);
+
+    return result;
+  }
+
+  if (date === dailyDigest.date) {
+    return fallbackDailyDigest();
+  }
+
+  const pastMatch = pastDigests.find((d) => d.date === date);
+  const digestSource = pastMatch ?? { ...dailyDigest, date };
+
+  return {
+    digest: digestSource,
+    topStories: digestSource.topStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean),
+    biggestWinnerMomentum: getCompanyMomentum(digestSource.biggestWinnerCompanySlug),
+    biggestLoserMomentum: getCompanyMomentum(digestSource.biggestLoserCompanySlug),
+    mostImportantStory: newsItemsBySlug[digestSource.mostImportantNewsSlug],
+  };
+});
+
+export const getDigestArchiveDates = cache(async (): Promise<string[]> => {
+  const client = getSupabaseServerClient();
+
+  if (client) {
+    const { data } = await client
+      .from("daily_digests")
+      .select("digest_date")
+      .order("digest_date", { ascending: false })
+      .limit(7);
+
+    if (data && data.length > 0) {
+      return (data as Array<{ digest_date: string }>).map((row) => row.digest_date);
+    }
+  }
+
+  const allDates = [dailyDigest.date, ...pastDigests.map((d) => d.date)];
+  const sorted = [...new Set(allDates)].sort((a, b) => b.localeCompare(a));
+
+  return sorted.slice(0, 7);
 });
 
 export const getRecentMomentumEventsData = cache(async () => {
@@ -830,6 +1032,7 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
   const todayStories = news
     .filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === dailyDigest.date)
     .slice(0, 5);
+  const latestPublishedAt = news[0]?.publishedAt ?? seedNow.toISOString();
 
   return {
     todayStories: todayStories.length > 0 ? todayStories : news.slice(0, 5),
@@ -840,5 +1043,208 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     topMovers: movers,
     trendingTopics,
     digest: (await getDailyDigestData()).digest,
+    tickerItems: homeTickerItems,
+    stats: {
+      totalStories: news.length,
+      totalCompanies: companies.length,
+      totalLaunches: launchData.length,
+      updatedMinutesAgo: Math.max(0, differenceInMinutes(seedNow, new Date(latestPublishedAt))),
+      seedMode: false,
+    },
   };
+});
+
+/* ------------------------------------------------------------------ */
+/*  Trending Topics                                                   */
+/* ------------------------------------------------------------------ */
+
+export type TrendingTag = {
+  slug: string;
+  name: string;
+  count: number;
+  trend: "up" | "down" | "stable";
+  topStories: NewsItem[];
+};
+
+function fallbackTrendingTopics(): TrendingTag[] {
+  const tagCountMap = new Map<string, { count: number; stories: NewsItem[] }>();
+
+  for (const item of sortedNewsItems) {
+    for (const tagSlug of item.tagSlugs) {
+      const entry = tagCountMap.get(tagSlug) ?? { count: 0, stories: [] };
+      entry.count += 1;
+
+      if (entry.stories.length < 3) {
+        entry.stories.push(item);
+      }
+
+      tagCountMap.set(tagSlug, entry);
+    }
+  }
+
+  const tagLookup = Object.fromEntries(tags.map((tag) => [tag.slug, tag.name]));
+  const hotSlugs = new Set(
+    trendingTopics
+      .filter((topic) => topic.hot)
+      .map((topic) => {
+        const match = tags.find(
+          (tag) =>
+            tag.name.toLowerCase() === topic.label.toLowerCase() ||
+            topic.label.toLowerCase().includes(tag.name.toLowerCase()),
+        );
+        return match?.slug;
+      })
+      .filter(Boolean) as string[],
+  );
+
+  return [...tagCountMap.entries()]
+    .sort((left, right) => right[1].count - left[1].count)
+    .slice(0, 20)
+    .map<TrendingTag>(([slug, data]) => ({
+      slug,
+      name: tagLookup[slug] ?? slug,
+      count: data.count,
+      trend: hotSlugs.has(slug) ? "up" : data.count >= 4 ? "up" : data.count <= 1 ? "down" : "stable",
+      topStories: data.stories,
+    }));
+}
+
+export const getTrendingTopicsData = cache(async (): Promise<TrendingTag[]> => {
+  const [newsRows, companyRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows] =
+    await Promise.all([
+      getNewsRows(),
+      getCompanyRows(),
+      getCompanyNewsRows(),
+      getCategoryRows(),
+      getNewsCategoryRows(),
+      getTagRows(),
+      getNewsTagRows(),
+    ]);
+
+  if (
+    !newsRows ||
+    !companyRows ||
+    !companyNewsRows ||
+    !categoryRows ||
+    !newsCategoryRows ||
+    !tagRows ||
+    !newsTagRows
+  ) {
+    return fallbackTrendingTopics();
+  }
+
+  const sevenDaysAgo = subDays(new Date(), 7);
+  const recentNewsRows = newsRows.filter((row) => new Date(row.published_at) >= sevenDaysAgo);
+  const recentNews = buildNewsFromDatabase(
+    recentNewsRows.length > 0 ? recentNewsRows : newsRows,
+    companyRows,
+    companyNewsRows,
+    categoryRows,
+    newsCategoryRows,
+    tagRows,
+    newsTagRows,
+  );
+
+  const tagCountMap = new Map<string, { count: number; stories: NewsItem[] }>();
+
+  for (const item of recentNews) {
+    for (const tagSlug of item.tagSlugs) {
+      const entry = tagCountMap.get(tagSlug) ?? { count: 0, stories: [] };
+      entry.count += 1;
+
+      if (entry.stories.length < 3) {
+        entry.stories.push(item);
+      }
+
+      tagCountMap.set(tagSlug, entry);
+    }
+  }
+
+  const tagLookup = Object.fromEntries(tagRows.map((row) => [row.slug, row.name]));
+
+  return [...tagCountMap.entries()]
+    .sort((left, right) => right[1].count - left[1].count)
+    .slice(0, 20)
+    .map<TrendingTag>(([slug, data]) => ({
+      slug,
+      name: tagLookup[slug] ?? slug,
+      count: data.count,
+      trend: data.count >= 4 ? "up" : data.count <= 1 ? "down" : "stable",
+      topStories: data.stories,
+    }));
+});
+
+/* ------------------------------------------------------------------ */
+/*  Heatmap                                                           */
+/* ------------------------------------------------------------------ */
+
+export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
+  const dates = eachDayOfInterval({
+    start: subDays(seedNow, 29),
+    end: seedNow,
+  }).map((day) => format(day, "yyyy-MM-dd"));
+
+  const heatmapCompanies = companies.map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    color: c.color,
+  }));
+
+  const cells: HeatmapCell[] = [];
+
+  for (const company of heatmapCompanies) {
+    for (const date of dates) {
+      const dayEvents = momentumEvents.filter(
+        (event) =>
+          event.companySlug === company.slug &&
+          format(new Date(event.eventDate), "yyyy-MM-dd") === date,
+      );
+
+      cells.push({
+        companySlug: company.slug,
+        companyName: company.name,
+        companyColor: company.color,
+        date,
+        eventCount: dayEvents.length,
+        netScore: dayEvents.reduce((sum, event) => sum + event.scoreDelta, 0),
+        events: dayEvents.map((event) => ({
+          eventType: event.eventType,
+          scoreDelta: event.scoreDelta,
+          explanation: event.explanation,
+        })),
+      });
+    }
+  }
+
+  return { cells, dates, companies: heatmapCompanies };
+});
+
+/* ------------------------------------------------------------------ */
+/*  Full Timeline                                                      */
+/* ------------------------------------------------------------------ */
+
+export type FullTimelineData = {
+  entries: TimelineEntry[];
+  newsItems: NewsItem[];
+  companies: Array<{ slug: string; name: string; color: string }>;
+};
+
+export const getFullTimelineData = cache(async (days: number): Promise<FullTimelineData> => {
+  const cutoff = subDays(seedNow, days);
+
+  const entries = timelineEntries.filter(
+    (entry) => new Date(entry.timestamp) >= cutoff,
+  );
+
+  const news = sortedNewsItems.filter(
+    (item) => new Date(item.publishedAt) >= cutoff,
+  );
+
+  const timelineCompanies = companies.map((c) => ({
+    slug: c.slug,
+    name: c.name,
+    color: c.color,
+  }));
+
+  return { entries, newsItems: news, companies: timelineCompanies };
 });

@@ -38,7 +38,7 @@ export function CompaniesIndexClient({ records }: CompaniesIndexClientProps) {
 
   return (
     <>
-      <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-4 backdrop-blur-sm">
+      <div className="surface-card rounded-2xl border border-[var(--border)] p-4 backdrop-blur-sm">
         <div className="relative">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-tertiary)]" />
           <Input

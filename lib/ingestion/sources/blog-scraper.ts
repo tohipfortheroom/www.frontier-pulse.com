@@ -1,4 +1,5 @@
 import type { RawIngestedItem, SourceDefinition } from "../types.ts";
+import { fetchSourceText } from "../server-fetch.ts";
 
 function readMeta(html: string, key: string) {
   const expression = new RegExp(`<meta[^>]+(?:name|property)=["']${key}["'][^>]+content=["']([^"']+)["'][^>]*>`, "i");
@@ -10,18 +11,10 @@ export async function ingest(source: SourceDefinition): Promise<RawIngestedItem[
     return [];
   }
 
-  const response = await fetch(source.url, {
-    headers: {
-      "User-Agent": "AICompanyTrackerBot/1.0 (+https://example.com)",
-    },
-    next: { revalidate: 0 },
+  const html = await fetchSourceText(source.url, {
+    source,
+    label: `Blog source ${source.id}`,
   });
-
-  if (!response.ok) {
-    throw new Error(`Blog fetch failed for ${source.id} with status ${response.status}`);
-  }
-
-  const html = await response.text();
   const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.replace(/\s+/g, " ").trim() ?? source.name;
   const excerpt = readMeta(html, "description") ?? readMeta(html, "og:description") ?? readMeta(html, "twitter:description");
   const canonicalUrl = readMeta(html, "og:url") ?? source.url;

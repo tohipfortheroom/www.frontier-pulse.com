@@ -1,18 +1,27 @@
 import type { Metadata } from "next";
+import dynamicImport from "next/dynamic";
 
 import { getLeaderboardData, getRecentMomentumEventsData } from "@/lib/db/queries";
 import { companiesBySlug } from "@/lib/seed/data";
 import { formatScore } from "@/lib/utils";
 
 import { LeaderboardTable } from "@/components/leaderboard-table";
-import { MomentumHistoryChart } from "@/components/momentum-history-chart";
 import { SectionHeader } from "@/components/section-header";
 import { Collapsible } from "@/components/ui/collapsible";
+
+const MomentumHistoryChart = dynamicImport(
+  () => import("@/components/momentum-history-chart").then((module) => module.MomentumHistoryChart),
+  {
+    loading: () => <div className="surface-card h-[360px] rounded-3xl border border-[var(--border)] backdrop-blur-sm" aria-hidden="true" />,
+  },
+);
 
 export const metadata: Metadata = {
   title: "Leaderboard",
   description: "See the full AI race ranking, momentum changes, and the events that moved the board most recently.",
 };
+
+export const dynamic = "force-dynamic";
 
 const eventWeights = [
   { label: "Major model release", delta: "+10" },
@@ -57,7 +66,7 @@ export default async function LeaderboardPage() {
             return (
               <div
                 key={`${event.companySlug}-${event.eventType}-${event.headline}`}
-                className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-5 backdrop-blur-sm"
+                className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm"
               >
                 <div className="flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -91,7 +100,7 @@ export default async function LeaderboardPage() {
             {eventWeights.map((weight) => (
               <div
                 key={weight.label}
-                className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[rgba(10,10,15,0.5)] px-4 py-3"
+                className="surface-inline flex items-center justify-between rounded-xl border border-[var(--border)] px-4 py-3"
               >
                 <span>{weight.label}</span>
                 <span className="font-[family-name:var(--font-mono)] text-[var(--text-primary)]">{weight.delta}</span>

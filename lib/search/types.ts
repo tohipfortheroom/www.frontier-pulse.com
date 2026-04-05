@@ -12,10 +12,18 @@ export type SearchNewsResult = {
   summary: string;
   sourceName: string;
   publishedAt: string;
+  companySlugs?: string[];
   href: string;
+};
+
+export type SearchSuggestion = {
+  type: "recent" | "company" | "category" | "tag";
+  label: string;
+  query: string;
 };
 
 export type SearchResponse = {
   companies: SearchCompanyResult[];
   news: SearchNewsResult[];
+  suggestions?: SearchSuggestion[];
 };

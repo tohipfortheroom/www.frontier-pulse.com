@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 540" width="1920" height="540">
+  <rect width="1920" height="540" fill="#050505"/>
+  <g transform="translate(140, 135)">
+    <circle cx="135" cy="135" r="128" fill="none" stroke="#ffffff" stroke-width="2.4" opacity="0.1"/>
+    <polyline
+      points="7,135 75,135 100,62 128,198 155,100 172,162 192,135 263,135"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="3.2"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.95"
+    />
+  </g>
+  <text x="480" y="295" font-family="SF Pro Display, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="128" font-weight="600" letter-spacing="18" fill="#ffffff" text-rendering="geometricPrecision">FRONTIER</text>
+  <text x="1430" y="295" font-family="SF Pro Display, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="128" font-weight="200" letter-spacing="18" fill="#ffffff" opacity="0.5" text-rendering="geometricPrecision">PULSE</text>
+</svg>

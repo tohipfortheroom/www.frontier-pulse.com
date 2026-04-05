@@ -1,0 +1,31 @@
+import { NextResponse } from "next/server";
+
+import { sendDailyDigest } from "@/lib/email/digest-sender";
+import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export async function GET(request: Request) {
+  if (!isCronAuthorized(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const result = await sendDailyDigest();
+
+    return NextResponse.json({
+      ok: true,
+      ...result,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error("[send-digest] Cron failed:", message);
+
+    return NextResponse.json(
+      { ok: false, error: message },
+      { status: 500 },
+    );
+  }
+}

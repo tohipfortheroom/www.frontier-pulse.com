@@ -1,5 +1,6 @@
 .next
 node_modules
+.claude
 .env
 .env.local
 .env.production
@@ -7,3 +8,4 @@ node_modules
 coverage
 *.log
 *.tsbuildinfo
+.DS_Store

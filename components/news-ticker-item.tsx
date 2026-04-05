@@ -5,14 +5,20 @@ type NewsTickerItemProps = {
   direction: string;
   text: string;
   tone: "green" | "red" | "blue" | "amber" | "purple" | "neutral";
+  className?: string;
 };
 
-export function NewsTickerItem({ company, direction, text, tone }: NewsTickerItemProps) {
+export function NewsTickerItem({ company, direction, text, tone, className }: NewsTickerItemProps) {
   const toneClasses = accentClasses(tone);
 
   return (
-    <div className="flex items-center gap-2 whitespace-nowrap pr-6 font-[family-name:var(--font-mono)] text-[13px] tracking-[0.08em] text-[var(--text-tertiary)]">
-      <span className="uppercase text-[var(--text-secondary)]">{company}</span>
+    <div
+      className={cn(
+        "flex items-center gap-2 whitespace-nowrap pr-6 font-[family-name:var(--font-mono)] text-[13px] tracking-[0.08em] text-[var(--text-secondary)]",
+        className,
+      )}
+    >
+      <span className="uppercase text-[var(--text-primary)]">{company}</span>
       <span className={cn("text-sm", toneClasses.text)}>{direction}</span>
       <span>{text}</span>
       <span className="text-[var(--text-tertiary)]">•</span>

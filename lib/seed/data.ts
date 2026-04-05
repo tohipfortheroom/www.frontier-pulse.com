@@ -55,6 +55,7 @@ export type CompanyProfile = {
   partnerships: Partnership[];
   milestones: Milestone[];
   sparkline: number[];
+  enrichmentData?: CompanyEnrichment;
 };
 
 export type NewsItem = {
@@ -74,7 +75,21 @@ export type NewsItem = {
   companySlugs: string[];
   categorySlugs: string[];
   tagSlugs: string[];
+  summarizerModel?: string;
   breaking?: boolean;
+};
+
+export type CompanyEnrichment = {
+  totalNewsCount: number;
+  avgImportanceScore: number;
+  topCategories: string[];
+  sentimentTrend: number;
+  peakMomentumDate: string;
+  activeStreak: number;
+  sentimentHistory?: Array<{
+    date: string;
+    score: number;
+  }>;
 };
 
 export type MomentumEvent = {
@@ -122,6 +137,14 @@ export type TrendingTopic = {
   hot?: boolean;
 };
 
+export type HomeTickerItem = {
+  slug: string;
+  company: string;
+  direction: string;
+  tone: CategoryAccent;
+  text: string;
+};
+
 export type TopMover = {
   label: string;
   companySlug: string;
@@ -135,11 +158,32 @@ export type DailyDigest = {
   date: string;
   title: string;
   summary: string;
+  narrative?: string;
+  headlineOfTheDay?: string;
+  themes?: string[];
   biggestWinnerCompanySlug: string;
   biggestLoserCompanySlug: string;
   mostImportantNewsSlug: string;
   topStorySlugs: string[];
   watchNext: string[];
+};
+
+export type ReactionType = "fire" | "mind_blown" | "bearish" | "bullish" | "yawn";
+
+export type ReactionSeed = {
+  newsSlug: string;
+  counts: Partial<Record<ReactionType, number>>;
+};
+
+export type PowerRankingSeed = {
+  weekStart: string;
+  rankings: Array<{
+    rank: number;
+    companySlug: string;
+    scoreChange7d: number;
+    narrative: string;
+  }>;
+  narrative: string;
 };
 
 export type SubscriberSeed = {
@@ -149,15 +193,42 @@ export type SubscriberSeed = {
   unsubscribeToken: string;
 };
 
+export type SourceHealthSeed = {
+  sourceId: string;
+  lastFetchedAt: string;
+  lastSuccessAt: string;
+  lastStatus: "success" | "error";
+  lastError?: string | null;
+  lastItemsReturned: number;
+  lastItemsStored: number;
+  lastNewItemAt?: string | null;
+  lastCheckedAt?: string | null;
+  lastSucceededAt?: string | null;
+  lastFailedAt?: string | null;
+  status?: "idle" | "running" | "live" | "delayed" | "degraded" | "stale" | "error";
+  failureReason?: string | null;
+  consecutiveFailures?: number;
+  latestItemPublishedAt?: string | null;
+  lastDurationMs?: number | null;
+  itemsFetched?: number;
+  itemsInserted?: number;
+  itemsUpdated?: number;
+  duplicatesFiltered?: number;
+  invalidRejected?: number;
+  oldRejected?: number;
+};
+
 export const categories: NewsCategory[] = [
   { slug: "model-release", name: "Model Release", accent: "green" },
   { slug: "product-launch", name: "Product Launch", accent: "blue" },
   { slug: "funding", name: "Funding", accent: "purple" },
   { slug: "partnership", name: "Partnership", accent: "amber" },
   { slug: "research", name: "Research", accent: "green" },
+  { slug: "benchmark", name: "Benchmark", accent: "blue" },
   { slug: "policy-regulation", name: "Policy & Regulation", accent: "red" },
   { slug: "infrastructure", name: "Infrastructure", accent: "blue" },
   { slug: "leadership", name: "Leadership", accent: "purple" },
+  { slug: "controversy", name: "Controversy", accent: "red" },
 ];
 
 export const tags: NewsTag[] = [
@@ -1039,6 +1110,99 @@ export const newsletterSubscribers: SubscriberSeed[] = [
     confirmed: false,
     subscribedAt: "2026-04-03T09:42:00-05:00",
     unsubscribeToken: "signalstack-product-token",
+  },
+];
+
+export const sourceHealthSeed: SourceHealthSeed[] = [
+  {
+    sourceId: "openai-news",
+    lastFetchedAt: "2026-04-03T14:24:00-05:00",
+    lastSuccessAt: "2026-04-03T14:24:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 6,
+    lastItemsStored: 2,
+    lastNewItemAt: "2026-04-03T08:15:00-05:00",
+  },
+  {
+    sourceId: "anthropic-newsroom",
+    lastFetchedAt: "2026-04-03T14:23:00-05:00",
+    lastSuccessAt: "2026-04-03T14:23:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 4,
+    lastItemsStored: 1,
+    lastNewItemAt: "2026-04-03T07:10:00-05:00",
+  },
+  {
+    sourceId: "google-deepmind-blog",
+    lastFetchedAt: "2026-04-03T14:22:00-05:00",
+    lastSuccessAt: "2026-04-03T14:22:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 5,
+    lastItemsStored: 1,
+    lastNewItemAt: "2026-04-03T06:30:00-05:00",
+  },
+  {
+    sourceId: "meta-ai-news",
+    lastFetchedAt: "2026-04-03T14:21:00-05:00",
+    lastSuccessAt: "2026-04-03T14:21:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 3,
+    lastItemsStored: 1,
+    lastNewItemAt: "2026-04-02T17:00:00-05:00",
+  },
+  {
+    sourceId: "microsoft-ai-news",
+    lastFetchedAt: "2026-04-03T14:20:00-05:00",
+    lastSuccessAt: "2026-04-03T14:20:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 3,
+    lastItemsStored: 0,
+    lastNewItemAt: "2026-04-02T09:25:00-05:00",
+  },
+  {
+    sourceId: "mistral-news",
+    lastFetchedAt: "2026-04-03T14:18:00-05:00",
+    lastSuccessAt: "2026-04-03T14:18:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 2,
+    lastItemsStored: 1,
+    lastNewItemAt: "2026-04-02T07:45:00-05:00",
+  },
+  {
+    sourceId: "nvidia-blog",
+    lastFetchedAt: "2026-04-03T14:16:00-05:00",
+    lastSuccessAt: "2026-04-03T14:16:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 5,
+    lastItemsStored: 1,
+    lastNewItemAt: "2026-04-02T12:05:00-05:00",
+  },
+  {
+    sourceId: "hacker-news-ai",
+    lastFetchedAt: "2026-04-03T14:14:00-05:00",
+    lastSuccessAt: "2026-04-03T14:14:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 8,
+    lastItemsStored: 2,
+    lastNewItemAt: "2026-04-03T11:40:00-05:00",
+  },
+  {
+    sourceId: "reddit-ai-communities",
+    lastFetchedAt: "2026-04-03T14:12:00-05:00",
+    lastSuccessAt: "2026-04-03T14:12:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 6,
+    lastItemsStored: 1,
+    lastNewItemAt: "2026-04-03T10:05:00-05:00",
+  },
+  {
+    sourceId: "manual-watchlist",
+    lastFetchedAt: "2026-04-03T14:10:00-05:00",
+    lastSuccessAt: "2026-04-03T14:10:00-05:00",
+    lastStatus: "success",
+    lastItemsReturned: 0,
+    lastItemsStored: 0,
+    lastNewItemAt: null,
   },
 ];
 
@@ -2411,6 +2575,10 @@ export const dailyDigest: DailyDigest = {
   title: "The AI Race Daily Digest",
   summary:
     "April 3 was a genuine leaderboard day. OpenAI turned months of anticipation into a GPT-5 preview, Anthropic answered with Claude 4.6 Opus, and Google kept pushing Gemini's benchmark case while trying to make that progress visible inside products people already use. The challengers did not disappear either: xAI's Grok 5 beta kept its momentum story alive, DeepSeek forced the open-weight conversation forward again, and AWS tried to reset its footing with a new Nova Reasoning family. The biggest theme underneath all of it was simple: capability matters, but distribution, infrastructure, and enterprise trust are deciding who actually converts attention into durable advantage.",
+  headlineOfTheDay: "Frontier launches met distribution reality",
+  narrative:
+    "April 3 looked less like a quiet news cycle and more like a board reset. OpenAI, Anthropic, and Google all made credible claims on the top tier of the market, but the most important signal was not raw benchmark movement on its own. The real question was which company seemed most capable of converting model progress into something durable: shipping cadence, enterprise demand, and infrastructure readiness.\n\nOpenAI led the narrative by finally moving GPT-5 into a limited preview, which instantly reframed the conversation around rollout strategy and not just capability rumor. Anthropic stayed close behind by shipping Claude 4.6 Opus into an enterprise-friendly posture, reinforcing the idea that the frontier race is now as much about trusted deployment as it is about headline-grabbing launches. Google, meanwhile, kept strengthening Gemini's benchmark story while still facing the market's recurring question: how quickly can those gains become visible in products and buyer behavior.\n\nOutside the top three, the pressure came from companies playing different games. xAI kept the Grok 5 story alive by pushing into beta, while DeepSeek once again forced the ecosystem to take open-weight reasoning seriously. NVIDIA and AWS reminded the market that the AI race still depends on compute and distribution chokepoints, not just research wins. That combination made the day feel important because it compressed nearly every strategic layer of the market into a single cycle: models, infrastructure, open source, and enterprise conversion.",
+  themes: ["Frontier launches", "Enterprise conversion", "Open-weight pressure"],
   biggestWinnerCompanySlug: "openai",
   biggestLoserCompanySlug: "microsoft-ai",
   mostImportantNewsSlug: "openai-gpt5-limited-preview",
@@ -2433,13 +2601,134 @@ export const dailyDigest: DailyDigest = {
   ],
 };
 
-export const homeTickerItems = [
-  { company: "OPENAI", direction: "↑", tone: "green" as const, text: "GPT-5 launch imminent" },
-  { company: "ANTHROPIC", direction: "↑", tone: "green" as const, text: "Claude 4.6 Opus ships" },
-  { company: "GOOGLE", direction: "↗", tone: "blue" as const, text: "Gemini 3.0 benchmark sweep" },
-  { company: "META", direction: "→", tone: "neutral" as const, text: "Llama 5 open-weight release" },
-  { company: "xAI", direction: "↑", tone: "green" as const, text: "Grok 5 training complete" },
-  { company: "DEEPSEEK", direction: "↑", tone: "green" as const, text: "R2 reasoning model released" },
+export const pastDigests: DailyDigest[] = [
+  {
+    date: "2026-04-02",
+    title: "The AI Race Daily Digest",
+    summary:
+      "April 2 belonged to infrastructure plays. NVIDIA confirmed Blackwell Ultra shipments are accelerating, AWS unveiled the Nova Reasoning family, and the market started asking whether compute supply is finally catching up to model demand.",
+    headlineOfTheDay: "Infrastructure moved to center stage",
+    narrative:
+      "The narrative on April 2 shifted away from model launches and toward the supply chain that makes them possible. NVIDIA's confirmation that Blackwell Ultra is shipping ahead of schedule gave hyperscalers a concrete timeline to plan around, which matters because capacity constraints have been the quiet bottleneck behind every frontier deployment delay this year.\n\nAWS tried to change its own story by announcing the Nova Reasoning family, a direct answer to the criticism that Bedrock has been losing enterprise mindshare to Azure and GCP. Whether the models are competitive enough to reverse that trend remains an open question, but the speed of the response suggests Amazon is treating the AI platform race as existential.\n\nMeanwhile, the open-weight community kept building momentum. DeepSeek's R2 paper circulated widely, and early benchmarks suggested it could match or exceed several proprietary reasoning models at a fraction of the cost. That pressure from below continued to compress the premium that frontier labs can charge for API access.",
+    themes: ["Compute supply chain", "Enterprise platform war", "Open-weight momentum"],
+    biggestWinnerCompanySlug: "nvidia",
+    biggestLoserCompanySlug: "aws-ai",
+    mostImportantNewsSlug: "nvidia-blackwell-ultra-shipping",
+    topStorySlugs: [
+      "nvidia-blackwell-ultra-shipping",
+      "aws-nova-reasoning-family",
+      "deepseek-r2-open-weight-release",
+      "google-gemini-3-benchmark-sweep",
+      "anthropic-claude-4-6-opus",
+      "openai-oracle-stargate-expansion",
+      "xai-grok-5-closed-beta",
+      "meta-llama-5-400b-release",
+      "microsoft-copilot-enterprise-churn",
+      "openai-gpt5-limited-preview",
+    ],
+    watchNext: [
+      "Whether NVIDIA can maintain Blackwell Ultra delivery timelines through Q2.",
+      "How AWS positions Nova Reasoning pricing against Anthropic and OpenAI on Bedrock.",
+      "Whether DeepSeek R2 adoption accelerates among cost-sensitive enterprise buyers.",
+    ],
+  },
+  {
+    date: "2026-04-01",
+    title: "The AI Race Daily Digest",
+    summary:
+      "April 1 was dominated by Anthropic's Claude 4.6 Opus launch and the immediate enterprise reaction. Google kept Gemini 3 in the conversation with strong benchmark results, and Meta's Llama 5 release reignited the open-source frontier debate.",
+    headlineOfTheDay: "Anthropic set the enterprise pace",
+    narrative:
+      "Anthropic opened the month by shipping Claude 4.6 Opus with a clear enterprise-first message: longer context windows, stronger tool use, and a pricing structure designed to undercut GPT-4.5 on cost-per-token for high-volume deployments. The timing was deliberate, arriving just before OpenAI's anticipated GPT-5 preview and forcing enterprise buyers to evaluate whether switching costs are worth the wait.\n\nGoogle kept its own story alive by publishing Gemini 3 benchmark results that showed meaningful gains in reasoning and multimodal understanding. But the recurring question for Google remained distribution: strong research results do not automatically translate into product wins, especially when Cloud customers are already locked into Azure or AWS ecosystems.\n\nMeta's Llama 5 release at 400 billion parameters gave the open-source community its most capable model yet, but the real significance was strategic. By making frontier-class capabilities freely available, Meta continued to erode the pricing power of closed-model providers and forced every lab to justify its premium.",
+    themes: ["Enterprise pricing war", "Benchmark credibility", "Open-source frontier"],
+    biggestWinnerCompanySlug: "anthropic",
+    biggestLoserCompanySlug: "google-deepmind",
+    mostImportantNewsSlug: "anthropic-claude-4-6-opus",
+    topStorySlugs: [
+      "anthropic-claude-4-6-opus",
+      "google-gemini-3-benchmark-sweep",
+      "meta-llama-5-400b-release",
+      "deepseek-r2-open-weight-release",
+      "microsoft-copilot-enterprise-churn",
+      "openai-oracle-stargate-expansion",
+      "nvidia-blackwell-ultra-shipping",
+      "xai-grok-5-closed-beta",
+      "aws-nova-reasoning-family",
+      "openai-gpt5-limited-preview",
+    ],
+    watchNext: [
+      "Whether Claude 4.6 Opus enterprise adoption outpaces GPT-4.5 in initial deployment metrics.",
+      "How Google translates Gemini 3 benchmarks into Cloud customer acquisition.",
+      "Whether Llama 5 adoption triggers a new wave of fine-tuned enterprise deployments.",
+    ],
+  },
+];
+
+export const reactionSeed: ReactionSeed[] = [
+  { newsSlug: "openai-gpt5-limited-preview", counts: { fire: 42, bullish: 31, mind_blown: 18, bearish: 3, yawn: 1 } },
+  { newsSlug: "anthropic-claude-4-6-opus", counts: { fire: 38, bullish: 27, mind_blown: 22, bearish: 2 } },
+  { newsSlug: "microsoft-copilot-enterprise-churn", counts: { bearish: 16, yawn: 6, fire: 2 } },
+  { newsSlug: "deepseek-r2-open-weight-release", counts: { fire: 29, bullish: 17, mind_blown: 14, bearish: 1 } },
+  { newsSlug: "google-gemini-3-benchmark-sweep", counts: { fire: 24, mind_blown: 15, bullish: 19, bearish: 4 } },
+  { newsSlug: "xai-grok-5-closed-beta", counts: { fire: 16, bullish: 12, mind_blown: 8, yawn: 3 } },
+  { newsSlug: "meta-llama-5-400b-release", counts: { fire: 33, bullish: 21, mind_blown: 11, bearish: 2 } },
+  { newsSlug: "openai-oracle-stargate-expansion", counts: { bullish: 26, fire: 14, mind_blown: 7, bearish: 5 } },
+];
+
+export const seedReactionCounts: Record<string, Record<string, number>> = Object.fromEntries(
+  reactionSeed.map((entry) => [
+    entry.newsSlug,
+    { fire: 0, mind_blown: 0, bearish: 0, bullish: 0, yawn: 0, ...entry.counts },
+  ]),
+);
+
+export const powerRankingsSeed: PowerRankingSeed[] = [
+  {
+    weekStart: "2026-03-30",
+    rankings: [
+      {
+        rank: 1,
+        companySlug: "openai",
+        scoreChange7d: 18.4,
+        narrative: "OpenAI won the week by finally moving GPT-5 from anticipation into an actual rollout story.",
+      },
+      {
+        rank: 2,
+        companySlug: "anthropic",
+        scoreChange7d: 14.7,
+        narrative: "Anthropic stayed close because Claude 4.6 Opus landed with a sharper enterprise message than many rivals.",
+      },
+      {
+        rank: 3,
+        companySlug: "google-deepmind",
+        scoreChange7d: 11.2,
+        narrative: "Google DeepMind kept stacking technical credibility, even if product translation still trails the research narrative.",
+      },
+      {
+        rank: 4,
+        companySlug: "xai",
+        scoreChange7d: 9.8,
+        narrative: "xAI's beta motion kept it relevant by turning training scale into a visible product milestone.",
+      },
+      {
+        rank: 5,
+        companySlug: "deepseek",
+        scoreChange7d: 8.3,
+        narrative: "DeepSeek remained the open-weight spoiler, forcing larger labs to answer a lower-cost reasoning story.",
+      },
+    ],
+    narrative:
+      "The week belonged to companies that made capability legible. OpenAI and Anthropic both translated model momentum into something buyers could react to, while Google DeepMind continued to gather technical evidence that it belongs at the top of the board. The second tier was defined by pressure from two very different directions: xAI pushing spectacle and infrastructure, and DeepSeek pushing openness and efficiency.",
+  },
+];
+
+export const homeTickerItems: HomeTickerItem[] = [
+  { slug: "openai-gpt5-limited-preview", company: "OPENAI", direction: "↑", tone: "green", text: "GPT-5 launch imminent" },
+  { slug: "anthropic-claude-4-6-opus", company: "ANTHROPIC", direction: "↑", tone: "green", text: "Claude 4.6 Opus ships" },
+  { slug: "google-gemini-3-benchmark-sweep", company: "GOOGLE", direction: "↗", tone: "blue", text: "Gemini 3.0 benchmark sweep" },
+  { slug: "meta-llama-5-400b-release", company: "META", direction: "→", tone: "neutral", text: "Llama 5 open-weight release" },
+  { slug: "xai-grok-5-closed-beta", company: "XAI", direction: "↑", tone: "green", text: "Grok 5 training complete" },
+  { slug: "deepseek-r2-open-weight-release", company: "DEEPSEEK", direction: "↑", tone: "green", text: "R2 reasoning model released" },
 ];
 
 export const homePageConfig = {

@@ -1,4 +1,5 @@
 import type {
+  CompanyEnrichment,
   CompanyProfile,
   DailyDigest,
   LaunchCardData,
@@ -6,9 +7,12 @@ import type {
   MomentumSnapshot,
   NewsItem,
   Partnership,
+  PowerRankingSeed,
+  ReactionType,
   TimelineEntry,
   TopMover,
   TrendingTopic,
+  HomeTickerItem,
 } from "@/lib/seed/data";
 
 export type CompanyCardRecord = {
@@ -23,6 +27,15 @@ export type CompanyDetailRecord = {
   recentNews: NewsItem[];
   partnerships: Partnership[];
   milestones: Milestone[];
+  enrichment?: CompanyEnrichment;
+  scoreBreakdown: Array<{
+    date: string;
+    label: string;
+    total: number;
+    eventType: string;
+    scoreDelta: number;
+    explanation: string;
+  }>;
   categoryBreakdown: Array<{
     slug: string;
     name: string;
@@ -39,6 +52,14 @@ export type HomePageData = {
   topMovers: TopMover[];
   trendingTopics: TrendingTopic[];
   digest: DailyDigest;
+  tickerItems: HomeTickerItem[];
+  stats: {
+    totalStories: number;
+    totalCompanies: number;
+    totalLaunches: number;
+    updatedMinutesAgo: number;
+    seedMode: boolean;
+  };
 };
 
 export type DailyDigestRecord = {
@@ -47,6 +68,17 @@ export type DailyDigestRecord = {
   biggestWinnerMomentum?: MomentumSnapshot;
   biggestLoserMomentum?: MomentumSnapshot;
   mostImportantStory: NewsItem;
+};
+
+export type NewsDetailRecord = {
+  news: NewsItem;
+  relatedStories: NewsItem[];
+  moreFromCompany: NewsItem[];
+};
+
+export type ReactionSummary = {
+  counts: Record<ReactionType, number>;
+  selected: ReactionType | null;
 };
 
 export type CompanyRow = {
@@ -61,6 +93,7 @@ export type CompanyRow = {
   why_it_matters: string;
   valuation_text: string | null;
   website_url: string;
+  enrichment_data?: CompanyEnrichment | null;
   created_at: string;
   updated_at: string;
 };
@@ -81,17 +114,22 @@ export type NewsItemRow = {
   slug: string;
   source_name: string;
   source_url: string;
+  canonical_url?: string | null;
+  title_fingerprint?: string | null;
   published_at: string;
   ingested_at: string;
+  last_seen_at?: string;
   raw_text: string | null;
   cleaned_text: string | null;
   summary: string;
   short_summary: string;
   why_it_matters: string;
+  summarizer_model?: string | null;
   importance_score: number;
   confidence_score: number;
   impact_direction: "positive" | "negative" | "neutral";
   created_at: string;
+  updated_at?: string;
 };
 
 export type EventRow = {
@@ -119,10 +157,59 @@ export type DailyDigestRow = {
   digest_date: string;
   title: string;
   summary: string;
+  narrative?: string | null;
+  headline_of_the_day?: string | null;
+  themes?: string[] | null;
   biggest_winner_company_id: string;
   biggest_loser_company_id: string;
   most_important_news_item_id: string | null;
   top_story_slugs: string[];
   watch_next: string[];
   created_at: string;
+};
+
+export type ReactionRow = {
+  id: string;
+  news_item_id: string;
+  reaction_type: ReactionType;
+  visitor_id: string;
+  created_at: string;
+};
+
+export type StorySimilarityRow = {
+  id: string;
+  story_id: string;
+  similar_story_id: string;
+  similarity: number;
+  created_at: string;
+};
+
+export type PowerRankingRecord = PowerRankingSeed;
+
+export type HeatmapEvent = {
+  eventType: string;
+  scoreDelta: number;
+  explanation: string;
+};
+
+export type HeatmapCell = {
+  companySlug: string;
+  companyName: string;
+  companyColor: string;
+  date: string;
+  eventCount: number;
+  netScore: number;
+  events: HeatmapEvent[];
+};
+
+export type HeatmapCompany = {
+  slug: string;
+  name: string;
+  color: string;
+};
+
+export type HeatmapData = {
+  cells: HeatmapCell[];
+  dates: string[];
+  companies: HeatmapCompany[];
 };

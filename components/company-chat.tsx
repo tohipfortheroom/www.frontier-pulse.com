@@ -3,7 +3,10 @@
 import { Loader2, MessageSquareText, Send, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useToast } from "@/components/toast-provider";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { useNetworkStatus } from "@/lib/hooks/use-network-status";
+import { fetchWithTimeout } from "@/lib/network/fetch";
 import { cn } from "@/lib/utils";
 
 type ChatMessage = {
@@ -30,6 +33,8 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
   const [error, setError] = useState<string | null>(null);
   const [messageCount, setMessageCount] = useState(0);
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const isOnline = useNetworkStatus();
+  const { pushToast } = useToast();
   const remaining = SESSION_LIMIT - messageCount;
 
   useEffect(() => {
@@ -45,7 +50,7 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
     }
   }, [messages, isOpen]);
 
-  const disabled = isLoading || remaining <= 0;
+  const disabled = isLoading || remaining <= 0 || !isOnline;
   const canSend = input.trim().length > 0 && !disabled;
   const starterQuestions = useMemo(() => STARTER_QUESTIONS.filter((question) => !messages.some((message) => message.content === question)), [messages]);
 
@@ -68,7 +73,7 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
     window.sessionStorage.setItem(SESSION_STORAGE_KEY, String(nextCount));
 
     try {
-      const response = await fetch("/api/chat", {
+      const response = await fetchWithTimeout("/api/chat", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,6 +82,7 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
           slug: companySlug,
           messages: nextMessages,
         }),
+        timeoutMs: 30_000,
       });
 
       if (!response.ok || !response.body) {
@@ -117,7 +123,13 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
       });
     } catch (caughtError) {
       setMessages(nextMessages);
-      setError(caughtError instanceof Error ? caughtError.message : "Something went wrong.");
+      const message = caughtError instanceof Error ? caughtError.message : "Something went wrong.";
+      setError(message);
+      pushToast({
+        tone: "error",
+        title: "Chat unavailable",
+        description: message,
+      });
       const restoredCount = Math.max(0, nextCount - 1);
       setMessageCount(restoredCount);
       window.sessionStorage.setItem(SESSION_STORAGE_KEY, String(restoredCount));
@@ -129,8 +141,8 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
   return (
     <div className="fixed bottom-4 right-4 z-50 w-[min(24rem,calc(100vw-2rem))]">
       {isOpen ? (
-        <div className="overflow-hidden rounded-3xl border border-[rgba(77,159,255,0.22)] bg-[rgba(18,18,26,0.95)] shadow-[0_18px_60px_rgba(0,0,0,0.4)] backdrop-blur-xl">
-          <div className="border-b border-[var(--border)] bg-[rgba(10,10,15,0.6)] px-5 py-4">
+        <div className="surface-card-strong panel-shadow-strong overflow-hidden rounded-3xl border border-[var(--accent-blue-border)] backdrop-blur-xl">
+          <div className="surface-inline border-b border-[var(--border)] px-5 py-4">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--accent-blue)]">
@@ -153,9 +165,14 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
           </div>
 
           <div ref={scrollerRef} className="max-h-[26rem] space-y-4 overflow-y-auto px-5 py-4">
+            {!isOnline ? (
+              <div className="rounded-2xl border border-[var(--accent-red-border)] bg-[var(--accent-red-soft)] px-4 py-3 text-sm text-[var(--accent-red)]">
+                Chat unavailable — you&apos;re offline.
+              </div>
+            ) : null}
             {messages.length === 0 ? (
               <div className="space-y-4">
-                <div className="rounded-2xl border border-[rgba(167,139,250,0.24)] bg-[rgba(167,139,250,0.08)] p-4">
+                <div className="rounded-2xl border border-[var(--accent-purple-border)] bg-[var(--accent-purple-soft)] p-4">
                   <div className="flex items-center gap-2 text-[var(--accent-purple)]">
                     <Sparkles className="h-4 w-4" />
                     <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em]">Starter Questions</span>
@@ -171,7 +188,7 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
                       key={question}
                       type="button"
                       onClick={() => void sendMessage(question)}
-                      className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-left text-sm text-[var(--text-secondary)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[rgba(77,159,255,0.3)] hover:text-[var(--text-primary)]"
+                      className="surface-soft rounded-full border border-[var(--border)] px-4 py-2 text-left text-sm text-[var(--text-secondary)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--accent-blue-border)] hover:text-[var(--text-primary)]"
                     >
                       {question}
                     </button>
@@ -186,8 +203,8 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
                 className={cn(
                   "rounded-2xl px-4 py-3 text-sm leading-6",
                   message.role === "user"
-                    ? "ml-8 border border-[rgba(77,159,255,0.24)] bg-[rgba(77,159,255,0.08)] text-[var(--text-primary)]"
-                    : "mr-8 border border-[var(--border)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)]",
+                    ? "ml-8 border border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] text-[var(--text-primary)]"
+                    : "mr-8 border border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]",
                 )}
               >
                 <p className="mb-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
@@ -198,7 +215,7 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
             ))}
 
             {error ? (
-              <div className="rounded-2xl border border-[rgba(255,77,106,0.22)] bg-[rgba(255,77,106,0.08)] px-4 py-3 text-sm text-[var(--accent-red)]">
+              <div className="rounded-2xl border border-[var(--accent-red-border)] bg-[var(--accent-red-soft)] px-4 py-3 text-sm text-[var(--accent-red)]">
                 {error}
               </div>
             ) : null}
@@ -207,7 +224,11 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
           <div className="border-t border-[var(--border)] px-5 py-4">
             <div className="flex items-center justify-between gap-3">
               <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-                {remaining > 0 ? `${remaining} messages left this session` : "Session message limit reached"}
+                {!isOnline
+                  ? "Reconnect to use company chat"
+                  : remaining > 0
+                    ? `${remaining} messages left this session`
+                    : "Session message limit reached"}
               </p>
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin text-[var(--accent-blue)]" /> : null}
             </div>
@@ -216,6 +237,7 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
+                disabled={!isOnline}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
@@ -224,7 +246,7 @@ export function CompanyChat({ companySlug, companyName }: { companySlug: string;
                 }}
                 rows={3}
                 placeholder={`Ask about ${companyName}...`}
-                className="min-h-[5.5rem] w-full resize-none rounded-2xl border border-[var(--border)] bg-[rgba(10,10,15,0.72)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-all duration-200 placeholder:text-[var(--text-tertiary)] focus:border-[rgba(77,159,255,0.45)] focus:ring-2 focus:ring-[rgba(77,159,255,0.12)]"
+                className="surface-inline min-h-[5.5rem] w-full resize-none rounded-2xl border border-[var(--border)] px-4 py-3 text-sm text-[var(--text-primary)] outline-none transition-all duration-200 placeholder:text-[var(--text-tertiary)] focus:border-[var(--accent-blue-border)] focus:ring-2 focus:ring-[var(--accent-blue-ring)] disabled:cursor-not-allowed disabled:opacity-60"
               />
               <Button
                 type="button"

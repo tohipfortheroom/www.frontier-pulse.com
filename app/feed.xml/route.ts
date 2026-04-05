@@ -1,4 +1,5 @@
 import { getNewsItemsData } from "@/lib/db/queries";
+import { BRAND_NAME } from "@/lib/brand";
 import { buildRssFeed } from "@/lib/rss";
 
 export const runtime = "nodejs";
@@ -6,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const newsItems = (await getNewsItemsData()).slice(0, 50);
   const xml = buildRssFeed({
-    title: "The AI Company Tracker",
+    title: BRAND_NAME,
     description: "The latest AI company momentum moves, launches, partnerships, and breaking news.",
     path: "/feed.xml",
     items: newsItems,

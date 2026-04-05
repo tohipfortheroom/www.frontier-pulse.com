@@ -4,12 +4,13 @@ import { Copy, Link2, Share2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useToast } from "@/components/toast-provider";
+import { BRAND_UTM_SOURCE } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
 function buildShareUrl(path: string) {
   const base = typeof window === "undefined" ? process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000" : window.location.origin;
   const url = new URL(path, base);
-  url.searchParams.set("utm_source", "ai-tracker");
+  url.searchParams.set("utm_source", BRAND_UTM_SOURCE);
   url.searchParams.set("utm_medium", "share");
   return url.toString();
 }
@@ -65,18 +66,18 @@ export function ShareButton({
       <button
         type="button"
         onClick={() => void onPrimaryShare()}
-        className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
+        className="surface-soft inline-flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]"
         aria-label="Share"
       >
         <Share2 className="h-4 w-4" />
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-10 z-20 min-w-[13rem] rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.96)] p-2 shadow-[0_18px_50px_rgba(0,0,0,0.34)] backdrop-blur-xl">
+        <div className="surface-card-strong panel-shadow-strong absolute right-0 top-10 z-20 min-w-[13rem] rounded-2xl border border-[var(--border)] p-2 backdrop-blur-xl">
           <button
             type="button"
             onClick={() => void copyLink()}
-            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-primary)]"
+            className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]"
           >
             <Copy className="h-4 w-4" />
             Copy Link
@@ -88,7 +89,7 @@ export function ShareButton({
               target="_blank"
               rel="noreferrer"
               onClick={() => setOpen(false)}
-              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[rgba(255,255,255,0.04)] hover:text-[var(--text-primary)]"
+              className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface-soft)] hover:text-[var(--text-primary)]"
             >
               {item.label.includes("LinkedIn") || item.label.includes("Bluesky") ? (
                 <Link2 className="h-4 w-4" />

@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 import { getSupabaseServerClient } from "@/lib/db/client";
+import { enforceRateLimit, getRequestIdentity } from "@/lib/middleware/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -9,6 +10,25 @@ function isValidEmail(email: string) {
 }
 
 export async function POST(request: Request) {
+  const rateLimit = enforceRateLimit({
+    namespace: "api-subscribe",
+    key: getRequestIdentity(request),
+    limit: 3,
+    windowMs: 60_000,
+  });
+
+  if (!rateLimit.ok) {
+    return Response.json(
+      { error: "Too many subscribe attempts. Please wait a minute and try again." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retryAfterSeconds),
+        },
+      },
+    );
+  }
+
   const body = (await request.json().catch(() => null)) as { email?: string } | null;
   const email = body?.email?.trim().toLowerCase();
 

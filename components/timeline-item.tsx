@@ -10,7 +10,7 @@ export function TimelineItem({ entry, align }: TimelineItemProps) {
   const company = companiesBySlug[entry.companySlug];
 
   const content = (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-5 backdrop-blur-sm">
+    <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
       <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
         {formatTimestamp(entry.timestamp)}
       </p>
@@ -29,9 +29,12 @@ export function TimelineItem({ entry, align }: TimelineItemProps) {
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_72px_minmax(0,1fr)]">
       <div className="hidden lg:block">{align === "left" ? content : null}</div>
       <div className="relative flex justify-center">
-        <div className="absolute inset-y-0 top-0 w-px bg-[linear-gradient(180deg,rgba(77,159,255,0.32),rgba(255,255,255,0.02))]" />
         <div
-          className="relative mt-6 h-4 w-4 rounded-full border border-[rgba(255,255,255,0.12)]"
+          className="absolute inset-y-0 top-0 w-px"
+          style={{ background: "linear-gradient(180deg, var(--accent-blue-border), var(--surface-subtle))" }}
+        />
+        <div
+          className="relative mt-6 h-4 w-4 rounded-full border border-[var(--border)]"
           style={{
             backgroundColor: company.color,
             boxShadow: entry.live ? `0 0 24px ${company.color}` : `0 0 14px ${company.color}55`,

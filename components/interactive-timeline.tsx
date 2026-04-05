@@ -62,7 +62,7 @@ export function InteractiveTimeline({ entries }: { entries: TimelineEntry[] }) {
   }, [selectedEntry?.slug]);
 
   return (
-    <div className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-6 backdrop-blur-sm">
+    <div className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
@@ -78,8 +78,8 @@ export function InteractiveTimeline({ entries }: { entries: TimelineEntry[] }) {
               onClick={() => setRange(value as 7 | 30 | 90)}
               className={
                 value === range
-                  ? "rounded-full border border-[rgba(77,159,255,0.24)] bg-[rgba(77,159,255,0.12)] px-4 py-2 text-sm text-[var(--text-primary)]"
-                  : "rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-sm text-[var(--text-secondary)]"
+                  ? "rounded-full border border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] px-4 py-2 text-sm text-[var(--text-primary)]"
+                  : "surface-soft rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)]"
               }
             >
               {value}d
@@ -97,13 +97,16 @@ export function InteractiveTimeline({ entries }: { entries: TimelineEntry[] }) {
             return (
               <div key={entry.slug} className="relative flex min-w-[220px] flex-col items-center text-center">
                 {index < filteredEntries.length - 1 ? (
-                  <div className="absolute left-[calc(50%+1rem)] top-4 h-px w-[calc(100%+1.5rem)] bg-[linear-gradient(90deg,rgba(77,159,255,0.24),rgba(255,255,255,0.05))]" />
+                  <div
+                    className="absolute left-[calc(50%+1rem)] top-4 h-px w-[calc(100%+1.5rem)]"
+                    style={{ background: "linear-gradient(90deg, var(--accent-blue-border), var(--surface-soft))" }}
+                  />
                 ) : null}
                 <button type="button" onClick={() => setSelectedSlug(entry.slug)} className="space-y-3">
                   <div
                     className={cn(
-                      "mx-auto flex h-8 w-8 items-center justify-center rounded-full border border-white/10 transition-transform duration-200 hover:scale-110",
-                      selectedSlug === entry.slug && "ring-2 ring-[rgba(77,159,255,0.45)]",
+                      "mx-auto flex h-8 w-8 items-center justify-center rounded-full border border-[var(--border)] transition-transform duration-200 hover:scale-110",
+                      selectedSlug === entry.slug && "ring-2 ring-[var(--accent-blue-ring)]",
                     )}
                     style={{ backgroundColor: tone, boxShadow: entry.live ? `0 0 20px ${tone}` : `0 0 12px ${tone}` }}
                   >
@@ -126,7 +129,7 @@ export function InteractiveTimeline({ entries }: { entries: TimelineEntry[] }) {
       </div>
 
       {selectedEntry ? (
-        <div className="mt-8 rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-5">
+        <div className="surface-soft mt-8 rounded-2xl border border-[var(--border)] p-5">
           <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
             {format(new Date(selectedEntry.timestamp), "MMMM d, yyyy · h:mm a")}
           </p>

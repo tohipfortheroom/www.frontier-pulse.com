@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Check, Copy } from "lucide-react";
 
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { categories, type NewsItem } from "@/lib/seed/data";
@@ -33,7 +34,7 @@ function expandSeries(values: number[], targetLength = 30) {
   return next;
 }
 
-const chartColors = ["#4D9FFF", "#00E68A", "#A78BFA"];
+const chartColors = ["var(--accent-blue)", "var(--accent-green)", "var(--accent-purple)", "var(--accent-amber)"];
 
 export function ComparePageClient({
   records,
@@ -47,17 +48,45 @@ export function ComparePageClient({
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [activeMobileSlug, setActiveMobileSlug] = useState<string>("openai");
   const selectedSlugs = useMemo(() => {
     const raw = searchParams.get("companies");
     const parsed = raw?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
-    return parsed.length > 0 ? parsed.slice(0, 3) : ["openai", "anthropic"];
+    return parsed.length > 0 ? parsed.slice(0, 4) : ["openai", "anthropic"];
   }, [searchParams]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  useEffect(() => {
+    function syncViewport() {
+      setIsMobile(window.innerWidth < 768);
+    }
+
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+
+    return () => {
+      window.removeEventListener("resize", syncViewport);
+    };
+  }, []);
+
   const selectedRecords = records.filter((record) => selectedSlugs.includes(record.company.slug));
+  const detailRecords = isMobile
+    ? selectedRecords.filter((record) => record.company.slug === activeMobileSlug).slice(0, 1)
+    : selectedRecords;
+
+  useEffect(() => {
+    if (selectedRecords.length === 0) {
+      return;
+    }
+
+    if (!selectedRecords.some((record) => record.company.slug === activeMobileSlug)) {
+      setActiveMobileSlug(selectedRecords[0].company.slug);
+    }
+  }, [activeMobileSlug, selectedRecords]);
 
   function updateSelection(nextSelection: string[]) {
     const params = new URLSearchParams(searchParams.toString());
@@ -76,24 +105,26 @@ export function ComparePageClient({
   function toggleCompany(slug: string) {
     const next = selectedSlugs.includes(slug)
       ? selectedSlugs.filter((item) => item !== slug)
-      : [...selectedSlugs, slug].slice(-3);
+      : [...selectedSlugs, slug].slice(-4);
 
     updateSelection(next);
   }
 
   const overlaySeries = useMemo(() => {
-    return Array.from({ length: 30 }, (_, index) => {
-      const dayLabel = `D-${29 - index}`;
+    const windowLength = isMobile ? 7 : 30;
+
+    return Array.from({ length: windowLength }, (_, index) => {
+      const dayLabel = `D-${windowLength - 1 - index}`;
       const point = { dayLabel } as Record<string, string | number>;
 
       selectedRecords.forEach((record) => {
-        const series = expandSeries(record.momentum?.sparkline ?? record.company.sparkline ?? [0]);
+        const series = expandSeries(record.momentum?.sparkline ?? record.company.sparkline ?? [0], windowLength);
         point[record.company.slug] = series[index];
       });
 
       return point;
     });
-  }, [selectedRecords]);
+  }, [isMobile, selectedRecords]);
 
   const groupedCategoryData = useMemo(() => {
     return categories.map((category) => {
@@ -111,9 +142,60 @@ export function ComparePageClient({
 
   const sharedNews = newsItems.filter((item) => item.companySlugs.filter((slug) => selectedSlugs.includes(slug)).length >= 2).slice(0, 6);
 
+  const [copied, setCopied] = useState(false);
+
+  function copyComparisonLink() {
+    const url = new URL(window.location.href);
+    url.searchParams.set("companies", selectedSlugs.join(","));
+    navigator.clipboard.writeText(url.toString()).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  const radarDimensions = [
+    { key: "models", label: "Model Releases" },
+    { key: "partnerships", label: "Partnerships" },
+    { key: "funding", label: "Funding" },
+    { key: "research", label: "Research" },
+    { key: "products", label: "Product Launches" },
+    { key: "sentiment", label: "Avg Sentiment" },
+  ] as const;
+
+  const radarCategoryMapping: Record<string, string> = {
+    models: "model-releases",
+    partnerships: "partnerships",
+    funding: "funding",
+    research: "research",
+    products: "product-launches",
+    sentiment: "",
+  };
+
+  const radarData = useMemo(() => {
+    return radarDimensions.map((dim) => {
+      const point: Record<string, string | number> = { dimension: dim.label };
+
+      selectedRecords.forEach((record) => {
+        const companyNews = newsItems.filter((item) => item.companySlugs.includes(record.company.slug));
+
+        if (dim.key === "sentiment") {
+          const avgImportance = companyNews.length > 0
+            ? companyNews.reduce((sum, item) => sum + item.importanceScore, 0) / companyNews.length
+            : 0;
+          point[record.company.slug] = Math.round(avgImportance * 10);
+        } else {
+          const categorySlug = radarCategoryMapping[dim.key];
+          point[record.company.slug] = companyNews.filter((item) => item.categorySlugs.includes(categorySlug)).length;
+        }
+      });
+
+      return point;
+    });
+  }, [newsItems, selectedRecords]);
+
   return (
     <div className="space-y-12">
-      <div className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-5 backdrop-blur-sm">
+      <div className="surface-card rounded-3xl border border-[var(--border)] p-5 backdrop-blur-sm">
         <div className="flex flex-wrap gap-2">
           {records.map((record) => {
             const active = selectedSlugs.includes(record.company.slug);
@@ -124,10 +206,11 @@ export function ComparePageClient({
                 type="button"
                 onClick={() => toggleCompany(record.company.slug)}
                 className={cn(
-                  "rounded-full border px-4 py-2 text-sm transition-all duration-200",
+                  "rounded-full border px-4 py-2 text-sm transition-all duration-200 md:flex-none",
+                  "w-full sm:w-auto",
                   active
-                    ? "border-[rgba(77,159,255,0.24)] bg-[rgba(77,159,255,0.12)] text-[var(--text-primary)]"
-                    : "border-[var(--border)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                    ? "border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] text-[var(--text-primary)]"
+                    : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
                 )}
               >
                 {record.company.name}
@@ -139,8 +222,19 @@ export function ComparePageClient({
 
       {selectedRecords.length >= 2 ? (
         <>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={copyComparisonLink}
+              className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--accent-blue-border)] hover:text-[var(--text-primary)]"
+            >
+              {copied ? <Check className="h-4 w-4 text-[var(--accent-green)]" /> : <Copy className="h-4 w-4" />}
+              {copied ? "Copied!" : "Copy comparison link"}
+            </button>
+          </div>
+
           <section className="grid gap-5 xl:grid-cols-[1.5fr_0.9fr]">
-            <div className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-6 backdrop-blur-sm">
+            <div className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
@@ -164,12 +258,12 @@ export function ComparePageClient({
                           </linearGradient>
                         ))}
                       </defs>
-                      <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                      <CartesianGrid stroke="var(--border)" vertical={false} />
                       <XAxis dataKey="dayLabel" stroke="var(--text-tertiary)" tickLine={false} axisLine={false} minTickGap={24} />
                       <YAxis stroke="var(--text-tertiary)" tickLine={false} axisLine={false} width={40} />
                       <Tooltip
                         contentStyle={{
-                          background: "rgba(18,18,26,0.96)",
+                          background: "var(--bg-card)",
                           border: "1px solid var(--border)",
                           borderRadius: "16px",
                         }}
@@ -187,32 +281,56 @@ export function ComparePageClient({
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full w-full rounded-3xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)]" />
+                  <div className="surface-subtle h-full w-full rounded-3xl border border-[var(--border)]" />
                 )}
               </div>
             </div>
 
             <div className="grid gap-5">
-              {selectedRecords.map((record, index) => (
-                <div key={record.company.slug} className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-6 backdrop-blur-sm">
-                  <div className="flex items-center gap-3">
-                    <span className="h-4 w-4 rounded-full" style={{ backgroundColor: chartColors[index] }} />
-                    <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
-                      {record.company.name}
-                    </h3>
+              {detailRecords.map((record) => {
+                const colorIndex = Math.max(0, selectedRecords.findIndex((item) => item.company.slug === record.company.slug));
+
+                return (
+                  <div key={record.company.slug} className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="h-4 w-4 rounded-full" style={{ backgroundColor: chartColors[colorIndex] }} />
+                      <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
+                        {record.company.name}
+                      </h3>
+                    </div>
+                    <p className="mt-4 text-4xl font-semibold text-[var(--text-primary)]">
+                      {formatScore(record.momentum?.score ?? 0)}
+                    </p>
+                    <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                      {record.momentum?.keyDriver ?? record.company.description}
+                    </p>
                   </div>
-                  <p className="mt-4 text-4xl font-semibold text-[var(--text-primary)]">
-                    {formatScore(record.momentum?.score ?? 0)}
-                  </p>
-                  <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                    {record.momentum?.keyDriver ?? record.company.description}
-                  </p>
+                );
+              })}
+
+              {isMobile && selectedRecords.length > 1 ? (
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {selectedRecords.map((record) => (
+                    <button
+                      key={record.company.slug}
+                      type="button"
+                      onClick={() => setActiveMobileSlug(record.company.slug)}
+                      className={cn(
+                        "rounded-full border px-3 py-2 text-sm transition-colors",
+                        activeMobileSlug === record.company.slug
+                          ? "border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] text-[var(--text-primary)]"
+                          : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]",
+                      )}
+                    >
+                      {record.company.shortName}
+                    </button>
+                  ))}
                 </div>
-              ))}
+              ) : null}
             </div>
           </section>
 
-          <section className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-6 backdrop-blur-sm">
+          <section className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm">
             <SectionHeader
               label="CATEGORY MIX"
               title="Recent news count by category"
@@ -223,12 +341,12 @@ export function ComparePageClient({
               {mounted ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={groupedCategoryData}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                    <CartesianGrid stroke="var(--border)" vertical={false} />
                     <XAxis dataKey="category" stroke="var(--text-tertiary)" tickLine={false} axisLine={false} />
                     <YAxis stroke="var(--text-tertiary)" tickLine={false} axisLine={false} width={36} />
                     <Tooltip
                       contentStyle={{
-                        background: "rgba(18,18,26,0.96)",
+                        background: "var(--bg-card)",
                         border: "1px solid var(--border)",
                         borderRadius: "16px",
                       }}
@@ -239,14 +357,58 @@ export function ComparePageClient({
                   </BarChart>
                 </ResponsiveContainer>
               ) : (
-                <div className="h-full w-full rounded-3xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)]" />
+                <div className="surface-subtle h-full w-full rounded-3xl border border-[var(--border)]" />
               )}
             </div>
           </section>
 
-          <section className="grid gap-5 xl:grid-cols-3">
-            {selectedRecords.map((record) => (
-              <div key={record.company.slug} className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-6 backdrop-blur-sm">
+          <section className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm">
+            <SectionHeader
+              label="RADAR COMPARISON"
+              title="Multi-dimensional view"
+              subtitle="How each company stacks up across model releases, partnerships, funding, research, product launches, and average sentiment."
+              tone="purple"
+            />
+            <div className="mt-6 flex justify-center">
+              <div className="h-[400px] w-full max-w-[560px]">
+                {mounted ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="75%">
+                      <PolarGrid stroke="var(--border)" />
+                      <PolarAngleAxis
+                        dataKey="dimension"
+                        tick={{ fill: "var(--text-tertiary)", fontSize: 11 }}
+                      />
+                      {selectedRecords.map((record, index) => (
+                        <Radar
+                          key={record.company.slug}
+                          name={record.company.name}
+                          dataKey={record.company.slug}
+                          stroke={chartColors[index]}
+                          fill={chartColors[index]}
+                          fillOpacity={0.1}
+                          strokeWidth={2}
+                        />
+                      ))}
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          borderRadius: "16px",
+                        }}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="surface-subtle h-full w-full rounded-3xl border border-[var(--border)]" />
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className={cn("grid gap-5", isMobile ? "" : selectedRecords.length > 3 ? "xl:grid-cols-4" : "xl:grid-cols-3")}>
+            {detailRecords.map((record) => (
+              <div key={record.company.slug} className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm">
                 <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
                   {record.company.name}
                 </h3>
@@ -271,7 +433,7 @@ export function ComparePageClient({
                     <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--accent-blue)]">Key products</p>
                     <div className="mt-3 space-y-2">
                       {record.company.products.slice(0, 3).map((product) => (
-                        <div key={product.name} className="rounded-2xl border border-[var(--border)] bg-[rgba(255,255,255,0.03)] p-3">
+                        <div key={product.name} className="surface-soft rounded-2xl border border-[var(--border)] p-3">
                           <p className="text-sm font-semibold text-[var(--text-primary)]">{product.name}</p>
                           <p className="mt-1 text-sm text-[var(--text-secondary)]">{product.description}</p>
                         </div>

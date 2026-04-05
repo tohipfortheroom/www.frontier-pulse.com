@@ -9,7 +9,7 @@ type DailyDigestBlockProps = {
 
 export function DailyDigestBlock({ index, item }: DailyDigestBlockProps) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-5 backdrop-blur-sm">
+    <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
       <div className="flex items-start gap-4">
         <span className="font-[family-name:var(--font-mono)] text-sm text-[var(--accent-blue)]">
           {index.toString().padStart(2, "0")}

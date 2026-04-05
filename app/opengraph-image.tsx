@@ -1,5 +1,7 @@
 import { ImageResponse } from "next/og";
 
+import { BRAND_DESCRIPTION, BRAND_NAME_UPPER, BRAND_TAGLINE } from "@/lib/brand";
+
 export const size = {
   width: 1200,
   height: 630,
@@ -36,7 +38,7 @@ export default function OpenGraphImage() {
         >
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div style={{ fontSize: 24, letterSpacing: 5, textTransform: "uppercase", color: "#8888A0" }}>
-              AI COMPANY TRACKER
+              {BRAND_NAME_UPPER}
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10, color: "#00E68A", fontSize: 22 }}>
               <div
@@ -51,10 +53,9 @@ export default function OpenGraphImage() {
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-            <div style={{ fontSize: 78, fontWeight: 700, lineHeight: 1.02 }}>Track the AI race in real time.</div>
+            <div style={{ fontSize: 78, fontWeight: 700, lineHeight: 1.02 }}>{BRAND_TAGLINE}</div>
             <div style={{ fontSize: 30, lineHeight: 1.4, color: "#8888A0", maxWidth: 880 }}>
-              A premium editorial scoreboard for launches, research claims, partnerships, regulation, and momentum
-              shifts across the companies shaping AI.
+              {BRAND_DESCRIPTION}
             </div>
           </div>
           <div style={{ display: "flex", gap: 18 }}>

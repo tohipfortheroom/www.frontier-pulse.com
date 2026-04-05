@@ -12,7 +12,7 @@ export function Collapsible({ title, className, children }: CollapsibleProps) {
   return (
     <details
       className={cn(
-        "group rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-6 backdrop-blur-sm",
+        "surface-card group rounded-2xl border border-[var(--border)] p-6 backdrop-blur-sm",
         className,
       )}
     >

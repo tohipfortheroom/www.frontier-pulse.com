@@ -1,27 +1,23 @@
 import { NextResponse } from "next/server";
 
 import { runCronIngestion } from "@/lib/ingestion/cron";
+import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
 
 export const runtime = "nodejs";
-
-function isAuthorized(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  const authorization = request.headers.get("authorization");
-  const vercelHeader = request.headers.get("x-vercel-cron");
-
-  if (vercelHeader) {
-    return true;
-  }
-
-  if (!cronSecret) {
-    return false;
-  }
-
-  return authorization === `Bearer ${cronSecret}`;
-}
+export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const result = await runCronIngestion();
+
+  return NextResponse.json(result);
+}
+
+export async function POST(request: Request) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -1,4 +1,7 @@
 import { passesSourceFilters } from "../keywords.ts";
+import { mapWithConcurrency } from "../async.ts";
+import { PIPELINE_RUNTIME_CONFIG } from "../config.ts";
+import { fetchSourceText } from "../server-fetch.ts";
 import type { RawIngestedItem, SourceDefinition } from "../types.ts";
 
 function decodeXmlEntities(input: string) {
@@ -47,18 +50,9 @@ function readPublishedAt(html: string) {
 }
 
 async function fetchArticleMetadata(url: string) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "AICompanyTrackerBot/1.0 (+https://example.com)",
-    },
-    next: { revalidate: 0 },
+  const html = await fetchSourceText(url, {
+    label: `article metadata for ${url}`,
   });
-
-  if (!response.ok) {
-    throw new Error(`Article fetch failed for ${url} with status ${response.status}`);
-  }
-
-  const html = await response.text();
 
   return {
     title: readMeta(html, "og:title") ?? readTitle(html),
@@ -122,8 +116,10 @@ async function parseSitemapItems(xml: string, source: SourceDefinition) {
     .filter((entry) => !source.itemUrlPrefixes || source.itemUrlPrefixes.some((prefix) => entry.url.startsWith(prefix)))
     .slice(0, (source.maxItems ?? 20) * 2);
 
-  const hydrated = await Promise.all(
-    sitemapUrls.map(async (entry) => {
+  const hydrated = await mapWithConcurrency(
+    sitemapUrls,
+    PIPELINE_RUNTIME_CONFIG.sitemapHydrationConcurrency,
+    async (entry) => {
       try {
         const metadata = await fetchArticleMetadata(entry.url);
         const item = buildRawItem(source, {
@@ -138,7 +134,7 @@ async function parseSitemapItems(xml: string, source: SourceDefinition) {
       } catch {
         return null;
       }
-    }),
+    },
   );
 
   return hydrated.filter(Boolean).slice(0, source.maxItems ?? 20) as RawIngestedItem[];
@@ -149,18 +145,10 @@ export async function ingest(source: SourceDefinition): Promise<RawIngestedItem[
     return [];
   }
 
-  const response = await fetch(source.url, {
-    headers: {
-      "User-Agent": "AICompanyTrackerBot/1.0 (+https://example.com)",
-    },
-    next: { revalidate: 0 },
+  const xml = await fetchSourceText(source.url, {
+    source,
+    label: `RSS source ${source.id}`,
   });
-
-  if (!response.ok) {
-    throw new Error(`RSS fetch failed for ${source.id} with status ${response.status}`);
-  }
-
-  const xml = await response.text();
   const feedItems = parseFeedItems(xml, source);
 
   if (feedItems.length > 0) {

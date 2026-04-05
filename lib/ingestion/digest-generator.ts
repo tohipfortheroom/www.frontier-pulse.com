@@ -1,8 +1,10 @@
 import { format, subHours } from "date-fns";
 
-import { getSupabaseServerClient } from "../db/client.ts";
+import { BRAND_DIGEST_NAME, BRAND_NAME } from "../brand.ts";
+import { getSupabaseServiceClient } from "../db/client.ts";
 import { extractFirstJsonObject } from "../llm/json.ts";
 import { generateLlmText, isLlmConfigured } from "../llm/openai.ts";
+import { logger } from "../monitoring/logger.ts";
 import { dailyDigest, newsItemsBySlug } from "../seed/data.ts";
 
 type DigestDraft = {
@@ -12,6 +14,9 @@ type DigestDraft = {
   biggestLoserCompanySlug: string;
   mostImportantNewsSlug: string;
   watchNext: string[];
+  digestNarrative?: string;
+  headlineOfTheDay?: string;
+  themesTags?: string[];
 };
 
 type CompanyRow = {
@@ -65,6 +70,9 @@ function fallbackDigest(news: Array<NewsRow & { companySlugs: string[] }>, winne
     biggestLoserCompanySlug: loserSlug,
     mostImportantNewsSlug: leadStory?.slug ?? dailyDigest.mostImportantNewsSlug,
     watchNext: topStories.slice(0, 3).map((story) => story.why_it_matters).filter(Boolean),
+    digestNarrative: dailyDigest.narrative,
+    headlineOfTheDay: dailyDigest.headlineOfTheDay,
+    themesTags: dailyDigest.themes,
   };
 }
 
@@ -74,8 +82,9 @@ async function generateDigestWithLlm(
   companies: CompanyRow[],
   fallback: DigestDraft,
 ) {
+  const startedAt = Date.now();
   const response = await generateLlmText({
-    systemPrompt: `You write the daily digest for The AI Company Tracker.
+    systemPrompt: `You write the daily digest for ${BRAND_NAME}.
 
 Be concise, analytical, and grounded. Focus on competitive dynamics, launches, enterprise traction, infrastructure moves, policy shifts, and momentum changes. No hype. Return only valid JSON with these keys:
 - summary: 2 sentences
@@ -105,6 +114,11 @@ ${JSON.stringify(
   });
 
   const parsed = extractFirstJsonObject(response) as Partial<DigestDraft>;
+  logger.info("llm", "digest_summary_completed", {
+    digestDate,
+    storyCount: news.length,
+    latencyMs: Date.now() - startedAt,
+  });
   const availableSlugs = news.map((story) => story.slug);
   const availableCompanies = new Set(companies.map((company) => company.slug));
 
@@ -130,11 +144,81 @@ ${JSON.stringify(
       Array.isArray(parsed.watchNext) && parsed.watchNext.length > 0
         ? parsed.watchNext.filter((item): item is string => typeof item === "string").slice(0, 3)
         : fallback.watchNext,
+    digestNarrative: fallback.digestNarrative,
+    headlineOfTheDay: fallback.headlineOfTheDay,
+    themesTags: fallback.themesTags,
   } satisfies DigestDraft;
 }
 
+async function generateDigestNarrativeWithLlm(
+  digestDate: string,
+  digest: DigestDraft,
+  news: Array<NewsRow & { companySlugs: string[] }>,
+  rankedMomentum: Array<{ companySlug: string; scoreChange24h: number }>,
+) {
+  const topStories = digest.topStorySlugs
+    .map((slug) => news.find((story) => story.slug === slug))
+    .filter((story): story is NewsRow & { companySlugs: string[] } => Boolean(story));
+  const startedAt = Date.now();
+  const response = await generateLlmText({
+    systemPrompt: `You write the lead editorial for ${BRAND_DIGEST_NAME}.
+
+Write in a confident editorial voice with clean analysis and no hype. Connect the day's stories into themes instead of rewriting them one by one. Return only valid JSON with these keys:
+- digestNarrative
+- headlineOfTheDay
+- themesTags`,
+    prompt: `Digest date: ${digestDate}
+Top stories:
+${JSON.stringify(
+  topStories.map((story) => ({
+    slug: story.slug,
+    headline: story.headline,
+    summary: story.summary,
+    whyItMatters: story.why_it_matters,
+    companySlugs: story.companySlugs,
+    importanceScore: story.importance_score,
+  })),
+)}
+
+Momentum changes:
+${JSON.stringify(rankedMomentum.slice(0, 10))}
+
+Requirements:
+- digestNarrative should be 3 to 5 paragraphs with plain newline separation.
+- headlineOfTheDay should be a punchy editorial headline.
+- themesTags should be 3 to 5 short theme phrases.`,
+    temperature: 0.4,
+    maxOutputTokens: 1_200,
+  });
+
+  const parsed = extractFirstJsonObject(response) as Partial<DigestDraft>;
+  logger.info("llm", "digest_narrative_completed", {
+    digestDate,
+    storyCount: topStories.length,
+    latencyMs: Date.now() - startedAt,
+  });
+  const themesTags =
+    Array.isArray(parsed.themesTags) && parsed.themesTags.length > 0
+      ? parsed.themesTags.filter((item): item is string => typeof item === "string").slice(0, 5)
+      : Array.isArray((parsed as { themes?: unknown[] }).themes)
+        ? (((parsed as { themes?: unknown[] }).themes ?? []).filter((item): item is string => typeof item === "string").slice(0, 5))
+        : dailyDigest.themes;
+
+  return {
+    digestNarrative:
+      typeof parsed.digestNarrative === "string" && parsed.digestNarrative.trim()
+        ? parsed.digestNarrative.trim()
+        : dailyDigest.narrative,
+    headlineOfTheDay:
+      typeof parsed.headlineOfTheDay === "string" && parsed.headlineOfTheDay.trim()
+        ? parsed.headlineOfTheDay.trim()
+        : dailyDigest.headlineOfTheDay,
+    themesTags,
+  };
+}
+
 export async function generateDailyDigest(referenceDate = new Date()) {
-  const client = getSupabaseServerClient();
+  const client = getSupabaseServiceClient();
 
   if (!client) {
     return {
@@ -217,6 +301,18 @@ export async function generateDailyDigest(referenceDate = new Date()) {
   const digest = isLlmConfigured()
     ? await generateDigestWithLlm(digestDate, newsWithCompanies, companies, fallback).catch(() => fallback)
     : fallback;
+  const narrative =
+    isLlmConfigured()
+      ? await generateDigestNarrativeWithLlm(digestDate, digest, newsWithCompanies, rankedMomentum).catch(() => ({
+          digestNarrative: fallback.digestNarrative,
+          headlineOfTheDay: fallback.headlineOfTheDay,
+          themesTags: fallback.themesTags,
+        }))
+      : {
+          digestNarrative: fallback.digestNarrative,
+          headlineOfTheDay: fallback.headlineOfTheDay,
+          themesTags: fallback.themesTags,
+        };
 
   const newsIdBySlug = Object.fromEntries(newsRows.map((story) => [story.slug, story.id]));
   const companyIdBySlug = Object.fromEntries(companies.map((company) => [company.slug, company.id]));
@@ -224,13 +320,16 @@ export async function generateDailyDigest(referenceDate = new Date()) {
   const { error } = await client.from("daily_digests").upsert(
     {
       digest_date: digestDate,
-      title: `AI Daily Digest | ${digestDate}`,
+      title: `${BRAND_DIGEST_NAME} | ${digestDate}`,
       summary: digest.summary,
       biggest_winner_company_id: companyIdBySlug[digest.biggestWinnerCompanySlug] ?? companyIdBySlug[dailyDigest.biggestWinnerCompanySlug],
       biggest_loser_company_id: companyIdBySlug[digest.biggestLoserCompanySlug] ?? companyIdBySlug[dailyDigest.biggestLoserCompanySlug],
       most_important_news_item_id: newsIdBySlug[digest.mostImportantNewsSlug] ?? newsIdBySlug[dailyDigest.mostImportantNewsSlug] ?? null,
       top_story_slugs: digest.topStorySlugs,
       watch_next: digest.watchNext,
+      narrative: narrative.digestNarrative ?? null,
+      headline_of_the_day: narrative.headlineOfTheDay ?? null,
+      themes: narrative.themesTags ?? [],
     },
     { onConflict: "digest_date" },
   );
@@ -245,7 +344,7 @@ export async function generateDailyDigest(referenceDate = new Date()) {
     digestDate,
     storyCount: newsRows.length,
     usedLlm: isLlmConfigured(),
-    previewTitle: `AI Daily Digest | ${digestDate}`,
+    previewTitle: `${BRAND_DIGEST_NAME} | ${digestDate}`,
     previewLeadStory: newsItemsBySlug[digest.mostImportantNewsSlug]?.headline ?? digest.mostImportantNewsSlug,
   };
 }

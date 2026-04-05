@@ -1,6 +1,6 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-type PageLoadingVariant = "news" | "companies" | "company" | "leaderboard" | "compare" | "digest";
+type PageLoadingVariant = "news" | "news-detail" | "companies" | "company" | "leaderboard" | "compare" | "digest";
 
 export function PageLoading({ variant }: { variant: PageLoadingVariant }) {
   if (variant === "company") {
@@ -8,12 +8,12 @@ export function PageLoading({ variant }: { variant: PageLoadingVariant }) {
       <div className="mx-auto max-w-6xl px-5 py-16 lg:py-20">
         <div className="space-y-8">
           <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
-            <div className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-8">
+            <div className="surface-card rounded-3xl border border-[var(--border)] p-8">
               <Skeleton className="h-5 w-32" />
               <Skeleton className="mt-6 h-14 w-72" />
               <Skeleton className="mt-4 h-28 w-full" />
             </div>
-            <div className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-8">
+            <div className="surface-card rounded-3xl border border-[var(--border)] p-8">
               <Skeleton className="h-5 w-28" />
               <Skeleton className="mt-5 h-14 w-28" />
               <Skeleton className="mt-5 h-28 w-full" />
@@ -26,6 +26,28 @@ export function PageLoading({ variant }: { variant: PageLoadingVariant }) {
           <div className="grid gap-5 xl:grid-cols-2">
             <Skeleton className="h-72" />
             <Skeleton className="h-72" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "news-detail") {
+    return (
+      <div className="mx-auto max-w-5xl px-5 py-16 lg:py-20">
+        <div className="space-y-8">
+          <Skeleton className="h-5 w-28" />
+          <Skeleton className="h-16 w-full max-w-4xl" />
+          <div className="flex flex-wrap gap-3">
+            <Skeleton className="h-10 w-36" />
+            <Skeleton className="h-10 w-36" />
+            <Skeleton className="h-10 w-36" />
+          </div>
+          <Skeleton className="h-28 w-full" />
+          <Skeleton className="h-40 w-full" />
+          <div className="grid gap-5 md:grid-cols-2">
+            <Skeleton className="h-64" />
+            <Skeleton className="h-64" />
           </div>
         </div>
       </div>

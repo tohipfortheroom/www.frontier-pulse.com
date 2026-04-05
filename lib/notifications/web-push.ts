@@ -1,6 +1,7 @@
 import * as webpush from "web-push";
 
-import { getSupabaseServerClient } from "@/lib/db/client";
+import { BRAND_NAME, BRAND_UTM_SOURCE } from "@/lib/brand";
+import { getSupabaseServiceClient } from "@/lib/db/client";
 import type { SummarizedCandidate } from "@/lib/ingestion/types";
 
 type StoredPushSubscription = {
@@ -37,7 +38,7 @@ export function getPublicVapidKey() {
 }
 
 export async function sendBreakingNewsNotifications(items: SummarizedCandidate[]) {
-  const client = getSupabaseServerClient();
+  const client = getSupabaseServiceClient();
 
   if (!client || items.length === 0 || !ensurePushConfigured()) {
     return {
@@ -60,9 +61,9 @@ export async function sendBreakingNewsNotifications(items: SummarizedCandidate[]
 
   for (const item of items) {
     const payload = JSON.stringify({
-      title: "Breaking AI Move",
+      title: `${BRAND_NAME} | Breaking Move`,
       body: item.shortSummary,
-      url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/news?utm_source=ai-tracker&utm_medium=push#${item.slug}`,
+      url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/news?utm_source=${BRAND_UTM_SOURCE}&utm_medium=push#${item.slug}`,
       headline: item.headline,
     });
 

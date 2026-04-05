@@ -1,5 +1,27 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <rect width="64" height="64" rx="18" fill="#0A0A0F"/>
-  <path d="M17 45V19H23L32 34L41 19H47V45H41V29L32 42L23 29V45H17Z" fill="#F0F0F5"/>
-  <circle cx="50" cy="14" r="4" fill="#00E68A"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <style>
+    @media (prefers-color-scheme: light) {
+      .icon-bg { fill: #f8f9fc; }
+      .icon-stroke { stroke: #111827; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .icon-bg { fill: #050505; }
+      .icon-stroke { stroke: #f5f7fb; }
+    }
+  </style>
+  <rect class="icon-bg" width="512" height="512" rx="96" fill="#050505"/>
+  <g transform="translate(80, 80)">
+    <circle class="icon-stroke" cx="176" cy="176" r="164" fill="none" stroke="#ffffff" stroke-width="2.8" opacity="0.1"/>
+    <polyline
+      class="icon-stroke"
+      points="12,176 96,176 130,80 166,260 202,130 224,212 250,176 340,176"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="4"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      opacity="0.95"
+    />
+  </g>
 </svg>

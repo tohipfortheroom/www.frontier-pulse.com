@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: "Browse the tracked AI companies, compare momentum, and open full editorial profiles for each player in the race.",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function CompaniesPage() {
   const records = await getCompaniesIndexData();
 

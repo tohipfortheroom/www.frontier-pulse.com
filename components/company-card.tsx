@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import type { CompanyProfile, MomentumSnapshot } from "@/lib/seed/data";
 
@@ -12,11 +13,14 @@ type CompanyCardProps = {
 
 export function CompanyCard({ company, activityCount, momentum }: CompanyCardProps) {
   return (
-    <article className="group rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.9)] p-6 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-[0_22px_40px_rgba(0,0,0,0.28)]">
+    <article
+      style={{ "--company-glow": `0 20px 42px ${company.color}22` } as CSSProperties}
+      className="surface-card group rounded-2xl border border-[var(--border)] p-6 backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-[var(--company-glow)]"
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
-            <span className="h-4 w-4 rounded-full border border-white/10" style={{ backgroundColor: company.color }} />
+            <span className="h-4 w-4 rounded-full border border-[var(--border)]" style={{ backgroundColor: company.color }} />
             <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
               {company.name}
             </h3>
@@ -27,7 +31,7 @@ export function CompanyCard({ company, activityCount, momentum }: CompanyCardPro
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3">
-        <span className="rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+        <span className="surface-subtle rounded-full border border-[var(--border)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
           {activityCount} recent moves
         </span>
         {momentum ? (
@@ -41,7 +45,7 @@ export function CompanyCard({ company, activityCount, momentum }: CompanyCardPro
         {company.tags.slice(0, 3).map((tag) => (
           <span
             key={tag}
-            className="inline-flex items-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-xs text-[var(--text-secondary)]"
+            className="surface-subtle inline-flex items-center rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)]"
           >
             {tag}
           </span>
@@ -49,13 +53,13 @@ export function CompanyCard({ company, activityCount, momentum }: CompanyCardPro
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3">
-        <Link href={`/companies/${company.slug}`} className="flex items-center gap-2 text-sm text-[var(--accent-blue)]">
+        <Link href={`/companies/${company.slug}`} className="flex items-center gap-2 text-sm text-[var(--accent-blue)] transition-transform duration-300 group-hover:translate-x-1">
           <span>Open profile</span>
           <span aria-hidden="true">→</span>
         </Link>
         <Link
           href={`/compare?companies=${company.slug}`}
-          className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-all duration-200 hover:border-[rgba(77,159,255,0.24)] hover:text-[var(--text-primary)]"
+          className="rounded-full border border-[var(--border)] px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--accent-blue-border)] hover:text-[var(--text-primary)]"
         >
           Compare
         </Link>

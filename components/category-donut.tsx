@@ -3,7 +3,16 @@
 import { useEffect, useState } from "react";
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
-const donutColors = ["#4D9FFF", "#00E68A", "#FFB84D", "#A78BFA", "#FF4D6A", "#6EE7B7", "#60A5FA", "#F59E0B"];
+const donutColors = [
+  "var(--accent-blue)",
+  "var(--accent-green)",
+  "var(--accent-amber)",
+  "var(--accent-purple)",
+  "var(--accent-red)",
+  "var(--accent-green)",
+  "var(--accent-blue)",
+  "var(--accent-amber)",
+];
 
 export function CategoryDonut({
   data,
@@ -32,7 +41,7 @@ export function CategoryDonut({
             </Pie>
             <Tooltip
               contentStyle={{
-                background: "rgba(18,18,26,0.96)",
+                background: "var(--bg-card)",
                 border: "1px solid var(--border)",
                 borderRadius: "16px",
               }}
@@ -40,7 +49,7 @@ export function CategoryDonut({
           </PieChart>
         </ResponsiveContainer>
       ) : (
-        <div className="h-full w-full rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.02)]" />
+        <div className="surface-subtle h-full w-full rounded-full border border-[var(--border)]" />
       )}
     </div>
   );

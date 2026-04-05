@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
@@ -27,9 +28,13 @@ export function LeaderboardTable({
   realtime = false,
 }: LeaderboardTableProps) {
   const router = useRouter();
-  const sortedRows = [...rows].sort((left, right) => left.rank - right.rank);
+  const sortedRows = useMemo(
+    () => [...rows].sort((left, right) => left.rank - right.rank),
+    [rows],
+  );
   const previousScores = useRef<Record<string, number>>({});
   const [flashingRows, setFlashingRows] = useState<string[]>([]);
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -46,7 +51,7 @@ export function LeaderboardTable({
     }
 
     return undefined;
-  }, [rows, sortedRows]);
+  }, [sortedRows]);
 
   useEffect(() => {
     if (!realtime) {
@@ -82,7 +87,7 @@ export function LeaderboardTable({
   }, [realtime, router]);
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] backdrop-blur-sm">
+    <div className="surface-card rounded-2xl border border-[var(--border)] backdrop-blur-sm">
       <div className="hidden lg:block">
         <table className="w-full border-collapse">
           <thead>
@@ -104,11 +109,32 @@ export function LeaderboardTable({
               return (
                 <tr
                   key={row.companySlug}
-                  className={
-                    index % 2 === 0
-                      ? "border-b border-[var(--border)] bg-[rgba(10,10,15,0.3)] transition-colors duration-150 hover:bg-[var(--bg-card-hover)]"
-                      : "border-b border-[var(--border)] bg-[rgba(18,18,26,0.92)] transition-colors duration-150 hover:bg-[var(--bg-card-hover)]"
-                  }
+                  tabIndex={mode === "preview" ? 0 : -1}
+                  role={mode === "preview" ? "link" : undefined}
+                  aria-label={mode === "preview" ? `Open ${company.name}` : undefined}
+                  onMouseEnter={() => mode === "preview" && setHoveredRow(row.companySlug)}
+                  onMouseLeave={() => mode === "preview" && setHoveredRow(null)}
+                  onFocus={() => mode === "preview" && setHoveredRow(row.companySlug)}
+                  onBlur={() => mode === "preview" && setHoveredRow(null)}
+                  onClick={() => mode === "preview" && router.push(`/companies/${row.companySlug}`)}
+                  onKeyDown={(event) => {
+                    if (mode !== "preview") {
+                      return;
+                    }
+
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      router.push(`/companies/${row.companySlug}`);
+                    }
+                  }}
+                  style={{ "--row-accent": company.color } as CSSProperties}
+                  className={cn(
+                    "group/row border-b border-[var(--border)] transition-all duration-200",
+                    index % 2 === 0 ? "bg-[var(--surface-subtle)]" : "bg-[var(--surface-card-strong)]",
+                    mode === "preview"
+                      ? "cursor-pointer hover:bg-[var(--bg-card-hover)] hover:shadow-[inset_3px_0_0_var(--row-accent)] focus-visible:bg-[var(--bg-card-hover)] focus-visible:shadow-[inset_3px_0_0_var(--row-accent)]"
+                      : "hover:bg-[var(--bg-card-hover)]",
+                  )}
                 >
                   <td className="px-5 py-4 font-[family-name:var(--font-mono)] text-sm text-[var(--text-tertiary)]">
                     {row.rank.toString().padStart(2, "0")}
@@ -124,7 +150,7 @@ export function LeaderboardTable({
                       className={cn(
                         row.score >= 0 ? "text-[var(--accent-green)]" : "text-[var(--accent-red)]",
                         flashingRows.includes(row.companySlug) &&
-                          (row.scoreChange24h >= 0 ? "rounded-md bg-[rgba(0,230,138,0.08)] px-2 py-1" : "rounded-md bg-[rgba(255,77,106,0.08)] px-2 py-1"),
+                          (row.scoreChange24h >= 0 ? "rounded-md bg-[var(--accent-green-soft)] px-2 py-1" : "rounded-md bg-[var(--accent-red-soft)] px-2 py-1"),
                       )}
                     >
                       {formatScore(row.score)}
@@ -139,9 +165,19 @@ export function LeaderboardTable({
                     {mode === "full" ? (
                       <ScorePill value={row.scoreChange7d} compact />
                     ) : (
-                      <span className="font-[family-name:var(--font-mono)] text-sm text-[var(--text-primary)]">
-                        {row.trend}
-                      </span>
+                      <div className="flex items-center gap-3">
+                        <span className="font-[family-name:var(--font-mono)] text-sm text-[var(--text-primary)]">
+                          {row.trend}
+                        </span>
+                        <div
+                          className={cn(
+                            "overflow-hidden transition-all duration-300",
+                            hoveredRow === row.companySlug ? "w-[74px] opacity-100" : "w-0 opacity-0",
+                          )}
+                        >
+                          <TrendSparkline data={row.sparkline} color={sparklineColor} height={24} />
+                        </div>
+                      </div>
                     )}
                   </td>
                   {mode === "full" ? (
@@ -167,7 +203,23 @@ export function LeaderboardTable({
           return (
             <div
               key={row.companySlug}
-              className="rounded-xl border border-[var(--border)] bg-[rgba(10,10,15,0.48)] p-4"
+              onClick={() => mode === "preview" && router.push(`/companies/${row.companySlug}`)}
+              onKeyDown={(event) => {
+                if (mode !== "preview") {
+                  return;
+                }
+
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  router.push(`/companies/${row.companySlug}`);
+                }
+              }}
+              tabIndex={mode === "preview" ? 0 : -1}
+              role={mode === "preview" ? "link" : undefined}
+              className={cn(
+                "surface-inline rounded-xl border border-[var(--border)] p-4 transition-all duration-200",
+                mode === "preview" && "cursor-pointer hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-[var(--shadow-soft)]",
+              )}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-2">
@@ -178,7 +230,7 @@ export function LeaderboardTable({
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: company.color }} />
                     <span className="font-medium text-[var(--text-primary)]">{company.name}</span>
                   </div>
-                  <p className="text-sm text-[var(--text-secondary)]">{row.keyDriver}</p>
+                  <p className="hidden text-sm text-[var(--text-secondary)] sm:block">{row.keyDriver}</p>
                 </div>
                 <ScorePill value={row.score} />
               </div>
@@ -186,14 +238,22 @@ export function LeaderboardTable({
                 {mode === "full" ? (
                   <>
                     <ScorePill value={row.scoreChange24h} compact />
-                    <ScorePill value={row.scoreChange7d} compact />
-                    <div className="w-24">
-                      <TrendSparkline data={row.sparkline} color={sparklineColor} height={32} />
+                    <div className="hidden sm:block">
+                      <ScorePill value={row.scoreChange7d} compact />
+                    </div>
+                    <div className="w-16 sm:w-24">
+                      <TrendSparkline data={row.sparkline} color={sparklineColor} height={28} />
                     </div>
                   </>
                 ) : (
                   <span className="font-[family-name:var(--font-mono)] text-sm text-[var(--text-primary)]">{row.trend}</span>
                 )}
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <span className="text-xs text-[var(--text-tertiary)] sm:hidden">{row.keyDriver}</span>
+                <Link href={`/companies/${row.companySlug}`} className="ml-auto text-xs font-medium text-[var(--accent-blue)]">
+                  Full details →
+                </Link>
               </div>
             </div>
           );

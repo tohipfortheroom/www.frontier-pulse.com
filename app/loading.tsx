@@ -20,7 +20,7 @@ export default function Loading() {
           <Skeleton className="h-64" />
         </div>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[rgba(18,18,26,0.88)] p-5">
+        <div className="surface-card rounded-2xl border border-[var(--border)] p-5">
           <Skeleton className="h-12 w-full" />
           <div className="mt-4 grid gap-3">
             {Array.from({ length: 6 }).map((_, index) => (

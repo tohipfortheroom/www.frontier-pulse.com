@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 200" width="1200" height="200">
+  <rect width="1200" height="200" fill="#050505"/>
+  <text x="60" y="125" font-family="SF Pro Display, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="80" font-weight="600" letter-spacing="12" fill="#ffffff" text-rendering="geometricPrecision">FRONTIER</text>
+  <text x="720" y="125" font-family="SF Pro Display, -apple-system, Helvetica Neue, Arial, sans-serif" font-size="80" font-weight="200" letter-spacing="12" fill="#ffffff" opacity="0.5" text-rendering="geometricPrecision">PULSE</text>
+</svg>

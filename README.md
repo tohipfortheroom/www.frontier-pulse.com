@@ -1,6 +1,6 @@
-# The AI Company Tracker
+# Frontier Pulse
 
-The AI Company Tracker is a production-style editorial web app for following the AI race in one place. It turns launches, funding, partnerships, benchmark claims, regulation, infrastructure expansion, and leadership moves into a live daily dashboard built for readers who want signal, not noise.
+Frontier Pulse is a production-style editorial web app for following the AI race in one place. It turns launches, funding, partnerships, benchmark claims, regulation, infrastructure expansion, and leadership moves into a live daily dashboard built for readers who want signal, not noise.
 
 ## What’s in the app
 

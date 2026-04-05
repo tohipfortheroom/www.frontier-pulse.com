@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { companiesBySlug } from "../seed/data.ts";
 import { companyKeywordMap, matchesAnyKeyword, tagKeywordMap } from "./keywords.ts";
+import { buildTitleFingerprint, canonicalizeUrl } from "./quality.ts";
 
 import type { NormalizedCandidate, RawIngestedItem } from "./types.ts";
 
@@ -102,7 +103,9 @@ export function normalizeIngestedItem(item: RawIngestedItem): NormalizedCandidat
   const companySlugs = detectCompanies(text, item.companyHint);
   const categorySlugs = detectCategories(text);
   const tagSlugs = detectTags(text);
-  const slugSuffix = createHash("sha1").update(item.url || `${item.sourceId}:${item.title}`).digest("hex").slice(0, 8);
+  const canonicalUrl = canonicalizeUrl(item.url);
+  const titleFingerprint = buildTitleFingerprint(item.title);
+  const slugSuffix = createHash("sha1").update(canonicalUrl || `${item.sourceId}:${item.title}`).digest("hex").slice(0, 8);
 
   if (!item.title) {
     return null;
@@ -112,7 +115,10 @@ export function normalizeIngestedItem(item: RawIngestedItem): NormalizedCandidat
     headline: item.title,
     slug: `${slugify(item.title)}-${slugSuffix}`,
     sourceName: item.sourceName,
-    sourceUrl: item.sourceUrl,
+    sourceUrl: canonicalUrl || item.url,
+    sourceId: item.sourceId,
+    canonicalUrl: canonicalUrl || item.url,
+    titleFingerprint,
     publishedAt: item.publishedAt ?? item.fetchedAt,
     rawText: item.rawText ?? null,
     cleanedText: cleanedText || null,

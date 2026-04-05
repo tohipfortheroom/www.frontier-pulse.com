@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { TooltipContentProps } from "recharts";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { companiesBySlug, type MomentumSnapshot } from "@/lib/seed/data";
+import { formatScore } from "@/lib/utils";
 
 function expandSeries(values: number[], targetLength: number) {
   if (values.length >= targetLength) {
@@ -20,6 +22,42 @@ function expandSeries(values: number[], targetLength: number) {
     const mix = sourceIndex - lowerIndex;
     return Number((lower + (upper - lower) * mix).toFixed(2));
   });
+}
+
+function MomentumTooltip({ active, label, payload }: TooltipContentProps) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  const rows = [...payload]
+    .filter((entry) => typeof entry.value === "number" && !!entry.dataKey)
+    .sort((left, right) => Number(right.value ?? 0) - Number(left.value ?? 0));
+
+  return (
+    <div className="surface-card-strong min-w-[180px] rounded-2xl border border-[var(--border)] p-4 shadow-[var(--shadow-soft)]">
+      <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+        {label} window
+      </p>
+      <div className="mt-3 space-y-2">
+        {rows.map((entry) => {
+          const companySlug = String(entry.dataKey);
+          const company = companiesBySlug[companySlug];
+
+          return (
+            <div key={companySlug} className="flex items-center justify-between gap-4 text-sm">
+              <span className="flex items-center gap-2 text-[var(--text-secondary)]">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: company?.color ?? "var(--accent-blue)" }} />
+                <span>{company?.name ?? companySlug}</span>
+              </span>
+              <span className="font-[family-name:var(--font-mono)] text-[var(--text-primary)]">
+                {formatScore(Number(entry.value ?? 0))}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function MomentumHistoryChart({ rows }: { rows: MomentumSnapshot[] }) {
@@ -42,7 +80,7 @@ export function MomentumHistoryChart({ rows }: { rows: MomentumSnapshot[] }) {
   }, []);
 
   return (
-    <div className="rounded-3xl border border-[var(--border)] bg-[rgba(18,18,26,0.86)] p-6 backdrop-blur-sm">
+    <div className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h2 className="font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
@@ -58,8 +96,8 @@ export function MomentumHistoryChart({ rows }: { rows: MomentumSnapshot[] }) {
               onClick={() => setRange(value as 7 | 30)}
               className={
                 value === range
-                  ? "rounded-full border border-[rgba(77,159,255,0.24)] bg-[rgba(77,159,255,0.12)] px-4 py-2 text-sm text-[var(--text-primary)]"
-                  : "rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] px-4 py-2 text-sm text-[var(--text-secondary)]"
+                  ? "rounded-full border border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] px-4 py-2 text-sm text-[var(--text-primary)]"
+                  : "surface-soft rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)]"
               }
             >
               {value}d
@@ -68,42 +106,45 @@ export function MomentumHistoryChart({ rows }: { rows: MomentumSnapshot[] }) {
         </div>
       </div>
 
-      <div className="mt-6 h-[360px]">
+      <div className="mt-6 min-w-0">
         {mounted ? (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height={360} minWidth={0}>
             <AreaChart data={series}>
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-              <XAxis dataKey="day" stroke="var(--text-tertiary)" tickLine={false} axisLine={false} />
-              <YAxis stroke="var(--text-tertiary)" tickLine={false} axisLine={false} width={40} />
-              <Tooltip
-                contentStyle={{
-                  background: "rgba(18,18,26,0.96)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "16px",
-                }}
+              <CartesianGrid stroke="var(--border)" vertical={false} />
+              <XAxis
+                dataKey="day"
+                stroke="var(--text-tertiary)"
+                tickLine={false}
+                axisLine={false}
+                minTickGap={range === 30 ? 18 : 10}
+                tickMargin={10}
+                interval={range === 30 ? 2 : 0}
               />
+              <YAxis stroke="var(--text-tertiary)" tickLine={false} axisLine={false} width={44} tickMargin={10} />
+              <Tooltip content={(props) => <MomentumTooltip {...props} />} cursor={{ stroke: "var(--border-hover)", strokeDasharray: "3 3" }} />
               {rows.map((row) => (
                 <Area
                   key={row.companySlug}
                   type="monotone"
                   dataKey={row.companySlug}
-                  stroke={companiesBySlug[row.companySlug]?.color ?? "#4D9FFF"}
-                  fill={companiesBySlug[row.companySlug]?.color ?? "#4D9FFF"}
-                  fillOpacity={0.08}
+                  stroke={companiesBySlug[row.companySlug]?.color ?? "var(--accent-blue)"}
+                  fill={companiesBySlug[row.companySlug]?.color ?? "var(--accent-blue)"}
+                  fillOpacity={0.04}
                   strokeWidth={2}
+                  isAnimationActive={false}
                 />
               ))}
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-full w-full rounded-3xl border border-[var(--border)] bg-[rgba(255,255,255,0.02)]" />
+          <div className="surface-subtle h-full w-full rounded-3xl border border-[var(--border)]" />
         )}
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
         {rows.map((row) => (
           <span key={row.companySlug} className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)]">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: companiesBySlug[row.companySlug]?.color ?? "#4D9FFF" }} />
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: companiesBySlug[row.companySlug]?.color ?? "var(--accent-blue)" }} />
             {companiesBySlug[row.companySlug]?.name ?? row.companySlug}
           </span>
         ))}

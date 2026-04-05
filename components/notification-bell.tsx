@@ -101,8 +101,8 @@ export function NotificationBell() {
       onClick={() => void enableNotifications()}
       disabled={isLoading}
       className={cn(
-        "inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.03)] text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]",
-        enabled && "border-[rgba(0,230,138,0.22)] bg-[rgba(0,230,138,0.08)] text-[var(--accent-green)]",
+        "surface-soft inline-flex h-9 w-9 items-center justify-center rounded-full border border-[var(--border)] text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--border-hover)] hover:text-[var(--text-primary)]",
+        enabled && "border-[var(--accent-green-border)] bg-[var(--accent-green-soft)] text-[var(--accent-green)]",
       )}
       aria-label={enabled ? "Breaking news alerts enabled" : "Enable breaking news alerts"}
     >

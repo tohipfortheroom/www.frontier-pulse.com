@@ -3,10 +3,11 @@ import type { Metadata } from "next";
 import { getNewsItemsData } from "@/lib/db/queries";
 
 import { BookmarksPageClient } from "@/components/bookmarks-page-client";
+import { BRAND_NAME } from "@/lib/brand";
 
 export const metadata: Metadata = {
   title: "Bookmarks",
-  description: "Open your saved AI Company Tracker stories and keep a lightweight reading list without signing in.",
+  description: `Open your saved ${BRAND_NAME} stories and keep a lightweight reading list without signing in.`,
 };
 
 export default async function BookmarksPage() {

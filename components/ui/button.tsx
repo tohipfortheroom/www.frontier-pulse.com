@@ -15,13 +15,13 @@ export function buttonVariants({
   className?: string;
 }) {
   const base =
-    "inline-flex items-center justify-center rounded-lg font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgba(77,159,255,0.35)] disabled:pointer-events-none disabled:opacity-50";
+    "relative inline-flex items-center justify-center overflow-hidden rounded-lg font-semibold transition-all duration-300 ease-out before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:bg-[radial-gradient(circle,var(--button-sheen)_0%,transparent_66%)] before:opacity-0 before:scale-[0.45] before:transition-all before:duration-300 before:content-[''] active:before:scale-100 active:before:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent-blue-ring)] disabled:pointer-events-none disabled:opacity-50";
 
   const variantClasses: Record<ButtonVariant, string> = {
     primary:
-      "bg-[var(--accent-blue)] text-white shadow-[0_0_28px_rgba(77,159,255,0.16)] hover:-translate-y-0.5 hover:bg-[#66ABFF]",
+      "bg-[var(--accent-blue)] text-[var(--text-inverse)] shadow-[0_0_28px_var(--accent-blue-glow)] hover:-translate-y-0.5 hover:brightness-110",
     secondary:
-      "border border-[rgba(77,159,255,0.45)] bg-transparent text-[var(--accent-blue)] hover:-translate-y-0.5 hover:bg-[rgba(77,159,255,0.08)]",
+      "border border-[var(--accent-blue-border)] bg-transparent text-[var(--accent-blue)] hover:-translate-y-0.5 hover:bg-[var(--accent-blue-soft)]",
     ghost: "text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)]",
   };
 

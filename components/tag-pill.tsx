@@ -38,7 +38,7 @@ export function TagPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full border border-[var(--border)] bg-[rgba(255,255,255,0.02)] px-3 py-1 text-xs text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)]",
+        "surface-subtle inline-flex items-center rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)] transition-all duration-200 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-primary)]",
         className,
       )}
     >
