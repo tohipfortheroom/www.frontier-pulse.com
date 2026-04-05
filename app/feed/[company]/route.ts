@@ -1,11 +1,12 @@
 import { getCompanyDetailData, getNewsItemsData } from "@/lib/db/queries";
 import { BRAND_NAME } from "@/lib/brand";
 import { buildRssFeed } from "@/lib/rss";
+import { getSiteUrlFromRequest } from "@/lib/site";
 
 export const runtime = "nodejs";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   {
     params,
   }: {
@@ -26,6 +27,7 @@ export async function GET(
     description: `Latest momentum, launch, and strategy updates for ${record.company.name}.`,
     path: `/feed/${record.company.slug}`,
     items: companyNews,
+    siteUrl: getSiteUrlFromRequest(request),
   });
 
   return new Response(xml, {
