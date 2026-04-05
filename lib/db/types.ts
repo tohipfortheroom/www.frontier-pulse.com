@@ -57,7 +57,7 @@ export type HomePageData = {
     totalStories: number;
     totalCompanies: number;
     totalLaunches: number;
-    updatedMinutesAgo: number;
+    lastUpdatedAt: string;
     seedMode: boolean;
   };
 };

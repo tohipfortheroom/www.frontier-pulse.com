@@ -1096,6 +1096,172 @@ export const companies: CompanyProfile[] = [
     ],
     sparkline: [1.1, 1.4, 1.8, 2.3, 2.9, 3.5, 4.3],
   },
+  {
+    slug: "apple-ai",
+    name: "Apple AI",
+    shortName: "Apple",
+    color: "#A2AAAD",
+    description: "Consumer AI giant integrating intelligence across billions of devices via Apple Intelligence and on-device models.",
+    overview:
+      "Apple approaches AI differently from most labs — prioritizing on-device inference, privacy, and seamless integration into existing products over raw frontier model scale. Its massive device install base makes every AI feature an instant global rollout.",
+    strengths: [
+      "Unmatched device distribution means AI features reach billions overnight.",
+      "Custom silicon (M-series, Neural Engine) optimized for on-device inference.",
+      "Privacy-first positioning resonates with consumers and regulators.",
+    ],
+    weaknesses: [
+      "Cloud-hosted frontier model capabilities lag behind OpenAI and Google.",
+      "Slower public release cadence compared to open-research labs.",
+      "Siri improvements have historically underdelivered on expectations.",
+    ],
+    whyItMatters:
+      "Apple matters because it controls the hardware-software stack for over a billion active devices. When Apple ships an AI feature, it instantly becomes the most widely deployed AI product on Earth.",
+    websiteUrl: "https://machinelearning.apple.com",
+    tags: ["On-Device", "Apple Intelligence", "Privacy"],
+    products: [
+      {
+        name: "Apple Intelligence",
+        type: "Product",
+        description: "System-wide AI features across iOS, iPadOS, and macOS.",
+        launchDate: "2024-10-28",
+      },
+    ],
+    partnerships: [],
+    milestones: [],
+    sparkline: [0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 1.8],
+  },
+  {
+    slug: "stability-ai",
+    name: "Stability AI",
+    shortName: "Stability",
+    color: "#8B5CF6",
+    description: "Open generative AI company behind Stable Diffusion and a growing suite of open-weight media generation models.",
+    overview:
+      "Stability AI pioneered the open-source image generation movement with Stable Diffusion and has expanded into audio, video, and 3D generation. It competes by releasing open-weight models that developers can self-host and fine-tune.",
+    strengths: [
+      "Open-weight models build massive community adoption and ecosystem lock-in.",
+      "Broad generative media coverage: image, audio, video, and 3D.",
+      "Enterprise API and fine-tuning services monetize the open ecosystem.",
+    ],
+    weaknesses: [
+      "Revenue model under pressure; open-weight limits monetization leverage.",
+      "Organizational restructuring has caused talent churn.",
+      "Frontier image quality increasingly challenged by closed competitors.",
+    ],
+    whyItMatters:
+      "Stability matters because it represents the open-weight alternative in generative media. Its models power a vast ecosystem of creative tools and set the baseline for what open AI can do.",
+    websiteUrl: "https://stability.ai",
+    tags: ["Open-Weight", "Image Generation", "Generative Media"],
+    products: [
+      {
+        name: "Stable Diffusion 3.5",
+        type: "Model",
+        description: "Latest open-weight text-to-image model with improved quality and control.",
+      },
+    ],
+    partnerships: [],
+    milestones: [],
+    sparkline: [0.8, 0.7, 0.9, 1.1, 1.0, 1.2, 1.3],
+  },
+  {
+    slug: "cohere",
+    name: "Cohere",
+    shortName: "Cohere",
+    color: "#39D98A",
+    description: "Enterprise-focused AI company building frontier language models optimized for business search, retrieval, and generation.",
+    overview:
+      "Cohere focuses squarely on enterprise AI — building language models optimized for retrieval-augmented generation, search, and secure deployment. Its models can be deployed on any cloud or on-premises, giving enterprises data sovereignty.",
+    strengths: [
+      "Enterprise-first positioning with strong data privacy and deployment flexibility.",
+      "Leading RAG and search capabilities with Embed and Rerank models.",
+      "Multi-cloud and on-premises deployment options attract regulated industries.",
+    ],
+    weaknesses: [
+      "Lower consumer brand awareness compared to OpenAI or Google.",
+      "Smaller model scale means trailing on some frontier benchmarks.",
+      "Competes for enterprise deals against well-funded hyperscaler AI offerings.",
+    ],
+    whyItMatters:
+      "Cohere matters because it proves there is a large market for AI that prioritizes enterprise security, deployment flexibility, and retrieval quality over raw chat model capability.",
+    websiteUrl: "https://cohere.com",
+    tags: ["Enterprise", "RAG", "Search"],
+    products: [
+      {
+        name: "Command A",
+        type: "Model",
+        description: "Latest enterprise language model optimized for business tasks and tool use.",
+      },
+    ],
+    partnerships: [],
+    milestones: [],
+    sparkline: [0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8],
+  },
+  {
+    slug: "hugging-face",
+    name: "Hugging Face",
+    shortName: "HF",
+    color: "#FFD21E",
+    description: "The GitHub of machine learning — hosting models, datasets, and spaces for the global AI community.",
+    overview:
+      "Hugging Face is the central hub for the open-source AI ecosystem. It hosts hundreds of thousands of models, datasets, and demo applications, and its Transformers library is the de facto standard for working with neural networks in Python.",
+    strengths: [
+      "Dominant platform position — most open-weight models launch on HF Hub first.",
+      "Transformers library is the standard interface for model inference and fine-tuning.",
+      "Community network effects make it the default discovery layer for AI research.",
+    ],
+    weaknesses: [
+      "Revenue growth depends on converting free community usage into paid enterprise contracts.",
+      "Platform risk from hyperscalers building competing model hubs.",
+      "Quality control at scale is challenging with hundreds of thousands of community uploads.",
+    ],
+    whyItMatters:
+      "Hugging Face matters because it is the infrastructure layer for open AI. When a new model drops, Hugging Face is where the community finds it, tests it, and builds on it.",
+    websiteUrl: "https://huggingface.co",
+    tags: ["Open-Source", "Model Hub", "Community"],
+    products: [
+      {
+        name: "Hugging Face Hub",
+        type: "Platform",
+        description: "Model, dataset, and Spaces hosting platform for the AI community.",
+      },
+    ],
+    partnerships: [],
+    milestones: [],
+    sparkline: [1.0, 1.2, 1.5, 1.8, 2.1, 2.4, 2.8],
+  },
+  {
+    slug: "together-ai",
+    name: "Together AI",
+    shortName: "Together",
+    color: "#FF6B35",
+    description: "AI infrastructure company providing fast, scalable inference and training for open-source models.",
+    overview:
+      "Together AI builds the infrastructure layer for running open-source AI models at scale. It offers inference, fine-tuning, and training APIs optimized for speed and cost, making it the go-to platform for developers building on open-weight models.",
+    strengths: [
+      "Fastest inference speeds for popular open-weight models.",
+      "Broad model catalog with day-one support for new open releases.",
+      "Custom GPU cluster offerings for enterprise training workloads.",
+    ],
+    weaknesses: [
+      "Competes against hyperscalers with deeper infrastructure investment.",
+      "Dependent on open-weight model ecosystem health for differentiation.",
+      "Smaller brand recognition outside the developer community.",
+    ],
+    whyItMatters:
+      "Together AI matters because it makes open-weight models practically usable at production scale. When a new Llama or Mistral model drops, Together is often the fastest place to use it.",
+    websiteUrl: "https://www.together.ai",
+    tags: ["Inference", "Open-Source", "Infrastructure"],
+    products: [
+      {
+        name: "Together Inference",
+        type: "API",
+        description: "High-performance inference API for open-weight models.",
+      },
+    ],
+    partnerships: [],
+    milestones: [],
+    sparkline: [0.4, 0.6, 0.9, 1.1, 1.3, 1.5, 1.7],
+  },
 ];
 
 export const newsletterSubscribers: SubscriberSeed[] = [

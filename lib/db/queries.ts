@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { differenceInMinutes, eachDayOfInterval, format, subDays } from "date-fns";
+import { eachDayOfInterval, format, subDays } from "date-fns";
 
 import { getSupabaseServerClient } from "@/lib/db/client";
 import type {
@@ -310,7 +310,7 @@ function fallbackHomePage(): HomePageData {
       totalStories: sortedNewsItems.length,
       totalCompanies: companies.length,
       totalLaunches: launches.length,
-      updatedMinutesAgo: Math.max(0, differenceInMinutes(seedNow, new Date(latestPublishedAt))),
+      lastUpdatedAt: latestPublishedAt,
       seedMode: true,
     },
   };
@@ -1048,7 +1048,7 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
       totalStories: news.length,
       totalCompanies: companies.length,
       totalLaunches: launchData.length,
-      updatedMinutesAgo: Math.max(0, differenceInMinutes(seedNow, new Date(latestPublishedAt))),
+      lastUpdatedAt: latestPublishedAt,
       seedMode: false,
     },
   };

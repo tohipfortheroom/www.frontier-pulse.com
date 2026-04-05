@@ -15,9 +15,9 @@ export const PIPELINE_HEALTH_CONFIG = {
 export const PIPELINE_RUNTIME_CONFIG = {
   fullRunCadenceMinutes: 10,
   priorityRunCadenceMinutes: 5,
-  sourceConcurrency: 3,
+  sourceConcurrency: 5,
   sitemapHydrationConcurrency: 4,
-  requestTimeoutMs: 15_000,
+  requestTimeoutMs: 8_000,
   requestRetries: 2,
   runLockTtlSeconds: 14 * 60,
   maxSummariesPerRun: 30,
