@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-const STORAGE_KEY = "ai-company-tracker-bookmarks";
+const STORAGE_KEY = "frontier-pulse-bookmarks";
+const LEGACY_STORAGE_KEY = "ai-company-tracker-bookmarks";
 
 type BookmarkContextValue = {
   bookmarks: string[];
@@ -19,7 +20,8 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const stored =
+        window.localStorage.getItem(STORAGE_KEY) ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
       setBookmarks(stored ? (JSON.parse(stored) as string[]) : []);
     } catch {
       setBookmarks([]);
@@ -34,6 +36,7 @@ export function BookmarkProvider({ children }: { children: React.ReactNode }) {
     }
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(bookmarks));
+    window.localStorage.removeItem(LEGACY_STORAGE_KEY);
   }, [bookmarks, hydrated]);
 
   const value = useMemo<BookmarkContextValue>(

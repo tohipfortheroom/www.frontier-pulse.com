@@ -8,7 +8,9 @@ Frontier Pulse is a production-style editorial web app for following the AI race
 - Companies index and full company detail pages
 - Searchable news stream with company, category, timeframe, and importance filters
 - Full leaderboard with explainable momentum scoring
-- Daily digest page for the ten most important stories
+- Daily digest page with editorial narrative and top stories
+- Comparison, timeline, trending, bookmarks, heatmap, and reaction surfaces
+- Chat, push notification, and newsletter hooks that stay gated behind env vars when not configured
 - About page with product context and scoring explanation
 
 ## Tech stack
@@ -141,8 +143,12 @@ The leaderboard shows `score`, `score_change_24h`, `score_change_7d`, and suppor
 1. Import the repo into Vercel.
 2. Add the same env vars from `.env.local` in the Vercel project settings.
 3. Deploy normally.
-4. Vercel cron is configured in [vercel.json](/Users/dylancallahan/Library/Mobile%20Documents/com~apple~CloudDocs/AI%20News/vercel.json) to call `/api/cron/ingest` hourly.
-5. Set `CRON_SECRET` so the cron route can be called securely outside Vercel if needed.
+4. Vercel cron is configured in [vercel.json](/Users/dylancallahan/Library/Mobile%20Documents/com~apple~CloudDocs/AI%20News/vercel.json) to:
+   - run `/api/cron/ingest-priority` every 5 minutes
+   - run `/api/cron/ingest` every 10 minutes
+   - run `/api/cron/send-digest` daily at 12:00 UTC
+5. Set `CRON_SECRET` so the cron routes can be called securely.
+6. Set `NEXT_PUBLIC_SITE_URL` to your live production origin, such as `https://www.frontier-pulse.com`, before shipping.
 
 ## Verification commands
 
@@ -155,4 +161,4 @@ npm run build
 
 - The UI is fully functional with the seed dataset even before Supabase is connected.
 - `npm run seed` and live ingestion require valid Supabase credentials.
-- The summarizer is intentionally a rules-based stub so a future LLM call can be added without changing the pipeline shape.
+- LLM summarization, chat, notifications, and email delivery all stay optional until their env vars are configured.
