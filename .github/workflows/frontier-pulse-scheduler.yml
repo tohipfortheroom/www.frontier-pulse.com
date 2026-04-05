@@ -1,0 +1,113 @@
+name: Frontier Pulse Scheduler
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+    - cron: "*/10 * * * *"
+    - cron: "0 12 * * *"
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "Which scheduled task to run"
+        required: true
+        default: "priority-ingest"
+        type: choice
+        options:
+          - priority-ingest
+          - full-ingest
+          - send-digest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontier-pulse-scheduler-${{ github.event.schedule || inputs.task || 'manual' }}
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FRONTIER_PULSE_BASE_URL: ${{ secrets.FRONTIER_PULSE_BASE_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      SCHEDULE: ${{ github.event.schedule }}
+      MANUAL_TASK: ${{ inputs.task }}
+    steps:
+      - name: Validate scheduler secrets
+        run: |
+          if [ -z "$FRONTIER_PULSE_BASE_URL" ]; then
+            echo "Missing FRONTIER_PULSE_BASE_URL secret"
+            exit 1
+          fi
+
+          if [ -z "$CRON_SECRET" ]; then
+            echo "Missing CRON_SECRET secret"
+            exit 1
+          fi
+
+      - name: Resolve endpoint
+        id: endpoint
+        run: |
+          task="${MANUAL_TASK}"
+
+          if [ -z "$task" ]; then
+            case "$SCHEDULE" in
+              "*/5 * * * *")
+                task="priority-ingest"
+                ;;
+              "*/10 * * * *")
+                task="full-ingest"
+                ;;
+              "0 12 * * *")
+                task="send-digest"
+                ;;
+              *)
+                echo "Unsupported schedule: $SCHEDULE"
+                exit 1
+                ;;
+            esac
+          fi
+
+          case "$task" in
+            "priority-ingest")
+              path="/api/cron/ingest-priority"
+              ;;
+            "full-ingest")
+              path="/api/cron/ingest"
+              ;;
+            "send-digest")
+              path="/api/cron/send-digest"
+              ;;
+            *)
+              echo "Unsupported task: $task"
+              exit 1
+              ;;
+          esac
+
+          echo "task=$task" >> "$GITHUB_OUTPUT"
+          echo "url=${FRONTIER_PULSE_BASE_URL%/}${path}" >> "$GITHUB_OUTPUT"
+
+      - name: Call Frontier Pulse endpoint
+        run: |
+          echo "Triggering ${{ steps.endpoint.outputs.task }} at ${{ steps.endpoint.outputs.url }}"
+
+          http_code=$(curl \
+            --silent \
+            --show-error \
+            --retry 3 \
+            --retry-all-errors \
+            --retry-delay 5 \
+            --output response.json \
+            --write-out "%{http_code}" \
+            --request POST \
+            --header "Authorization: Bearer ${CRON_SECRET}" \
+            --header "Content-Type: application/json" \
+            "${{ steps.endpoint.outputs.url }}")
+
+          cat response.json
+
+          if [ "$http_code" -lt 200 ] || [ "$http_code" -ge 300 ]; then
+            echo "Endpoint failed with status $http_code"
+            exit 1
+          fi

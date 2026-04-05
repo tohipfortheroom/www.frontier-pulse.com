@@ -143,12 +143,12 @@ The leaderboard shows `score`, `score_change_24h`, `score_change_7d`, and suppor
 1. Import the repo into Vercel.
 2. Add the same env vars from `.env.local` in the Vercel project settings.
 3. Deploy normally.
-4. Vercel cron is configured in [vercel.json](/Users/dylancallahan/Library/Mobile%20Documents/com~apple~CloudDocs/AI%20News/vercel.json) to:
-   - run `/api/cron/ingest-priority` every 5 minutes
-   - run `/api/cron/ingest` every 10 minutes
-   - run `/api/cron/send-digest` daily at 12:00 UTC
-5. Set `CRON_SECRET` so the cron routes can be called securely.
-6. Set `NEXT_PUBLIC_SITE_URL` to your live production origin, such as `https://www.frontier-pulse.com`, before shipping.
+4. On Vercel Hobby, recurring ingestion is scheduled through GitHub Actions in [.github/workflows/frontier-pulse-scheduler.yml](/Users/dylancallahan/Library/Mobile%20Documents/com~apple~CloudDocs/AI%20News/.github/workflows/frontier-pulse-scheduler.yml) rather than Vercel cron.
+5. Add repository secrets before enabling the scheduler:
+   - `FRONTIER_PULSE_BASE_URL`
+   - `CRON_SECRET`
+6. Set the same `CRON_SECRET` in Vercel so the cron routes stay protected from public traffic.
+7. Set `NEXT_PUBLIC_SITE_URL` to your live production origin, such as `https://www.frontier-pulse.com`, before shipping.
 
 ## Verification commands
 
