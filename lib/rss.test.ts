@@ -9,7 +9,7 @@ const baseItem: NewsItem = {
   sourceName: "Example Source",
   sourceUrl: "https://example.com/article",
   publishedAt: "2026-04-05T18:30:00Z",
-  summary: "Summary with &amp; and &#8216;entities&#8217;.",
+  summary: "Summary with &amp;, &#8216;entities&#8217;, and &lt; 24 hours.",
   shortSummary: "Short summary",
   whyItMatters: "Why it matters",
   importanceScore: 8,
@@ -33,7 +33,7 @@ describe("buildRssFeed", () => {
     });
 
     expect(xml).toContain("<title>Copilot’s policy update</title>");
-    expect(xml).toContain("Summary with &amp; and ‘entities’.");
+    expect(xml).toContain("Summary with &amp;, ‘entities’, and &amp;lt; 24 hours.");
     expect(xml).not.toContain("&amp;#8217;");
     expect(xml).not.toContain("&amp;#8216;");
   });

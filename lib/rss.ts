@@ -6,8 +6,6 @@ import { getSiteUrl } from "@/lib/site";
 const XML_TEXT_SANITIZER = /[^\u0009\u000A\u000D\u0020-\uD7FF\uE000-\uFFFD]/g;
 const NAMED_HTML_ENTITIES: Record<string, string> = {
   amp: "&",
-  lt: "<",
-  gt: ">",
   quot: '"',
   apos: "'",
   nbsp: " ",
@@ -29,8 +27,24 @@ function toCodePoint(value: string, radix: 10 | 16) {
 
 function decodeHtmlEntities(value: string) {
   return value
-    .replace(/&#(\d+);/g, (match, decimal) => toCodePoint(decimal, 10) ?? match)
-    .replace(/&#x([0-9a-f]+);/gi, (match, hex) => toCodePoint(hex, 16) ?? match)
+    .replace(/&#(\d+);/g, (match, decimal) => {
+      const numeric = Number.parseInt(decimal, 10);
+
+      if (numeric === 60 || numeric === 62) {
+        return match;
+      }
+
+      return toCodePoint(decimal, 10) ?? match;
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (match, hex) => {
+      const numeric = Number.parseInt(hex, 16);
+
+      if (numeric === 60 || numeric === 62) {
+        return match;
+      }
+
+      return toCodePoint(hex, 16) ?? match;
+    })
     .replace(/&([a-z]+);/gi, (match, name) => NAMED_HTML_ENTITIES[name.toLowerCase()] ?? match);
 }
 
