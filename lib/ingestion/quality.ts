@@ -87,7 +87,7 @@ export function normalizePublishedAt(value: string | undefined, fetchedAt: strin
   return date.toISOString();
 }
 
-export function classifyStoryAge(publishedAt: string, source: SourceDefinition, referenceDate = new Date()) {
+export function classifyStoryAge(publishedAt: string, source: SourceDefinition, referenceDate = new Date(), maxAgeOverrideHours?: number) {
   const publishedDate = new Date(publishedAt);
 
   if (Number.isNaN(publishedDate.getTime())) {
@@ -98,7 +98,9 @@ export function classifyStoryAge(publishedAt: string, source: SourceDefinition, 
     return "future";
   }
 
-  if (differenceInHours(referenceDate, publishedDate) > getSourceMaxAgeHours(source)) {
+  const maxAge = maxAgeOverrideHours ?? getSourceMaxAgeHours(source);
+
+  if (differenceInHours(referenceDate, publishedDate) > maxAge) {
     return "too-old";
   }
 

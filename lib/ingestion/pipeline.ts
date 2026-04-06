@@ -402,6 +402,7 @@ type RunIngestionOptions = {
   triggerKind?: PipelineTriggerKind;
   targetScope?: string;
   resummarize?: boolean;
+  maxAgeOverrideHours?: number;
 };
 
 function logIngestionEvent(event: string, details: Record<string, unknown>) {
@@ -819,6 +820,7 @@ export async function runIngestionPipeline(options: RunIngestionOptions = {}): P
   const triggerKind = options.triggerKind ?? "manual";
   const targetScope = options.targetScope ?? (selectedSources.length === sourceRegistry.length ? "all" : "selected");
   const forceResummarize = options.resummarize ?? false;
+  const maxAgeOverrideHours = options.maxAgeOverrideHours;
   const runContext = await beginPipelineRun({
     triggerKind,
     targetScope,
@@ -924,7 +926,7 @@ export async function runIngestionPipeline(options: RunIngestionOptions = {}): P
         continue;
       }
 
-      const ageClassification = classifyStoryAge(publishedAt, attempt.source);
+      const ageClassification = classifyStoryAge(publishedAt, attempt.source, new Date(), maxAgeOverrideHours);
 
       if (ageClassification === "future") {
         counters.invalidRejected += 1;

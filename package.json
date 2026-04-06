@@ -9,6 +9,7 @@
     "typecheck": "next typegen && tsc --noEmit --incremental false",
     "seed": "npx tsx lib/seed/seed-db.ts",
     "ingest": "npx tsx lib/ingestion/cron.ts",
+    "backfill": "npx tsx scripts/backfill.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
