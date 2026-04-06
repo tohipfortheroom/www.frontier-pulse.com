@@ -35,7 +35,9 @@ import {
   timelineEntries,
   topMovers,
   trendingTopics,
+  type CategoryAccent,
   type CompanyProfile,
+  type HomeTickerItem,
   type LaunchCardData,
   type Milestone,
   type MomentumSnapshot,
@@ -316,6 +318,28 @@ function fallbackHomePage(): HomePageData {
   };
 }
 
+type SupabaseResult<T> = {
+  data: T | null;
+  error: { message?: string } | null;
+};
+
+async function runSupabaseQuery<T>(label: string, query: () => PromiseLike<SupabaseResult<T>>): Promise<T | null> {
+  try {
+    const { data, error } = await query();
+
+    if (error) {
+      console.error(`[db] ${label} query failed: ${error.message ?? "Unknown error"}`);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[db] ${label} query threw: ${message}`);
+    return null;
+  }
+}
+
 const getCompanyRows = cache(async () => {
   const client = getSupabaseServerClient();
 
@@ -323,13 +347,8 @@ const getCompanyRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("companies").select("*").order("name");
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as CompanyRow[];
+  const data = await runSupabaseQuery("companies", () => client.from("companies").select("*").order("name"));
+  return data as CompanyRow[] | null;
 });
 
 const getProductRows = cache(async () => {
@@ -339,13 +358,10 @@ const getProductRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("company_products").select("*").order("launch_date", { ascending: false });
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as CompanyProductRow[];
+  const data = await runSupabaseQuery("company_products", () =>
+    client.from("company_products").select("*").order("launch_date", { ascending: false }),
+  );
+  return data as CompanyProductRow[] | null;
 });
 
 const getNewsRows = cache(async () => {
@@ -355,13 +371,10 @@ const getNewsRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("news_items").select("*").order("published_at", { ascending: false });
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as NewsItemRow[];
+  const data = await runSupabaseQuery("news_items", () =>
+    client.from("news_items").select("*").order("published_at", { ascending: false }),
+  );
+  return data as NewsItemRow[] | null;
 });
 
 const getCompanyNewsRows = cache(async () => {
@@ -371,13 +384,10 @@ const getCompanyNewsRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("company_news").select("company_id, news_item_id");
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as CompanyNewsRow[];
+  const data = await runSupabaseQuery("company_news", () =>
+    client.from("company_news").select("company_id, news_item_id"),
+  );
+  return data as CompanyNewsRow[] | null;
 });
 
 const getCategoryRows = cache(async () => {
@@ -387,13 +397,8 @@ const getCategoryRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("categories").select("id, slug, name");
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as CategoryRow[];
+  const data = await runSupabaseQuery("categories", () => client.from("categories").select("id, slug, name"));
+  return data as CategoryRow[] | null;
 });
 
 const getTagRows = cache(async () => {
@@ -403,13 +408,8 @@ const getTagRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("tags").select("id, slug, name");
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as TagRow[];
+  const data = await runSupabaseQuery("tags", () => client.from("tags").select("id, slug, name"));
+  return data as TagRow[] | null;
 });
 
 const getNewsCategoryRows = cache(async () => {
@@ -419,13 +419,10 @@ const getNewsCategoryRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("news_item_categories").select("news_item_id, category_id");
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as NewsItemCategoryRow[];
+  const data = await runSupabaseQuery("news_item_categories", () =>
+    client.from("news_item_categories").select("news_item_id, category_id"),
+  );
+  return data as NewsItemCategoryRow[] | null;
 });
 
 const getNewsTagRows = cache(async () => {
@@ -435,13 +432,10 @@ const getNewsTagRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("news_item_tags").select("news_item_id, tag_id");
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as NewsItemTagRow[];
+  const data = await runSupabaseQuery("news_item_tags", () =>
+    client.from("news_item_tags").select("news_item_id, tag_id"),
+  );
+  return data as NewsItemTagRow[] | null;
 });
 
 const getEventRows = cache(async () => {
@@ -451,13 +445,10 @@ const getEventRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("events").select("*").order("event_date", { ascending: false });
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as EventRow[];
+  const data = await runSupabaseQuery("events", () =>
+    client.from("events").select("*").order("event_date", { ascending: false }),
+  );
+  return data as EventRow[] | null;
 });
 
 const getMomentumRows = cache(async () => {
@@ -467,13 +458,10 @@ const getMomentumRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("momentum_scores").select("*").order("calculated_at", { ascending: true });
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as MomentumScoreRow[];
+  const data = await runSupabaseQuery("momentum_scores", () =>
+    client.from("momentum_scores").select("*").order("calculated_at", { ascending: true }),
+  );
+  return data as MomentumScoreRow[] | null;
 });
 
 const getDailyDigestRows = cache(async () => {
@@ -483,13 +471,10 @@ const getDailyDigestRows = cache(async () => {
     return null;
   }
 
-  const { data, error } = await client.from("daily_digests").select("*").order("digest_date", { ascending: false });
-
-  if (error || !data) {
-    return null;
-  }
-
-  return data as DailyDigestRow[];
+  const data = await runSupabaseQuery("daily_digests", () =>
+    client.from("daily_digests").select("*").order("digest_date", { ascending: false }),
+  );
+  return data as DailyDigestRow[] | null;
 });
 
 function buildNewsFromDatabase(
@@ -765,12 +750,17 @@ export const getTimelineData = cache(async (): Promise<TimelineEntry[]> => {
 export const getTopMoversData = cache(async (): Promise<TopMover[]> => {
   const leaderboard = await getLeaderboardData();
 
-  if (leaderboard === momentumSnapshots) {
+  if (leaderboard === momentumSnapshots || leaderboard.length === 0) {
     return topMovers;
   }
 
   const biggestGainer = [...leaderboard].sort((left, right) => right.scoreChange24h - left.scoreChange24h)[0];
   const biggestDrop = [...leaderboard].sort((left, right) => left.scoreChange24h - right.scoreChange24h)[0];
+
+  if (!biggestGainer || !biggestDrop) {
+    return topMovers;
+  }
+
   const watchCandidate =
     leaderboard
       .filter((row) => row.companySlug !== biggestGainer?.companySlug && row.companySlug !== biggestDrop?.companySlug)
@@ -823,64 +813,69 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
     return null;
   }
 
-  const company = mergeCompanyRow(companyRow);
-  company.products = productRows
-    .filter((row) => row.company_id === companyRow.id)
-    .map((row) => ({
-      name: row.name,
-      type: row.type,
-      description: row.description,
-      launchDate: row.launch_date ?? undefined,
-    }));
+  try {
+    const company = mergeCompanyRow(companyRow);
+    company.products = productRows
+      .filter((row) => row.company_id === companyRow.id)
+      .map((row) => ({
+        name: row.name,
+        type: row.type,
+        description: row.description,
+        launchDate: row.launch_date ?? undefined,
+      }));
 
-  const recentNews = news.filter((item) => item.companySlugs.includes(slug)).slice(0, 5);
-  const companyNews = news.filter((item) => item.companySlugs.includes(slug));
-  const categoryBreakdown = categories
-    .map((category) => ({
-      slug: category.slug,
-      name: category.name,
-      count: companyNews.filter((item) => item.categorySlugs.includes(category.slug)).length,
-    }))
-    .filter((item) => item.count > 0);
-  const partnerships = recentNews
-    .filter((item) => item.categorySlugs.includes("partnership"))
-    .slice(0, 2)
-    .map<Partnership>((item) => ({
-      name: item.headline,
-      detail: item.summary,
-    }));
+    const recentNews = news.filter((item) => item.companySlugs.includes(slug)).slice(0, 5);
+    const companyNews = news.filter((item) => item.companySlugs.includes(slug));
+    const categoryBreakdown = categories
+      .map((category) => ({
+        slug: category.slug,
+        name: category.name,
+        count: companyNews.filter((item) => item.categorySlugs.includes(category.slug)).length,
+      }))
+      .filter((item) => item.count > 0);
+    const partnerships = recentNews
+      .filter((item) => item.categorySlugs.includes("partnership"))
+      .slice(0, 2)
+      .map<Partnership>((item) => ({
+        name: item.headline,
+        detail: item.summary,
+      }));
 
-  const milestones = eventRows
-    .filter((row) => row.company_id === companyRow.id)
-    .slice(0, 4)
-    .map<Milestone>((row) => ({
-      date: format(new Date(row.event_date), "yyyy-MM-dd"),
-      title: row.event_type,
-      detail: row.explanation,
-    }));
-  const scoreBreakdown = eventRows
-    .filter((row) => row.company_id === companyRow.id)
-    .slice()
-    .sort((left, right) => new Date(left.event_date).getTime() - new Date(right.event_date).getTime())
-    .map((row) => ({
-      date: format(new Date(row.event_date), "yyyy-MM-dd"),
-      label: format(new Date(row.event_date), "MMM d"),
-      total: row.score_delta,
-      eventType: row.event_type,
-      scoreDelta: row.score_delta,
-      explanation: row.explanation,
-    }));
+    const milestones = eventRows
+      .filter((row) => row.company_id === companyRow.id)
+      .slice(0, 4)
+      .map<Milestone>((row) => ({
+        date: format(new Date(row.event_date), "yyyy-MM-dd"),
+        title: row.event_type,
+        detail: row.explanation,
+      }));
+    const scoreBreakdown = eventRows
+      .filter((row) => row.company_id === companyRow.id)
+      .slice()
+      .sort((left, right) => new Date(left.event_date).getTime() - new Date(right.event_date).getTime())
+      .map((row) => ({
+        date: format(new Date(row.event_date), "yyyy-MM-dd"),
+        label: format(new Date(row.event_date), "MMM d"),
+        total: row.score_delta,
+        eventType: row.event_type,
+        scoreDelta: row.score_delta,
+        explanation: row.explanation,
+      }));
 
-  return {
-    company,
-    momentum: leaderboard.find((row) => row.companySlug === slug),
-    recentNews,
-    partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
-    milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
-    enrichment: company.enrichmentData ?? deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
-    scoreBreakdown,
-    categoryBreakdown,
-  };
+    return {
+      company,
+      momentum: leaderboard.find((row) => row.companySlug === slug),
+      recentNews,
+      partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
+      milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
+      enrichment: company.enrichmentData ?? deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
+      scoreBreakdown,
+      categoryBreakdown,
+    };
+  } catch (error) {
+    console.error(`[db] getCompanyDetailData processing failed for ${slug}:`, error);
+    return fallbackCompanyDetail(slug);
+  }
 });
 
 export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): Promise<DailyDigestRecord> => {
@@ -923,6 +918,15 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
     topStories[0] ??
     inferredTopStories[0] ??
     newsItemsBySlug[dailyDigest.mostImportantNewsSlug];
+  const fallbackDigest = fallbackDailyDigest();
+
+  if (!mostImportantStory) {
+    return fallbackDigest;
+  }
+
+  const resolvedTopStories =
+    topStories.length > 0 ? topStories : inferredTopStories.length > 0 ? inferredTopStories : fallbackDigest.topStories;
+  const resolvedTopStorySlugs = digestTopStorySlugs.length > 0 ? digestTopStorySlugs : fallbackDigest.digest.topStorySlugs;
 
   return {
     digest: {
@@ -935,10 +939,10 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
       biggestWinnerCompanySlug: winnerSlug,
       biggestLoserCompanySlug: loserSlug,
       mostImportantNewsSlug: mostImportantStory.slug,
-      topStorySlugs: digestTopStorySlugs,
+      topStorySlugs: resolvedTopStorySlugs,
       watchNext: digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext,
     },
-    topStories: topStories.length > 0 ? topStories : inferredTopStories.length > 0 ? inferredTopStories : fallbackDailyDigest().topStories,
+    topStories: resolvedTopStories,
     biggestWinnerMomentum: leaderboard.find((row) => row.companySlug === winnerSlug),
     biggestLoserMomentum: leaderboard.find((row) => row.companySlug === loserSlug),
     mostImportantStory,
@@ -1034,6 +1038,36 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     .slice(0, 5);
   const latestPublishedAt = news[0]?.publishedAt ?? seedNow.toISOString();
 
+  const seenCompanies = new Map<string, number>();
+  const dynamicTickerItems: HomeTickerItem[] = [];
+
+  for (const item of news) {
+    const companyKey = item.companySlugs[0] ?? "ai";
+    const companyCount = seenCompanies.get(companyKey) ?? 0;
+
+    if (companyCount >= 2) {
+      continue;
+    }
+
+    seenCompanies.set(companyKey, companyCount + 1);
+    const tone: CategoryAccent =
+      item.impactDirection === "positive" ? "green" : item.impactDirection === "negative" ? "red" : "neutral";
+
+    dynamicTickerItems.push({
+      slug: item.slug,
+      company: companyKey.toUpperCase(),
+      direction: item.impactDirection === "positive" ? "↑" : item.impactDirection === "negative" ? "↓" : "→",
+      tone,
+      text: item.headline.length > 40 ? item.headline.slice(0, 37) + "..." : item.headline,
+    });
+
+    if (dynamicTickerItems.length >= 12) {
+      break;
+    }
+  }
+
+  const tickerItems = dynamicTickerItems.length >= 6 ? dynamicTickerItems : homeTickerItems;
+
   return {
     todayStories: todayStories.length > 0 ? todayStories : news.slice(0, 5),
     breakingStories: news.filter((item) => item.importanceLevel === "Critical").slice(0, 3),
@@ -1043,7 +1077,7 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     topMovers: movers,
     trendingTopics,
     digest: (await getDailyDigestData()).digest,
-    tickerItems: homeTickerItems,
+    tickerItems,
     stats: {
       totalStories: news.length,
       totalCompanies: companies.length,

@@ -24,7 +24,7 @@ export async function GET() {
     degraded: snapshot.sources.filter((source) => source.degraded || source.status === "degraded").length,
     down: snapshot.sources.filter((source) => source.status === "error").length,
   };
-  const httpStatus = snapshot.currentStatus === "LIVE" ? 200 : 503;
+  const httpStatus = snapshot.currentStatus === "STALE" ? 503 : 200;
 
   return NextResponse.json(
     {

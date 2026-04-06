@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 
 type FreshnessState = Pick<
   SourceHealthSnapshot,
-  "configured" | "currentStatus" | "currentStatusReason" | "quietFeed" | "lastSucceededAt" | "lastIngestionAt" | "staleData"
+  "configured" | "currentStatus" | "currentStatusReason" | "quietFeed" | "lastSucceededAt" | "lastIngestionAt" | "staleData" | "sourceSummary"
 >;
 
 export function DataFreshnessIndicator() {
@@ -46,6 +46,7 @@ export function DataFreshnessIndicator() {
             lastSucceededAt: payload.lastSucceededAt,
             lastIngestionAt: payload.lastIngestionAt,
             staleData: payload.staleData,
+            sourceSummary: payload.sourceSummary,
           });
           hasAlertedRef.current = false;
         }
@@ -119,7 +120,9 @@ export function DataFreshnessIndicator() {
       : freshness.currentStatus === "DELAYED"
         ? "Ingestion delayed"
         : freshness.currentStatus === "DEGRADED"
-          ? "Some sources degraded"
+          ? (freshness.sourceSummary?.degraded ?? 0) <= 2
+            ? "Sources checked recently"
+            : "Some sources degraded"
           : "Feed stale";
 
   return (

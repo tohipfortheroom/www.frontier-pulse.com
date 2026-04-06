@@ -80,7 +80,7 @@ export function Footer() {
           <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
             Quick Links
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-x-2.5 gap-y-2">
             {companies.map((company) => (
               <Link
                 key={company.slug}

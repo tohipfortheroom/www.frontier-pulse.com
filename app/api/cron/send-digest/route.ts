@@ -6,7 +6,7 @@ import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+async function handleSendDigest(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -28,4 +28,12 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
+}
+
+export async function GET(request: Request) {
+  return handleSendDigest(request);
+}
+
+export async function POST(request: Request) {
+  return handleSendDigest(request);
 }

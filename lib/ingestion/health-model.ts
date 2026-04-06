@@ -1,6 +1,6 @@
 import { differenceInMinutes } from "date-fns";
 
-import { PIPELINE_HEALTH_CONFIG } from "./config.ts";
+import { PIPELINE_HEALTH_CONFIG, PIPELINE_RUNTIME_CONFIG } from "./config.ts";
 
 export type PipelineHealthState = "LIVE" | "DELAYED" | "DEGRADED" | "STALE";
 export type SourceRuntimeState = "healthy" | "degraded" | "stale" | "error" | "idle";
@@ -11,6 +11,7 @@ type SourceRuntimeInput = {
   lastFailedAt: string | null;
   status: string;
   consecutiveFailures: number;
+  expectedIntervalMinutes?: number | null;
 };
 
 type PipelineRuntimeInput = {
@@ -24,16 +25,26 @@ export function deriveSourceRuntimeState(input: SourceRuntimeInput, now = new Da
   const minutesSinceCheck = input.lastCheckedAt ? differenceInMinutes(now, new Date(input.lastCheckedAt)) : null;
   const minutesSinceSuccess = input.lastSucceededAt ? differenceInMinutes(now, new Date(input.lastSucceededAt)) : null;
   const recentFailure = input.lastFailedAt ? differenceInMinutes(now, new Date(input.lastFailedAt)) : null;
+  const expectedIntervalMinutes = input.expectedIntervalMinutes ?? PIPELINE_RUNTIME_CONFIG.fullRunCadenceMinutes;
+  const degradedAfterMinutes = Math.max(
+    PIPELINE_HEALTH_CONFIG.sourceDegradedAfterMinutes,
+    Math.ceil(expectedIntervalMinutes * 2),
+  );
+  const staleAfterMinutes = Math.max(
+    PIPELINE_HEALTH_CONFIG.sourceStaleAfterMinutes,
+    Math.ceil(expectedIntervalMinutes * 3),
+  );
+  const recentOngoingFailure =
+    input.consecutiveFailures > 0 && recentFailure !== null && recentFailure <= degradedAfterMinutes;
 
-  const stale =
-    minutesSinceCheck === null || minutesSinceCheck >= PIPELINE_HEALTH_CONFIG.sourceStaleAfterMinutes;
+  const stale = minutesSinceCheck === null || minutesSinceCheck >= staleAfterMinutes;
   const degraded =
     !stale &&
     (input.status === "error" ||
       input.status === "degraded" ||
       input.consecutiveFailures >= PIPELINE_HEALTH_CONFIG.maxConsecutiveFailuresBeforeDegraded ||
-      (recentFailure !== null && recentFailure <= PIPELINE_HEALTH_CONFIG.sourceDegradedAfterMinutes) ||
-      (minutesSinceSuccess !== null && minutesSinceSuccess >= PIPELINE_HEALTH_CONFIG.sourceDegradedAfterMinutes));
+      recentOngoingFailure ||
+      (minutesSinceSuccess !== null && minutesSinceSuccess >= degradedAfterMinutes));
 
   let runtimeState: SourceRuntimeState;
 
@@ -76,7 +87,7 @@ export function derivePipelineHealthState(
   const staleSources = input.sourceStates.filter((source) => source.stale).length;
   const totalSources = input.sourceStates.length;
   const allSourcesStale = totalSources > 0 && staleSources === totalSources;
-  const anySourcesDegraded = degradedSources > 0;
+  const significantDegradation = degradedSources >= Math.max(3, Math.ceil(totalSources * 0.25));
 
   let state: PipelineHealthState;
   let reason: string;
@@ -89,7 +100,7 @@ export function derivePipelineHealthState(
     reason = "Feed stale — pipeline needs attention.";
   } else if (
     input.consecutiveFailures >= PIPELINE_HEALTH_CONFIG.maxConsecutiveFailuresBeforeDegraded ||
-    anySourcesDegraded
+    significantDegradation
   ) {
     state = "DEGRADED";
     reason =

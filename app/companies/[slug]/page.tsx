@@ -26,7 +26,7 @@ const ScoreBreakdownChart = dynamicImport(
   },
 );
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export function generateStaticParams() {
   return getCompaniesIndexData().then((records) => records.map(({ company }) => ({ slug: company.slug })));
@@ -46,9 +46,23 @@ export async function generateMetadata({
     };
   }
 
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+
   return {
     title: record.company.name,
     description: record.company.description,
+    openGraph: {
+      title: record.company.name,
+      description: record.company.description,
+      url: `${siteUrl}/companies/${slug}`,
+      type: "profile",
+      siteName: "Frontier Pulse",
+    },
+    twitter: {
+      card: "summary",
+      title: record.company.name,
+      description: record.company.description,
+    },
   };
 }
 
@@ -64,8 +78,18 @@ export default async function CompanyDetailPage({
     notFound();
   }
 
-  const { company, momentum, recentNews, partnerships, milestones, categoryBreakdown } = record;
-  const enrichment = record.enrichment;
+  const { company } = record;
+  const momentum = record.momentum ?? undefined;
+  const enrichment = record.enrichment ?? undefined;
+  const recentNews = record.recentNews ?? [];
+  const partnerships = record.partnerships ?? [];
+  const milestones = record.milestones ?? [];
+  const categoryBreakdown = record.categoryBreakdown ?? [];
+  const scoreBreakdown = record.scoreBreakdown ?? [];
+  const safeTags = company.tags ?? [];
+  const safeProducts = company.products ?? [];
+  const safeStrengths = company.strengths ?? [];
+  const safeWeaknesses = company.weaknesses ?? [];
   const sentimentSeries = enrichment?.sentimentHistory?.map((entry) => entry.score) ?? [];
   const organizationSchema = {
     "@context": "https://schema.org",
@@ -108,7 +132,7 @@ export default async function CompanyDetailPage({
             </div>
             <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--text-secondary)]">{company.overview}</p>
             <div className="mt-6 flex flex-wrap gap-2">
-              {company.tags.map((tag) => (
+              {safeTags.map((tag) => (
                 <span
                   key={tag}
                   className="surface-soft rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)]"
@@ -142,8 +166,8 @@ export default async function CompanyDetailPage({
                   />
                 </div>
                 <div className="mt-6 flex gap-3">
-                  <ScorePill value={momentum.scoreChange24h} />
-                  <ScorePill value={momentum.scoreChange7d} />
+                  <ScorePill value={momentum.scoreChange24h ?? 0} />
+                  <ScorePill value={momentum.scoreChange7d ?? 0} />
                 </div>
                 <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{momentum.keyDriver}</p>
               </>
@@ -183,8 +207,8 @@ export default async function CompanyDetailPage({
               Sentiment Trend
             </p>
             <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {enrichment.sentimentTrend >= 0 ? "+" : ""}
-              {enrichment.sentimentTrend.toFixed(2)}
+              {(enrichment.sentimentTrend ?? 0) >= 0 ? "+" : ""}
+              {(enrichment.sentimentTrend ?? 0).toFixed(2)}
             </p>
             {sentimentSeries.length > 0 ? (
               <div className="mt-4">
@@ -205,7 +229,7 @@ export default async function CompanyDetailPage({
             Strengths
           </h2>
           <ul className="mt-4 space-y-3 text-sm leading-6 text-[var(--text-secondary)]">
-            {company.strengths.map((strength) => (
+            {safeStrengths.map((strength) => (
               <li key={strength}>• {strength}</li>
             ))}
           </ul>
@@ -215,7 +239,7 @@ export default async function CompanyDetailPage({
             Weaknesses
           </h2>
           <ul className="mt-4 space-y-3 text-sm leading-6 text-[var(--text-secondary)]">
-            {company.weaknesses.map((weakness) => (
+            {safeWeaknesses.map((weakness) => (
               <li key={weakness}>• {weakness}</li>
             ))}
           </ul>
@@ -229,7 +253,7 @@ export default async function CompanyDetailPage({
           subtitle="Daily event attribution across the last visible company events."
           tone="green"
         />
-        <ScoreBreakdownChart rows={record.scoreBreakdown} />
+        <ScoreBreakdownChart rows={scoreBreakdown} />
       </section>
 
       <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.14s" }}>
@@ -239,7 +263,7 @@ export default async function CompanyDetailPage({
           tone="blue"
         />
         <div className="grid gap-5 md:grid-cols-2">
-          {company.products.map((product) => (
+          {safeProducts.map((product) => (
             <div
               key={product.name}
               className="surface-card rounded-2xl border border-[var(--border)] p-6 backdrop-blur-sm"

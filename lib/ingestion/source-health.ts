@@ -185,6 +185,7 @@ function mapStatus(source: SourceDefinition, row?: SourceHealthRow | null): Sour
     lastFailedAt: resolved.last_failed_at,
     status: resolved.status ?? "idle",
     consecutiveFailures: resolved.consecutive_failures ?? 0,
+    expectedIntervalMinutes: source.fetchIntervalMinutes ?? null,
   });
 
   const lastCheckedAt = resolved.last_checked_at ?? resolved.last_fetched_at;
@@ -387,6 +388,7 @@ export async function getSourceHealthSnapshot(sourceRegistry: SourceDefinition[]
   const rows = rowsResult.error || !rowsResult.data ? [] : (rowsResult.data as SourceHealthRow[]);
   const rowMap = new Map(rows.map((row) => [row.source_id, row]));
   const sources = sourceRegistry.map((source) => mapStatus(source, rowMap.get(source.id) ?? buildFallbackRow(source)));
+  const sourceConfigById = new Map(sourceRegistry.map((source) => [source.id, source]));
   const latestPublishedAt = latestNewsResult.error
     ? fallbackLatestPublishedAt
     : latestNewsResult.data?.[0]?.published_at ?? fallbackLatestPublishedAt;
@@ -398,6 +400,7 @@ export async function getSourceHealthSnapshot(sourceRegistry: SourceDefinition[]
       lastFailedAt: source.lastFailedAt,
       status: source.status,
       consecutiveFailures: source.consecutiveFailures,
+      expectedIntervalMinutes: sourceConfigById.get(source.sourceId)?.fetchIntervalMinutes ?? null,
     }),
   );
   const derived = derivePipelineHealthState(

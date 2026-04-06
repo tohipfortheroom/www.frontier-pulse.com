@@ -130,8 +130,7 @@ export function Navbar() {
           </div>
 
           <Link href="/" aria-label={BRAND_NAME} className="flex min-w-0 items-center">
-            <BrandLogo variant="full" className="hidden text-[13px] sm:text-[15px] md:inline-flex" />
-            <BrandLogo variant="wordmark" className="text-[16px] md:hidden" />
+            <BrandLogo variant="full" className="text-[12px] sm:text-[15px]" />
           </Link>
 
           <div className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 items-center font-[family-name:var(--font-mono)] text-[12px] text-[var(--text-tertiary)] md:flex">

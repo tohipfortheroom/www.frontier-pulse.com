@@ -7,9 +7,9 @@ export const PIPELINE_HEALTH_CONFIG = {
   delayedAfterMinutes: 45,
   staleAfterMinutes: 120,
   quietFeedAfterMinutes: 180,
-  sourceDegradedAfterMinutes: 60,
+  sourceDegradedAfterMinutes: 90,
   sourceStaleAfterMinutes: 180,
-  maxConsecutiveFailuresBeforeDegraded: 2,
+  maxConsecutiveFailuresBeforeDegraded: 3,
 } as const;
 
 export const PIPELINE_RUNTIME_CONFIG = {
