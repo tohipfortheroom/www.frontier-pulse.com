@@ -327,17 +327,6 @@ const sourceRegistryBase: SourceDefinition[] = [
     maxItems: 10,
   },
   {
-    id: "reuters-tech",
-    name: "Reuters Technology",
-    kind: "rss",
-    url: "https://www.reuters.com/technology/rss",
-    reliability: 0.80,
-    priority: 2,
-    fetchIntervalMinutes: 15,
-    maxItems: 10,
-    includeKeywords: ["ai", "artificial intelligence", "openai", "anthropic", "google", "meta", "microsoft", "nvidia", "chip"],
-  },
-  {
     id: "manual-watchlist",
     name: "Manual Watchlist",
     kind: "manual",
