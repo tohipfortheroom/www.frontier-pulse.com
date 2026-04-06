@@ -1,7 +1,7 @@
 "use client";
 
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { addDays, differenceInDays, differenceInHours, differenceInMinutes, endOfWeek, format, startOfDay, startOfWeek, subDays } from "date-fns";
+import { addDays, differenceInDays, differenceInHours, endOfWeek, format, startOfDay, startOfWeek, subDays } from "date-fns";
 import { Filter, RefreshCcw, Search, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -338,9 +338,6 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
 
   const recentStoriesCount = newsItems.filter((item) => differenceInHours(now, new Date(item.publishedAt)) <= 24).length;
   const freshnessReference = freshness.lastSucceededAt ?? freshness.lastIngestionAt;
-  const lastIngestionMinutesAgo = freshnessReference
-    ? Math.max(0, differenceInMinutes(now, new Date(freshnessReference)))
-    : null;
   const latestStoryHoursAgo = differenceInHours(now, new Date(freshness.latestPublishedAt));
   const statusStyles =
     !freshness.configured
@@ -362,18 +359,19 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
         : freshness.currentStatus === "DEGRADED"
           ? "Some sources degraded"
           : "Feed stale";
+  const lastRefreshLabel = freshnessReference ? `at ${format(new Date(freshnessReference), "h:mm a")}` : "recently";
   const statusBody =
     !freshness.configured
       ? "Live pipeline is not configured in this environment. Showing the editorial seed dataset."
       : freshness.currentStatus === "LIVE"
       ? freshness.quietFeed
-        ? `Sources checked ${lastIngestionMinutesAgo ?? 0} minutes ago. No major new developments across tracked companies right now.`
-        : `Updated ${lastIngestionMinutesAgo ?? 0} minutes ago across tracked sources.`
+        ? `Sources checked ${lastRefreshLabel}. No major new developments across tracked companies right now.`
+        : `Updated ${lastRefreshLabel} across tracked sources.`
       : freshness.currentStatus === "DELAYED"
-        ? `Last successful refresh was ${lastIngestionMinutesAgo ?? 0} minutes ago. Retrying automatically.`
+        ? `Last successful refresh was ${lastRefreshLabel}. Retrying automatically.`
         : freshness.currentStatus === "DEGRADED"
           ? `${freshness.sourceSummary.degraded} of ${freshness.sourceSummary.total} sources need attention, but healthy sources are still updating the feed.`
-          : `Last successful refresh was ${lastIngestionMinutesAgo ?? 0} minutes ago. Pipeline attention is required.`;
+          : `Last successful refresh was ${lastRefreshLabel}. Pipeline attention is required.`;
 
   return (
     <>
@@ -400,7 +398,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>{statusEyebrow}</span>
           <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-            {!isOnline ? "Offline" : latestStoryHoursAgo <= 0 ? "Latest story just now" : `Latest story ${latestStoryHoursAgo}h ago`}
+            {!isOnline ? "Offline" : latestStoryHoursAgo <= 0 ? "Latest story just now" : `Latest story ${format(new Date(freshness.latestPublishedAt), "h:mm a")}`}
           </span>
         </div>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">

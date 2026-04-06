@@ -16,6 +16,7 @@ on:
           - priority-ingest
           - full-ingest
           - send-digest
+          - backfill
 
 permissions:
   contents: read
@@ -78,6 +79,9 @@ jobs:
               ;;
             "send-digest")
               path="/api/cron/send-digest"
+              ;;
+            "backfill")
+              path="/api/cron/backfill"
               ;;
             *)
               echo "Unsupported task: $task"

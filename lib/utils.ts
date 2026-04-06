@@ -1,4 +1,4 @@
-import { format, formatDistanceToNowStrict } from "date-fns";
+import { format, isToday, isYesterday } from "date-fns";
 
 export type AccentTone = "green" | "red" | "blue" | "amber" | "purple" | "neutral";
 
@@ -19,12 +19,18 @@ export function formatTimestamp(date: Date | string) {
   return format(new Date(date), "MMM d, h:mm a");
 }
 
-export function formatRelativeTime(date: Date | string, referenceDate: Date | string = new Date()) {
-  return `${formatDistanceToNowStrict(new Date(date), {
-    addSuffix: false,
-    unit: "minute",
-    roundingMethod: "round",
-  })} ago`;
+export function formatSmartTime(date: Date | string) {
+  const d = new Date(date);
+
+  if (isToday(d)) {
+    return `Today ${format(d, "h:mm a")}`;
+  }
+
+  if (isYesterday(d)) {
+    return `Yesterday ${format(d, "h:mm a")}`;
+  }
+
+  return format(d, "MMM d, h:mm a");
 }
 
 export function getImportanceLabel(score: number) {

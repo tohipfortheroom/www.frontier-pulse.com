@@ -1,6 +1,6 @@
 "use client";
 
-import { differenceInMinutes } from "date-fns";
+import { differenceInMinutes, format } from "date-fns";
 import { useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/components/toast-provider";
@@ -115,7 +115,7 @@ export function DataFreshnessIndicator() {
         ? "Sources checked recently"
         : minutesAgo === null
           ? "All systems live"
-          : `Updated ${minutesAgo} min ago`
+          : `Updated at ${format(new Date(referenceTime), "h:mm a")}`
       : freshness.currentStatus === "DELAYED"
         ? "Ingestion delayed"
         : freshness.currentStatus === "DEGRADED"

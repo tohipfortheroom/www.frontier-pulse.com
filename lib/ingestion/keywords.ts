@@ -38,6 +38,11 @@ export const companyKeywordMap: Record<string, string[]> = {
   mistral: ["mistral", "le chat", "codestral", "ministral", "mistral large"],
   deepseek: ["deepseek", "r2 reasoning", "deepseek r2", "deepseek coder"],
   nvidia: ["nvidia", "blackwell", "dgx", "nim", "rubin", "nvlink"],
+  "apple-ai": ["apple ai", "apple intelligence", "apple machine learning", "apple ml", "apple foundation model"],
+  "stability-ai": ["stability ai", "stable diffusion", "stable audio", "stable video", "stability"],
+  cohere: ["cohere", "command r", "command a", "command r+", "embed v4", "rerank"],
+  "hugging-face": ["hugging face", "huggingface", "transformers library", "hugging face hub"],
+  "together-ai": ["together ai", "together inference", "together api", "together.ai"],
 };
 
 export const tagKeywordMap: Record<string, string[]> = {

@@ -4,6 +4,7 @@ import type { HomeTickerItem } from "@/lib/seed/data";
 
 import { AnimatedCounter } from "@/components/animated-counter";
 import { BrandLogo } from "@/components/brand-logo";
+import { formatSmartTime } from "@/lib/utils";
 import { HeroScrollCue } from "@/components/hero-scroll-cue";
 import { InteractiveTicker } from "@/components/interactive-ticker";
 import { buttonVariants } from "@/components/ui/button";
@@ -13,7 +14,7 @@ type HeroProps = {
     totalStories: number;
     totalCompanies: number;
     totalLaunches: number;
-    updatedMinutesAgo: number;
+    lastUpdatedAt: string;
     seedMode: boolean;
   };
   tickerItems: HomeTickerItem[];
@@ -78,7 +79,14 @@ export function Hero({ stats, tickerItems, firstSectionId }: HeroProps) {
                   </p>
                 </div>
               ) : (
-                <AnimatedCounter label="Updated minutes ago" target={stats.updatedMinutesAgo} />
+                <div className="min-w-[140px] space-y-2">
+                  <div className="font-[family-name:var(--font-mono)] text-lg font-semibold tracking-[-0.04em] text-[var(--text-primary)] sm:text-xl">
+                    {formatSmartTime(stats.lastUpdatedAt)}
+                  </div>
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+                    Last updated
+                  </p>
+                </div>
               )}
             </div>
           </div>

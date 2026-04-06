@@ -6,7 +6,7 @@ import { ChevronDown, ExternalLink } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { categoriesBySlug, seedNow, type NewsItem } from "@/lib/seed/data";
-import { cn, formatRelativeTime, formatTimestamp } from "@/lib/utils";
+import { cn, formatSmartTime, formatTimestamp } from "@/lib/utils";
 
 import { BookmarkButton } from "@/components/bookmark-button";
 import { CompanyBadge } from "@/components/company-badge";
@@ -207,7 +207,7 @@ export function NewsCard({
               />
             ))}
             <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-              {formatRelativeTime(news.publishedAt, seedNow)}
+              {formatSmartTime(news.publishedAt)}
             </span>
           </div>
 
