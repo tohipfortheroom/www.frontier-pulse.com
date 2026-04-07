@@ -464,7 +464,7 @@ const getMomentumRows = cache(async () => {
   return data as MomentumScoreRow[] | null;
 });
 
-const getDailyDigestRows = cache(async () => {
+const getDailyDigestRows = async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -475,7 +475,7 @@ const getDailyDigestRows = cache(async () => {
     client.from("daily_digests").select("*").order("digest_date", { ascending: false }),
   );
   return data as DailyDigestRow[] | null;
-});
+};
 
 function buildNewsFromDatabase(
   newsRows: NewsItemRow[],
@@ -878,8 +878,9 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
   }
 });
 
-export const getDailyDigestData = cache(
-  async (targetDate = format(new Date(), "yyyy-MM-dd")): Promise<DailyDigestRecord> => {
+export const getDailyDigestData = async (
+  targetDate = format(new Date(), "yyyy-MM-dd"),
+): Promise<DailyDigestRecord> => {
   const [digestRows, companyRows, news, leaderboard, newsRows] = await Promise.all([
     getDailyDigestRows(),
     getCompanyRows(),
@@ -948,10 +949,9 @@ export const getDailyDigestData = cache(
     biggestLoserMomentum: leaderboard.find((row) => row.companySlug === loserSlug),
     mostImportantStory,
   };
-  },
-);
+};
 
-export const getDailyDigestByDate = cache(async (date: string): Promise<DailyDigestRecord> => {
+export const getDailyDigestByDate = async (date: string): Promise<DailyDigestRecord> => {
   const client = getSupabaseServerClient();
 
   if (client) {
@@ -974,9 +974,9 @@ export const getDailyDigestByDate = cache(async (date: string): Promise<DailyDig
     biggestLoserMomentum: getCompanyMomentum(digestSource.biggestLoserCompanySlug),
     mostImportantStory: newsItemsBySlug[digestSource.mostImportantNewsSlug],
   };
-});
+};
 
-export const getDigestArchiveDates = cache(async (): Promise<string[]> => {
+export const getDigestArchiveDates = async (): Promise<string[]> => {
   const client = getSupabaseServerClient();
 
   if (client) {
@@ -995,7 +995,7 @@ export const getDigestArchiveDates = cache(async (): Promise<string[]> => {
   const sorted = [...new Set(allDates)].sort((a, b) => b.localeCompare(a));
 
   return sorted.slice(0, 7);
-});
+};
 
 export const getRecentMomentumEventsData = cache(async () => {
   const [companyRows, eventRows, newsRows] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows()]);
