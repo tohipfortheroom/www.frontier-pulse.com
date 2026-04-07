@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import dynamicImport from "next/dynamic";
+import { format } from "date-fns";
 
 import { getFullTimelineData } from "@/lib/db/queries";
 import { SectionHeader } from "@/components/section-header";
@@ -34,10 +35,11 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function TimelinePage() {
   const data = await getFullTimelineData(14);
+  const lastUpdatedLabel = format(new Date(data.lastUpdatedAt), "MMM d, h:mm a");
 
   return (
     <div className="relative z-10 mx-auto max-w-5xl px-5 py-16 lg:py-20">
@@ -48,6 +50,9 @@ export default async function TimelinePage() {
           subtitle="Browse the last two weeks of AI frontier activity in chronological order. Filter by company to focus on the players that matter to you."
           tone="purple"
         />
+        <p className="text-xs text-[var(--text-tertiary)]">
+          Last updated {lastUpdatedLabel}
+        </p>
         <TimelinePageClient
           entries={data.entries}
           newsItems={data.newsItems}

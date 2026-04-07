@@ -1,5 +1,5 @@
 import { cache } from "react";
-import { eachDayOfInterval, format, subDays } from "date-fns";
+import { eachDayOfInterval, format, startOfDay, subDays } from "date-fns";
 
 import { getSupabaseServerClient } from "@/lib/db/client";
 import type {
@@ -1213,44 +1213,111 @@ export const getTrendingTopicsData = cache(async (): Promise<TrendingTag[]> => {
 /* ------------------------------------------------------------------ */
 
 export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
+  const [companyRows, eventRows] = await Promise.all([getCompanyRows(), getEventRows()]);
+
+  if (!companyRows || !eventRows) {
+    const dates = eachDayOfInterval({
+      start: subDays(seedNow, 29),
+      end: seedNow,
+    }).map((day) => format(day, "yyyy-MM-dd"));
+
+    const heatmapCompanies = companies.map((c) => ({
+      slug: c.slug,
+      name: c.name,
+      color: c.color,
+    }));
+
+    const cells: HeatmapCell[] = [];
+
+    for (const company of heatmapCompanies) {
+      for (const date of dates) {
+        const dayEvents = momentumEvents.filter(
+          (event) =>
+            event.companySlug === company.slug &&
+            format(new Date(event.eventDate), "yyyy-MM-dd") === date,
+        );
+
+        cells.push({
+          companySlug: company.slug,
+          companyName: company.name,
+          companyColor: company.color,
+          date,
+          eventCount: dayEvents.length,
+          netScore: dayEvents.reduce((sum, event) => sum + event.scoreDelta, 0),
+          events: dayEvents.map((event) => ({
+            eventType: event.eventType,
+            scoreDelta: event.scoreDelta,
+            explanation: event.explanation,
+          })),
+        });
+      }
+    }
+
+    return { cells, dates, companies: heatmapCompanies, lastUpdatedAt: seedNow.toISOString() };
+  }
+
+  const today = startOfDay(new Date());
   const dates = eachDayOfInterval({
-    start: subDays(seedNow, 29),
-    end: seedNow,
+    start: subDays(today, 29),
+    end: today,
   }).map((day) => format(day, "yyyy-MM-dd"));
 
-  const heatmapCompanies = companies.map((c) => ({
-    slug: c.slug,
-    name: c.name,
-    color: c.color,
-  }));
+  const heatmapCompanies = companyRows.map((row) => {
+    const company = mergeCompanyRow(row);
+    return { slug: company.slug, name: company.name, color: company.color };
+  });
 
+  const companyById = new Map(companyRows.map((row) => [row.id, row]));
   const cells: HeatmapCell[] = [];
+  const cellLookup = new Map<string, HeatmapCell>();
 
   for (const company of heatmapCompanies) {
     for (const date of dates) {
-      const dayEvents = momentumEvents.filter(
-        (event) =>
-          event.companySlug === company.slug &&
-          format(new Date(event.eventDate), "yyyy-MM-dd") === date,
-      );
-
-      cells.push({
+      const cell: HeatmapCell = {
         companySlug: company.slug,
         companyName: company.name,
         companyColor: company.color,
         date,
-        eventCount: dayEvents.length,
-        netScore: dayEvents.reduce((sum, event) => sum + event.scoreDelta, 0),
-        events: dayEvents.map((event) => ({
-          eventType: event.eventType,
-          scoreDelta: event.scoreDelta,
-          explanation: event.explanation,
-        })),
-      });
+        eventCount: 0,
+        netScore: 0,
+        events: [],
+      };
+
+      cells.push(cell);
+      cellLookup.set(`${company.slug}::${date}`, cell);
     }
   }
 
-  return { cells, dates, companies: heatmapCompanies };
+  const dateSet = new Set(dates);
+
+  for (const event of eventRows) {
+    const companyRow = companyById.get(event.company_id);
+    if (!companyRow) {
+      continue;
+    }
+
+    const dateKey = format(new Date(event.event_date), "yyyy-MM-dd");
+    if (!dateSet.has(dateKey)) {
+      continue;
+    }
+
+    const cell = cellLookup.get(`${companyRow.slug}::${dateKey}`);
+    if (!cell) {
+      continue;
+    }
+
+    cell.eventCount += 1;
+    cell.netScore += Number(event.score_delta ?? 0);
+    cell.events.push({
+      eventType: event.event_type,
+      scoreDelta: event.score_delta,
+      explanation: event.explanation,
+    });
+  }
+
+  const lastUpdatedAt = eventRows[0]?.event_date ?? new Date().toISOString();
+
+  return { cells, dates, companies: heatmapCompanies, lastUpdatedAt };
 });
 
 /* ------------------------------------------------------------------ */
@@ -1261,24 +1328,78 @@ export type FullTimelineData = {
   entries: TimelineEntry[];
   newsItems: NewsItem[];
   companies: Array<{ slug: string; name: string; color: string }>;
+  lastUpdatedAt: string;
 };
 
 export const getFullTimelineData = cache(async (days: number): Promise<FullTimelineData> => {
-  const cutoff = subDays(seedNow, days);
+  const [companyRows, eventRows, newsRows, newsItems] = await Promise.all([
+    getCompanyRows(),
+    getEventRows(),
+    getNewsRows(),
+    getNewsItemsData(),
+  ]);
 
-  const entries = timelineEntries.filter(
-    (entry) => new Date(entry.timestamp) >= cutoff,
-  );
+  if (!companyRows || !eventRows || !newsRows) {
+    const cutoff = subDays(seedNow, days);
 
-  const news = sortedNewsItems.filter(
-    (item) => new Date(item.publishedAt) >= cutoff,
-  );
+    const entries = timelineEntries.filter(
+      (entry) => new Date(entry.timestamp) >= cutoff,
+    );
 
-  const timelineCompanies = companies.map((c) => ({
-    slug: c.slug,
-    name: c.name,
-    color: c.color,
-  }));
+    const news = sortedNewsItems.filter(
+      (item) => new Date(item.publishedAt) >= cutoff,
+    );
 
-  return { entries, newsItems: news, companies: timelineCompanies };
+    const timelineCompanies = companies.map((c) => ({
+      slug: c.slug,
+      name: c.name,
+      color: c.color,
+    }));
+
+    return { entries, newsItems: news, companies: timelineCompanies, lastUpdatedAt: seedNow.toISOString() };
+  }
+
+  const cutoff = subDays(new Date(), days);
+  const companyById = new Map(companyRows.map((row) => [row.id, row]));
+  const newsById = new Map(newsRows.map((row) => [row.id, row]));
+
+  const timelineCompanies = companyRows.map((row) => {
+    const company = mergeCompanyRow(row);
+    return { slug: company.slug, name: company.name, color: company.color };
+  });
+
+  const entries = eventRows
+    .filter((row) => new Date(row.event_date) >= cutoff)
+    .map<TimelineEntry | null>((row) => {
+      const companyRow = companyById.get(row.company_id);
+      if (!companyRow) {
+        return null;
+      }
+
+      const newsRow = row.news_item_id ? newsById.get(row.news_item_id) : undefined;
+      const headline = newsRow?.headline ?? row.event_type;
+      const detail = newsRow?.short_summary ?? newsRow?.summary ?? row.explanation;
+      const timestamp = row.event_date ?? newsRow?.published_at ?? new Date().toISOString();
+
+      return {
+        slug: `timeline-${newsRow?.slug ?? row.id}`,
+        companySlug: companyRow.slug,
+        timestamp,
+        headline,
+        detail,
+        live: false,
+      };
+    })
+    .filter((entry): entry is TimelineEntry => Boolean(entry))
+    .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
+
+  if (entries.length > 0) {
+    entries[0].live = true;
+  }
+
+  const newsInRange = newsItems.filter((item) => new Date(item.publishedAt) >= cutoff);
+
+  const lastUpdatedAt = entries[0]?.timestamp ?? newsInRange[0]?.publishedAt ?? new Date().toISOString();
+
+  return { entries, newsItems: newsInRange, companies: timelineCompanies, lastUpdatedAt };
 });
