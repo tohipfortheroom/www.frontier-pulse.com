@@ -20,7 +20,7 @@ export async function generateStaticParams() {
   return items.map((item) => ({ slug: item.slug }));
 }
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export async function generateMetadata({
   params,

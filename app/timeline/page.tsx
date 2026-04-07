@@ -15,13 +15,26 @@ const TimelinePageClient = dynamicImport(
   },
 );
 
-export const metadata: Metadata = {
-  title: "Timeline — Frontier Pulse",
-  description:
-    "A day-by-day vertical timeline of every move in the AI frontier race. Filter by company and explore momentum shifts across the last two weeks.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const data = await getFullTimelineData(14);
+    const eventCount = data.entries.length;
+    const description = `${eventCount} events across 14 days. A day-by-day vertical timeline of every move in the AI frontier race.`;
 
-export const dynamic = "force-dynamic";
+    return {
+      title: "Timeline",
+      description,
+      openGraph: { title: "Timeline — Frontier Pulse", description, type: "website", siteName: "Frontier Pulse" },
+    };
+  } catch {
+    return {
+      title: "Timeline",
+      description: "A day-by-day vertical timeline of every move in the AI frontier race.",
+    };
+  }
+}
+
+export const revalidate = 300;
 
 export default async function TimelinePage() {
   const data = await getFullTimelineData(14);

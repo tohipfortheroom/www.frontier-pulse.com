@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description: "Compare up to four AI companies side by side across momentum, radar profiles, product breadth, recent coverage, and shared competitive pressure.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function ComparePage() {
   const [records, newsItems] = await Promise.all([getCompaniesIndexData(), getNewsItemsData()]);

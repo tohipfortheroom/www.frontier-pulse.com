@@ -8,9 +8,15 @@ import { SectionHeader } from "@/components/section-header";
 export const metadata: Metadata = {
   title: "Companies",
   description: "Browse the tracked AI companies, compare momentum, and open full editorial profiles for each player in the race.",
+  openGraph: {
+    title: "Companies — Frontier Pulse",
+    description: "Browse the tracked AI companies, compare momentum, and open full editorial profiles for each player in the race.",
+    type: "website",
+    siteName: "Frontier Pulse",
+  },
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function CompaniesPage() {
   const records = await getCompaniesIndexData();

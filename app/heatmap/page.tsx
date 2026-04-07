@@ -5,12 +5,18 @@ import { IndustryHeatmap } from "@/components/industry-heatmap";
 import { SectionHeader } from "@/components/section-header";
 
 export const metadata: Metadata = {
-  title: "Industry Heatmap — Frontier Pulse",
+  title: "Heatmap",
   description:
     "A 30-day calendar heatmap of AI company activity. See which companies are surging, which are quiet, and how overall industry momentum shifts day by day.",
+  openGraph: {
+    title: "Heatmap — Frontier Pulse",
+    description: "A 30-day calendar heatmap of AI company activity. See which companies are surging and how momentum shifts day by day.",
+    type: "website",
+    siteName: "Frontier Pulse",
+  },
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function HeatmapPage() {
   const data = await getHeatmapData();
