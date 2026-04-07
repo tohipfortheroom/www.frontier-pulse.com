@@ -16,12 +16,29 @@ const MomentumHistoryChart = dynamicImport(
   },
 );
 
-export const metadata: Metadata = {
-  title: "Leaderboard",
-  description: "See the full AI race ranking, momentum changes, and the events that moved the board most recently.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  try {
+    const leaderboard = await getLeaderboardData();
+    const leader = leaderboard[0];
+    const leaderName = leader ? companiesBySlug[leader.companySlug]?.name ?? leader.companySlug : undefined;
+    const description = leader
+      ? `${leaderName} leads with ${formatScore(leader.score)} momentum. See the full AI race ranking and the events that moved the board.`
+      : "See the full AI race ranking, momentum changes, and the events that moved the board most recently.";
 
-export const dynamic = "force-dynamic";
+    return {
+      title: "Leaderboard",
+      description,
+      openGraph: { title: "Leaderboard — Frontier Pulse", description, type: "website", siteName: "Frontier Pulse" },
+    };
+  } catch {
+    return {
+      title: "Leaderboard",
+      description: "See the full AI race ranking, momentum changes, and the events that moved the board most recently.",
+    };
+  }
+}
+
+export const revalidate = 300;
 
 const eventWeights = [
   { label: "Major model release", delta: "+10" },

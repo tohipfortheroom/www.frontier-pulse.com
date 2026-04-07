@@ -9,12 +9,12 @@ const TrendingTopicsClient = nextDynamic(() =>
 );
 
 export const metadata: Metadata = {
-  title: "Trending Topics — Frontier Pulse",
+  title: "Trending Topics",
   description:
     "See which AI topics are gaining momentum right now. A real-time tag cloud and ranked list of the hottest themes across the frontier AI landscape.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function TrendingPage() {
   const topics = await getTrendingTopicsData();

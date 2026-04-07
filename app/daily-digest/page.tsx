@@ -10,10 +10,28 @@ import { SectionHeader } from "@/components/section-header";
 import { ShareButton } from "@/components/share-button";
 import { BRAND_DIGEST_NAME, BRAND_NAME } from "@/lib/brand";
 
-export const metadata: Metadata = {
-  title: "Daily Digest",
-  description: `Read the ${BRAND_NAME} daily digest for the ten stories that mattered most and what to watch next.`,
-};
+export async function generateMetadata({ searchParams }: DailyDigestPageProps): Promise<Metadata> {
+  try {
+    const resolvedParams = await searchParams;
+    const dateParam = typeof resolvedParams.date === "string" ? resolvedParams.date : undefined;
+    const digestResult = dateParam ? await getDailyDigestByDate(dateParam) : await getDailyDigestData();
+    const digestDate = digestResult.digest.date;
+    const title = `Daily Digest — ${digestDate}`;
+    const description = digestResult.digest.summary
+      || `Read the ${BRAND_NAME} daily digest for ${digestDate}: the stories that mattered most and what to watch next.`;
+
+    return {
+      title,
+      description,
+      openGraph: { title: `${title} — ${BRAND_NAME}`, description, type: "article", siteName: BRAND_NAME },
+    };
+  } catch {
+    return {
+      title: "Daily Digest",
+      description: `Read the ${BRAND_NAME} daily digest for the stories that mattered most and what to watch next.`,
+    };
+  }
+}
 
 export const dynamic = "force-dynamic";
 
