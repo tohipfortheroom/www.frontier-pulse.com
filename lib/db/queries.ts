@@ -1393,6 +1393,33 @@ export const getFullTimelineData = cache(async (days: number): Promise<FullTimel
     .filter((entry): entry is TimelineEntry => Boolean(entry))
     .sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
 
+  const todayKey = format(new Date(), "yyyy-MM-dd");
+  const hasToday = entries.some((entry) => format(new Date(entry.timestamp), "yyyy-MM-dd") === todayKey);
+
+  if (!hasToday) {
+    const fallbackNews = newsItems
+      .filter((item) => item.importanceScore >= 6 && new Date(item.publishedAt) >= cutoff)
+      .slice(0, 8)
+      .map<TimelineEntry>((item) => ({
+        slug: `timeline-${item.slug}`,
+        companySlug: item.companySlugs[0] ?? companies[0]?.slug ?? "openai",
+        timestamp: item.publishedAt,
+        headline: item.headline,
+        detail: item.shortSummary || item.whyItMatters,
+        live: false,
+      }));
+
+    const seen = new Set(entries.map((entry) => entry.slug));
+    for (const fallback of fallbackNews) {
+      if (!seen.has(fallback.slug)) {
+        entries.push(fallback);
+        seen.add(fallback.slug);
+      }
+    }
+
+    entries.sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
+  }
+
   if (entries.length > 0) {
     entries[0].live = true;
   }
