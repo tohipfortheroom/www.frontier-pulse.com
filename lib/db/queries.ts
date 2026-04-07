@@ -878,7 +878,8 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
   }
 });
 
-export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): Promise<DailyDigestRecord> => {
+export const getDailyDigestData = cache(
+  async (targetDate = format(new Date(), "yyyy-MM-dd")): Promise<DailyDigestRecord> => {
   const [digestRows, companyRows, news, leaderboard, newsRows] = await Promise.all([
     getDailyDigestRows(),
     getCompanyRows(),
@@ -947,7 +948,8 @@ export const getDailyDigestData = cache(async (targetDate = dailyDigest.date): P
     biggestLoserMomentum: leaderboard.find((row) => row.companySlug === loserSlug),
     mostImportantStory,
   };
-});
+  },
+);
 
 export const getDailyDigestByDate = cache(async (date: string): Promise<DailyDigestRecord> => {
   const client = getSupabaseServerClient();
