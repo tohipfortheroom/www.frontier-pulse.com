@@ -212,4 +212,5 @@ export type HeatmapData = {
   cells: HeatmapCell[];
   dates: string[];
   companies: HeatmapCompany[];
+  lastUpdatedAt: string;
 };

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { format } from "date-fns";
 
 import { getHeatmapData } from "@/lib/db/queries";
 import { IndustryHeatmap } from "@/components/industry-heatmap";
@@ -16,10 +17,11 @@ export const metadata: Metadata = {
   },
 };
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 export default async function HeatmapPage() {
   const data = await getHeatmapData();
+  const lastUpdatedLabel = format(new Date(data.lastUpdatedAt), "MMM d, h:mm a");
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -30,6 +32,9 @@ export default async function HeatmapPage() {
           subtitle="Each cell represents one company on one day. Green intensity shows positive momentum events, red shows setbacks. Click any cell to see the underlying events."
           tone="green"
         />
+        <p className="text-xs text-[var(--text-tertiary)]">
+          Last updated {lastUpdatedLabel}
+        </p>
         <IndustryHeatmap data={data} />
       </section>
     </div>
