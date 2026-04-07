@@ -810,7 +810,7 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
   const companyRow = companyRows.find((row) => row.slug === slug);
 
   if (!companyRow) {
-    return null;
+    return fallbackCompanyDetail(slug);
   }
 
   try {
