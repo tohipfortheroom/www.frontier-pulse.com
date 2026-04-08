@@ -6,6 +6,7 @@ import {
   PIPELINE_RUNTIME_CONFIG,
   getSourceMaxAgeHours,
 } from "./config.ts";
+import { applyEditorialRules } from "./editorial.ts";
 import { mapWithConcurrency } from "./async.ts";
 import { normalizeIngestedItem } from "./normalizer.ts";
 import { classifyStoryAge, normalizePublishedAt } from "./quality.ts";
@@ -22,6 +23,7 @@ import type {
   PipelineRunResult,
   PipelineTriggerKind,
   RawIngestedItem,
+  ScoredCandidate,
   SourceDefinition,
   SourceRunResult,
   SummarizedCandidate,
@@ -373,7 +375,7 @@ type SourceAttempt = {
 type CandidateEnvelope = {
   source: SourceDefinition;
   rawItem: RawIngestedItem;
-  candidate: ReturnType<typeof scoreCandidate> & NonNullable<ReturnType<typeof normalizeIngestedItem>>;
+  candidate: ScoredCandidate;
 };
 
 type SourceCounters = {
@@ -956,6 +958,19 @@ export async function runIngestionPipeline(options: RunIngestionOptions = {}): P
         continue;
       }
 
+      const editorial = applyEditorialRules(normalizedCandidate, rawItem);
+
+      if (!editorial.publishable) {
+        counters.invalidRejected += 1;
+        rejections.push({
+          sourceId: attempt.source.id,
+          headline: normalizedCandidate.headline,
+          canonicalUrl: normalizedCandidate.canonicalUrl,
+          reason: "editorial-suppressed",
+        });
+        continue;
+      }
+
       counters.acceptedCount += 1;
       counters.latestItemPublishedAt =
         counters.latestItemPublishedAt && new Date(counters.latestItemPublishedAt) > new Date(normalizedCandidate.publishedAt)
@@ -1002,8 +1017,13 @@ export async function runIngestionPipeline(options: RunIngestionOptions = {}): P
         source: attempt.source,
         rawItem,
         candidate: {
-          ...normalizedCandidate,
-          ...scoreCandidate(normalizedCandidate, rawItem),
+          ...editorial.candidate,
+          ...scoreCandidate(editorial.candidate, rawItem, editorial),
+          sourceTier: editorial.sourceTier,
+          digestEligible: editorial.digestEligible,
+          whyItMattersEligible: editorial.whyItMattersEligible,
+          classificationConfidence: editorial.classificationConfidence,
+          reviewFlags: editorial.reviewFlags,
         },
       });
     }

@@ -151,14 +151,16 @@ export default async function NewsDetailPage({
               <div className="space-y-6">
                 <p className="text-lg leading-8 text-[var(--text-secondary)]">{news.summary}</p>
 
-                <div className="surface-subtle rounded-2xl border border-[var(--border)] p-5">
-                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-                    Why It Matters
-                  </p>
-                  <p className="mt-3 border-l-2 border-[var(--accent-blue)] pl-4 text-base italic leading-7 text-[var(--text-secondary)]">
-                    {news.whyItMatters}
-                  </p>
-                </div>
+                {news.whyItMatters ? (
+                  <div className="surface-subtle rounded-2xl border border-[var(--border)] p-5">
+                    <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                      Why It Matters
+                    </p>
+                    <p className="mt-3 border-l-2 border-[var(--accent-blue)] pl-4 text-base italic leading-7 text-[var(--text-secondary)]">
+                      {news.whyItMatters}
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
               <div className="surface-inline space-y-4 rounded-2xl border border-[var(--border)] p-5">

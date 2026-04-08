@@ -5,6 +5,7 @@ export type SourceKind = "rss" | "blog-scraper" | "manual" | "api";
 export type SourceRunStatus = "success" | "partial_success" | "error" | "skipped";
 export type PipelineRunStatus = "success" | "partial_success" | "error" | "skipped";
 export type PipelineTriggerKind = "cron" | "priority-cron" | "manual" | "cli";
+export type SourceTier = "official" | "major-media" | "trade-media" | "research-repository" | "community" | "manual";
 
 export type ManualSourceItem = {
   title: string;
@@ -82,6 +83,11 @@ export type NormalizedCandidate = {
 export type ScoredCandidate = NormalizedCandidate & {
   importanceScore: number;
   confidenceScore: number;
+  sourceTier?: SourceTier;
+  digestEligible?: boolean;
+  whyItMattersEligible?: boolean;
+  classificationConfidence?: number;
+  reviewFlags?: string[];
 };
 
 export type SummarizedCandidate = ScoredCandidate & {
@@ -98,7 +104,8 @@ export type CandidateRejectionReason =
   | "future-dated"
   | "duplicate-canonical"
   | "duplicate-title"
-  | "duplicate-slug";
+  | "duplicate-slug"
+  | "editorial-suppressed";
 
 export type CandidateRejection = {
   sourceId: string;

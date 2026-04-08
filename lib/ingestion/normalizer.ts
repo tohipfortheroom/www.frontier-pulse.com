@@ -38,7 +38,7 @@ function detectCategories(text: string) {
   const normalized = text.toLowerCase();
   const categories = new Set<string>();
 
-  if (/(launch|release|ships|rolls out|preview)/i.test(normalized)) {
+  if (/(launch|release|ships|rolls out|rollout|preview|general availability|now available)/i.test(normalized)) {
     categories.add(/model|llm|claude|gpt|gemini|llama|grok|reasoning/i.test(normalized) ? "model-release" : "product-launch");
   }
 
@@ -54,8 +54,12 @@ function detectCategories(text: string) {
     categories.add("funding");
   }
 
-  if (/(research|benchmark|eval|paper|study|claim)/i.test(normalized)) {
+  if (/(research|paper|study|preprint)/i.test(normalized)) {
     categories.add("research");
+  }
+
+  if (/(benchmark|eval|evaluation|leaderboard|score)/i.test(normalized)) {
+    categories.add("benchmark");
   }
 
   if (/(policy|regulation|complaint|act|rule|export control)/i.test(normalized)) {
@@ -70,10 +74,6 @@ function detectCategories(text: string) {
     categories.add("leadership");
   }
 
-  if (categories.size === 0) {
-    categories.add("product-launch");
-  }
-
   return [...categories];
 }
 
@@ -86,11 +86,11 @@ function detectTags(text: string) {
 function detectImpactDirection(text: string) {
   const normalized = text.toLowerCase();
 
-  if (/(churn|pressure|complaint|setback|delay|risk|steps down|cuts|concern)/i.test(normalized)) {
+  if (/(churn|pressure|complaint|setback|delay|risk|steps down|cuts|concern|lawsuit|fine|ban)/i.test(normalized)) {
     return "negative";
   }
 
-  if (/(launch|release|ships|wins|agreement|expands|tops|opens|preview|acquires|hires|recruits)/i.test(normalized)) {
+  if (/(launch|release|ships|wins|agreement|expands|opens|general availability|hires|recruits|raises)/i.test(normalized)) {
     return "positive";
   }
 

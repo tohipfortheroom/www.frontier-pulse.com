@@ -258,15 +258,17 @@ export function NewsCard({
                 <p className="text-sm leading-7 text-[var(--text-secondary)]">{news.summary}</p>
               </div>
 
-              <div
-                className="surface-subtle rounded-2xl border border-[var(--border)] p-4"
-                style={{ boxShadow: `inset 3px 0 0 ${accentBorderColor}` }}
-              >
-                <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-                  Why It Matters
-                </p>
-                <p className="mt-2 text-sm italic leading-7 text-[var(--text-secondary)]">{news.whyItMatters}</p>
-              </div>
+              {news.whyItMatters ? (
+                <div
+                  className="surface-subtle rounded-2xl border border-[var(--border)] p-4"
+                  style={{ boxShadow: `inset 3px 0 0 ${accentBorderColor}` }}
+                >
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                    Why It Matters
+                  </p>
+                  <p className="mt-2 text-sm italic leading-7 text-[var(--text-secondary)]">{news.whyItMatters}</p>
+                </div>
+              ) : null}
 
               <div className="space-y-3">
                 <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">

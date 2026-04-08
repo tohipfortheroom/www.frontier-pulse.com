@@ -6,6 +6,7 @@ import { extractFirstJsonObject } from "../llm/json.ts";
 import { generateLlmText, isLlmConfigured } from "../llm/openai.ts";
 import { logger } from "../monitoring/logger.ts";
 import { dailyDigest, newsItemsBySlug } from "../seed/data.ts";
+import { inferSourceTierFromStory } from "./editorial.ts";
 
 type DigestDraft = {
   summary: string;
@@ -30,9 +31,13 @@ type NewsRow = {
   slug: string;
   headline: string;
   summary: string;
+  short_summary: string;
   why_it_matters: string;
   importance_score: number;
+  confidence_score: number;
   published_at: string;
+  source_name: string;
+  source_url: string;
 };
 
 type CompanyNewsRow = {
@@ -46,39 +51,206 @@ type MomentumScoreRow = {
   calculated_at: string;
 };
 
+type NewsCategoryRow = {
+  news_item_id: string;
+  category_id: string;
+};
+
+type CategoryRow = {
+  id: string;
+  slug: string;
+};
+
+type DigestStory = NewsRow & {
+  companySlugs: string[];
+  categorySlugs: string[];
+  sourceTier: ReturnType<typeof inferSourceTierFromStory>;
+  digestPriority: number;
+  leadEligible: boolean;
+};
+
 function clampStorySlugs(candidates: string[], availableSlugs: string[]) {
   const available = new Set(availableSlugs);
   const deduped = Array.from(new Set(candidates.filter((slug) => available.has(slug))));
-  return deduped.slice(0, 10);
+  return deduped.slice(0, 6);
 }
 
-function fallbackDigest(news: Array<NewsRow & { companySlugs: string[] }>, winnerSlug: string, loserSlug: string): DigestDraft {
-  const topStories = [...news]
-    .sort((left, right) => right.importance_score - left.importance_score || new Date(right.published_at).getTime() - new Date(left.published_at).getTime())
-    .slice(0, 10);
-  const leadStory = topStories[0];
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values));
+}
+
+function buildWatchItem(story: DigestStory) {
+  const subject = story.companySlugs[0] ?? story.headline;
+
+  if (story.categorySlugs.includes("model-release")) {
+    return `Watch for broader availability, pricing, and independent validation after ${subject}.`;
+  }
+
+  if (story.categorySlugs.includes("product-launch")) {
+    return `Watch whether ${subject} moves from announcement into customer rollout and paid usage.`;
+  }
+
+  if (story.categorySlugs.includes("partnership")) {
+    return `Watch for customer names, rollout scope, and revenue impact tied to ${subject}.`;
+  }
+
+  if (story.categorySlugs.includes("infrastructure")) {
+    return `Watch for capacity timelines and whether ${subject} speeds up product rollout.`;
+  }
+
+  if (story.categorySlugs.includes("funding")) {
+    return `Watch how ${subject} converts fresh capital into hiring, compute, or distribution gains.`;
+  }
+
+  if (story.categorySlugs.includes("policy-regulation")) {
+    return `Watch for enforcement dates and vendor responses tied to ${subject}.`;
+  }
+
+  if (story.categorySlugs.includes("leadership")) {
+    return `Watch for org changes, hiring moves, or roadmap shifts following ${subject}.`;
+  }
+
+  return `Watch for concrete follow-through, not commentary alone, after ${subject}.`;
+}
+
+function digestPriority(story: DigestStory) {
+  let score = story.importance_score * 10 + story.confidence_score * 2;
+
+  if (story.categorySlugs.includes("model-release")) {
+    score += 16;
+  }
+
+  if (story.categorySlugs.includes("product-launch")) {
+    score += 12;
+  }
+
+  if (story.categorySlugs.includes("partnership") || story.categorySlugs.includes("funding") || story.categorySlugs.includes("infrastructure")) {
+    score += 10;
+  }
+
+  if (story.categorySlugs.every((slug) => slug === "research" || slug === "benchmark")) {
+    score -= 18;
+  }
+
+  if (story.sourceTier === "community") {
+    score -= 30;
+  }
+
+  if (story.sourceTier === "research-repository") {
+    score -= 16;
+  }
+
+  if (story.companySlugs.length === 0) {
+    score -= 10;
+  }
+
+  return score;
+}
+
+function isLeadEligible(story: DigestStory) {
+  if (story.confidence_score < 6 || story.importance_score < 5) {
+    return false;
+  }
+
+  if (story.sourceTier === "community") {
+    return false;
+  }
+
+  if (story.categorySlugs.length === 0) {
+    return false;
+  }
+
+  if (story.categorySlugs.every((slug) => slug === "research" || slug === "benchmark")) {
+    return false;
+  }
+
+  return true;
+}
+
+function buildDigestStories(
+  news: Array<NewsRow & { companySlugs: string[] }>,
+  categorySlugsByNewsId: Map<string, string[]>,
+) {
+  return news
+    .map<DigestStory>((story) => {
+      const categorySlugs = categorySlugsByNewsId.get(story.id) ?? [];
+      const sourceTier = inferSourceTierFromStory(story.source_name, story.source_url);
+      const digestStory: DigestStory = {
+        ...story,
+        categorySlugs,
+        sourceTier,
+        digestPriority: 0,
+        leadEligible: false,
+      };
+
+      return {
+        ...digestStory,
+        digestPriority: digestPriority(digestStory),
+        leadEligible: isLeadEligible(digestStory),
+      };
+    })
+    .sort(
+      (left, right) =>
+        right.digestPriority - left.digestPriority ||
+        new Date(right.published_at).getTime() - new Date(left.published_at).getTime(),
+    );
+}
+
+function fallbackNarrative(topStories: DigestStory[], weakPool: boolean) {
+  if (topStories.length === 0) {
+    return {
+      digestNarrative: "The last 24 hours were light on confirmed, high-signal competitive AI moves, so the digest is intentionally sparse.",
+      headlineOfTheDay: "A lighter day for credible AI movement",
+      themesTags: ["light signal", "strict filtering"],
+    };
+  }
+
+  const lead = topStories[0];
+  const second = topStories[1];
+  const leadLine = lead.summary || lead.short_summary || lead.headline;
+  const secondLine = second ? second.summary || second.short_summary || second.headline : "";
 
   return {
-    summary: topStories
-      .slice(0, 2)
-      .map((story) => story.summary)
-      .filter(Boolean)
-      .join(" ")
-      .slice(0, 420),
+    digestNarrative: weakPool
+      ? `The story pool was thin today, so the digest is led only by items with cleaner evidence and clearer competitive implications.\n\n${leadLine}${secondLine ? ` ${secondLine}` : ""}`
+      : `${leadLine}\n\n${secondLine || "The rest of the digest stays focused on distribution, infrastructure, and policy moves with real market consequences."}`,
+    headlineOfTheDay: weakPool ? "Signal over volume" : lead.headline,
+    themesTags: uniqueValues(topStories.flatMap((story) => story.categorySlugs)).slice(0, 4),
+  };
+}
+
+function fallbackDigest(news: DigestStory[], winnerSlug: string, loserSlug: string): DigestDraft {
+  const leadStories = news.filter((story) => story.leadEligible);
+  const topStories = (leadStories.length > 0 ? leadStories : news.filter((story) => story.sourceTier !== "community")).slice(0, 6);
+  const leadStory = topStories[0];
+  const weakPool = leadStories.length < 3;
+
+  return {
+    summary:
+      weakPool && topStories.length > 0
+        ? `The story pool was thin, so the digest is prioritizing only the clearest competitive moves. ${topStories
+            .slice(0, 2)
+            .map((story) => story.short_summary || story.summary || story.headline)
+            .filter(Boolean)
+            .join(" ")}`
+        : topStories
+            .slice(0, 2)
+            .map((story) => story.summary || story.short_summary || story.headline)
+            .filter(Boolean)
+            .join(" ")
+            .slice(0, 420),
     topStorySlugs: topStories.map((story) => story.slug),
     biggestWinnerCompanySlug: winnerSlug,
     biggestLoserCompanySlug: loserSlug,
     mostImportantNewsSlug: leadStory?.slug ?? dailyDigest.mostImportantNewsSlug,
-    watchNext: topStories.slice(0, 3).map((story) => story.why_it_matters).filter(Boolean),
-    digestNarrative: dailyDigest.narrative,
-    headlineOfTheDay: dailyDigest.headlineOfTheDay,
-    themesTags: dailyDigest.themes,
+    watchNext: uniqueValues(topStories.slice(0, 3).map((story) => buildWatchItem(story))).slice(0, 3),
+    ...fallbackNarrative(topStories, weakPool),
   };
 }
 
 async function generateDigestWithLlm(
   digestDate: string,
-  news: Array<NewsRow & { companySlugs: string[] }>,
+  news: DigestStory[],
   companies: CompanyRow[],
   fallback: DigestDraft,
 ) {
@@ -86,9 +258,9 @@ async function generateDigestWithLlm(
   const response = await generateLlmText({
     systemPrompt: `You write the daily digest for ${BRAND_NAME}.
 
-Be concise, analytical, and grounded. Focus on competitive dynamics, launches, enterprise traction, infrastructure moves, policy shifts, and momentum changes. No hype. Return only valid JSON with these keys:
+Be concise, analytical, and grounded. Lead with real competitive movement, not community chatter or research-only items. If the story pool is weak, prefer fewer cleaner stories over padding the digest. Return only valid JSON with these keys:
 - summary: 2 sentences
-- topStorySlugs: array of 10 story slugs
+- topStorySlugs: array of 3 to 6 story slugs
 - biggestWinnerCompanySlug: one company slug
 - biggestLoserCompanySlug: one company slug
 - mostImportantNewsSlug: one story slug
@@ -103,12 +275,22 @@ ${JSON.stringify(
     slug: story.slug,
     headline: story.headline,
     companySlugs: story.companySlugs,
+    categorySlugs: story.categorySlugs,
+    sourceTier: story.sourceTier,
     publishedAt: story.published_at,
     importanceScore: story.importance_score,
+    confidenceScore: story.confidence_score,
     summary: story.summary,
+    shortSummary: story.short_summary,
     whyItMatters: story.why_it_matters,
+    leadEligible: story.leadEligible,
   })),
-)}`,
+)}
+
+Requirements:
+- do not choose a leadEligible false story as the lead if an eligible alternative exists.
+- do not turn research-only or benchmark-only items into the flagship story.
+- watchNext items must be concrete follow-up signals, not generic filler.`,
     temperature: 0.2,
     maxOutputTokens: 700,
   });
@@ -153,12 +335,12 @@ ${JSON.stringify(
 async function generateDigestNarrativeWithLlm(
   digestDate: string,
   digest: DigestDraft,
-  news: Array<NewsRow & { companySlugs: string[] }>,
+  news: DigestStory[],
   rankedMomentum: Array<{ companySlug: string; scoreChange24h: number }>,
 ) {
   const topStories = digest.topStorySlugs
     .map((slug) => news.find((story) => story.slug === slug))
-    .filter((story): story is NewsRow & { companySlugs: string[] } => Boolean(story));
+    .filter((story): story is DigestStory => Boolean(story));
   const startedAt = Date.now();
   const response = await generateLlmText({
     systemPrompt: `You write the lead editorial for ${BRAND_DIGEST_NAME}.
@@ -174,8 +356,10 @@ ${JSON.stringify(
     slug: story.slug,
     headline: story.headline,
     summary: story.summary,
+    shortSummary: story.short_summary,
     whyItMatters: story.why_it_matters,
     companySlugs: story.companySlugs,
+    categorySlugs: story.categorySlugs,
     importanceScore: story.importance_score,
   })),
 )}
@@ -186,7 +370,8 @@ ${JSON.stringify(rankedMomentum.slice(0, 10))}
 Requirements:
 - digestNarrative should be 3 to 5 paragraphs with plain newline separation.
 - headlineOfTheDay should be a punchy editorial headline.
-- themesTags should be 3 to 5 short theme phrases.`,
+- themesTags should be 3 to 5 short theme phrases.
+- if the story pool is weak, say so plainly instead of inventing a grand narrative.`,
     temperature: 0.4,
     maxOutputTokens: 1_200,
   });
@@ -234,25 +419,29 @@ export async function generateDailyDigest(referenceDate = new Date()) {
   const digestDate = format(referenceDate, "yyyy-MM-dd");
   const since = subHours(referenceDate, 24).toISOString();
 
-  const [newsResult, companyNewsResult, companiesResult, momentumResult] = await Promise.all([
+  const [newsResult, companyNewsResult, companiesResult, momentumResult, categoryResult, newsCategoryResult] = await Promise.all([
     client
       .from("news_items")
-      .select("id, slug, headline, summary, why_it_matters, importance_score, published_at")
+      .select("id, slug, headline, summary, short_summary, why_it_matters, importance_score, confidence_score, published_at, source_name, source_url")
       .gte("published_at", since)
       .order("published_at", { ascending: false }),
     client.from("company_news").select("company_id, news_item_id"),
     client.from("companies").select("id, slug, name"),
     client.from("momentum_scores").select("company_id, score_change_24h, calculated_at").order("calculated_at", { ascending: false }),
+    client.from("categories").select("id, slug"),
+    client.from("news_item_categories").select("news_item_id, category_id"),
   ]);
 
-  if (newsResult.error || companyNewsResult.error || companiesResult.error || momentumResult.error) {
-    throw newsResult.error ?? companyNewsResult.error ?? companiesResult.error ?? momentumResult.error;
+  if (newsResult.error || companyNewsResult.error || companiesResult.error || momentumResult.error || categoryResult.error || newsCategoryResult.error) {
+    throw newsResult.error ?? companyNewsResult.error ?? companiesResult.error ?? momentumResult.error ?? categoryResult.error ?? newsCategoryResult.error;
   }
 
   const newsRows = (newsResult.data ?? []) as NewsRow[];
   const companyNewsRows = (companyNewsResult.data ?? []) as CompanyNewsRow[];
   const companies = (companiesResult.data ?? []) as CompanyRow[];
   const momentumRows = (momentumResult.data ?? []) as MomentumScoreRow[];
+  const categoryRows = (categoryResult.data ?? []) as CategoryRow[];
+  const newsCategoryRows = (newsCategoryResult.data ?? []) as NewsCategoryRow[];
 
   if (newsRows.length < 5) {
     return {
@@ -270,11 +459,23 @@ export async function generateDailyDigest(referenceDate = new Date()) {
     return accumulator;
   }, {});
   const companySlugById = Object.fromEntries(companies.map((company) => [company.id, company.slug]));
+  const categorySlugById = Object.fromEntries(categoryRows.map((category) => [category.id, category.slug]));
+  const categorySlugsByNewsId = newsCategoryRows.reduce<Map<string, string[]>>((accumulator, row) => {
+    const slug = categorySlugById[row.category_id];
+
+    if (!slug) {
+      return accumulator;
+    }
+
+    accumulator.set(row.news_item_id, [...(accumulator.get(row.news_item_id) ?? []), slug]);
+    return accumulator;
+  }, new Map<string, string[]>());
 
   const newsWithCompanies = newsRows.map((story) => ({
     ...story,
     companySlugs: (companyIdsByNewsId[story.id] ?? []).map((companyId) => companySlugById[companyId]).filter(Boolean),
   }));
+  const digestStories = buildDigestStories(newsWithCompanies, categorySlugsByNewsId);
 
   const latestMomentumByCompany = new Map<string, MomentumScoreRow>();
 
@@ -293,17 +494,19 @@ export async function generateDailyDigest(referenceDate = new Date()) {
     .sort((left, right) => right.scoreChange24h - left.scoreChange24h);
 
   const fallback = fallbackDigest(
-    newsWithCompanies,
+    digestStories,
     rankedMomentum[0]?.companySlug ?? dailyDigest.biggestWinnerCompanySlug,
     rankedMomentum[rankedMomentum.length - 1]?.companySlug ?? dailyDigest.biggestLoserCompanySlug,
   );
 
-  const digest = isLlmConfigured()
-    ? await generateDigestWithLlm(digestDate, newsWithCompanies, companies, fallback).catch(() => fallback)
+  const eligibleStories = digestStories.filter((story) => story.leadEligible);
+  const shouldUseLlm = isLlmConfigured() && eligibleStories.length >= 3;
+  const digest = shouldUseLlm
+    ? await generateDigestWithLlm(digestDate, digestStories, companies, fallback).catch(() => fallback)
     : fallback;
   const narrative =
-    isLlmConfigured()
-      ? await generateDigestNarrativeWithLlm(digestDate, digest, newsWithCompanies, rankedMomentum).catch(() => ({
+    shouldUseLlm
+      ? await generateDigestNarrativeWithLlm(digestDate, digest, digestStories, rankedMomentum).catch(() => ({
           digestNarrative: fallback.digestNarrative,
           headlineOfTheDay: fallback.headlineOfTheDay,
           themesTags: fallback.themesTags,
@@ -343,7 +546,7 @@ export async function generateDailyDigest(referenceDate = new Date()) {
     stored: true,
     digestDate,
     storyCount: newsRows.length,
-    usedLlm: isLlmConfigured(),
+    usedLlm: shouldUseLlm,
     previewTitle: `${BRAND_DIGEST_NAME} | ${digestDate}`,
     previewLeadStory: newsItemsBySlug[digest.mostImportantNewsSlug]?.headline ?? digest.mostImportantNewsSlug,
   };

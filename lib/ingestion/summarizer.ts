@@ -27,6 +27,17 @@ type ExistingSummaryFields = Pick<SummaryFields, "summary" | "shortSummary" | "w
 const MAX_LLM_CALLS_PER_RUN = 30;
 const CATEGORY_SLUGS = new Set(categories.map((category) => category.slug));
 const TAG_LIMIT = 5;
+const WHY_IT_MATTERS_BANNED_PATTERNS = [
+  /this matters because/i,
+  /changes how the market reads/i,
+  /execution quality/i,
+  /adoption potential/i,
+  /reshap(es|e) the race/i,
+  /force(s|d)? rivals to answer/i,
+  /market momentum/i,
+  /industry significance/i,
+];
+const SUMMARY_BANNED_PATTERNS = [/this update/i, /the story highlights/i, /the news underscores/i];
 const CATEGORY_ALIASES: Record<string, string> = {
   regulation: "policy-regulation",
   executive: "leadership",
@@ -63,45 +74,113 @@ function firstSentence(text?: string | null) {
   return (match?.[1] ?? text).trim();
 }
 
-function buildWhyItMatters(candidate: ScoredCandidate) {
-  if (candidate.categorySlugs.includes("model-release")) {
-    return "Model launches reshape the race because they force rivals to answer on capability, distribution, and rollout speed.";
+function getImportanceTier(score: number) {
+  if (score >= 8) {
+    return "critical";
   }
 
-  if (candidate.categorySlugs.includes("partnership")) {
-    return "Commercial partnerships matter because they convert technical progress into distribution, customers, and revenue signal.";
+  if (score >= 6) {
+    return "high";
   }
 
-  if (candidate.categorySlugs.includes("infrastructure")) {
-    return "Infrastructure updates matter because AI momentum depends on who can actually train and serve models at scale.";
+  if (score >= 4) {
+    return "medium";
   }
 
-  if (candidate.categorySlugs.includes("policy-regulation")) {
-    return "Policy stories matter because compliance friction can slow adoption even when model quality keeps improving.";
+  return "low";
+}
+
+function normalizeSentence(text?: string | null, maxLength = 220) {
+  if (!text) {
+    return "";
   }
 
-  if (candidate.categorySlugs.includes("controversy")) {
-    return "Controversies matter because trust shocks can change buyer behavior faster than model quality can recover it.";
+  return text.replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function isHeadlineRestatement(headline: string, text: string) {
+  const normalizedHeadline = headline.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const normalizedText = text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+  if (!normalizedHeadline || !normalizedText) {
+    return false;
   }
 
-  return "This matters because it changes how the market reads current momentum, execution quality, or adoption potential.";
+  return normalizedText === normalizedHeadline || normalizedText.startsWith(normalizedHeadline);
+}
+
+function shouldShowWhyItMatters(candidate: ScoredCandidate) {
+  return Boolean(candidate.whyItMattersEligible) && candidate.importanceScore >= 6 && candidate.confidenceScore >= 7;
+}
+
+function isGenericWhyItMatters(text: string) {
+  return WHY_IT_MATTERS_BANNED_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function isWeakSummary(text: string, headline: string) {
+  return !text || SUMMARY_BANNED_PATTERNS.some((pattern) => pattern.test(text)) || isHeadlineRestatement(headline, text);
+}
+
+function sanitizeWhyItMatters(text: string, candidate: ScoredCandidate) {
+  const normalized = normalizeSentence(text, 220);
+
+  if (!normalized || !shouldShowWhyItMatters(candidate) || isGenericWhyItMatters(normalized)) {
+    return "";
+  }
+
+  const primaryCompany = candidate.companySlugs[0] ? companiesBySlug[candidate.companySlugs[0]]?.name : "";
+  const hasSpecificAnchor =
+    Boolean(primaryCompany && normalized.toLowerCase().includes(primaryCompany.toLowerCase())) ||
+    candidate.tagSlugs.some((tag) => normalized.toLowerCase().includes(tag.replace(/-/g, " "))) ||
+    normalized.toLowerCase().includes(candidate.categorySlugs[0]?.replace(/-/g, " ") ?? "");
+
+  return hasSpecificAnchor ? normalized : "";
+}
+
+function buildFallbackWhyItMatters(candidate: ScoredCandidate) {
+  if (!shouldShowWhyItMatters(candidate)) {
+    return "";
+  }
+
+  const companyName = candidate.companySlugs[0] ? companiesBySlug[candidate.companySlugs[0]]?.name : null;
+
+  if (candidate.categorySlugs.includes("partnership") && companyName) {
+    return `${companyName} now has a named distribution or customer path, which is stronger than AI interest without a commercial channel.`;
+  }
+
+  if (candidate.categorySlugs.includes("funding") && companyName) {
+    return `${companyName} has more capacity to hire, buy compute, or expand product rollout after this financing move.`;
+  }
+
+  if (candidate.categorySlugs.includes("policy-regulation") && companyName) {
+    return `This can change launch timing, compliance costs, or regional distribution for ${companyName}.`;
+  }
+
+  if (candidate.categorySlugs.includes("infrastructure") && companyName) {
+    return `This affects how quickly ${companyName} can train, serve, or scale AI products in the market.`;
+  }
+
+  return "";
 }
 
 function fallbackSummary(candidate: ScoredCandidate): SummaryFields {
-  const primaryCompany = candidate.companySlugs[0] ? companiesBySlug[candidate.companySlugs[0]]?.name : undefined;
-  const factualSentence =
-    firstSentence(candidate.cleanedText) ||
-    `${primaryCompany ?? "A tracked company"} announced an update through ${candidate.sourceName}.`;
-  const whyItMatters = buildWhyItMatters(candidate);
-  const uncertaintySentence =
-    candidate.confidenceScore < 6 ? "Some details remain provisional and should be verified against additional reporting." : "";
+  const tier = getImportanceTier(candidate.importanceScore);
+  const sourceSentence = normalizeSentence(firstSentence(candidate.cleanedText) || firstSentence(candidate.rawText));
+  const leadSentence = sourceSentence && !isHeadlineRestatement(candidate.headline, sourceSentence) ? sourceSentence : candidate.headline;
+  const uncertaintySentence = candidate.confidenceScore < 6 ? "Details remain thin, so this item is being kept factual and lightly scored." : "";
+  const whyItMatters = sanitizeWhyItMatters(buildFallbackWhyItMatters(candidate), candidate);
+  const summarySentences =
+    tier === "critical" || tier === "high"
+      ? [leadSentence, uncertaintySentence].filter(Boolean)
+      : tier === "medium"
+        ? [leadSentence]
+        : [normalizeSentence(leadSentence, 160)];
+  const summary = summarySentences.join(" ").trim();
+  const shortSummary = normalizeSentence(summary || candidate.headline, 120);
 
   return {
-    summary: [candidate.headline, factualSentence, whyItMatters, uncertaintySentence]
-      .filter(Boolean)
-      .slice(0, 4)
-      .join(" "),
-    shortSummary: candidate.headline.slice(0, 120),
+    summary: summary || candidate.headline,
+    shortSummary: shortSummary || candidate.headline.slice(0, 120),
     whyItMatters,
     categorySlugs: candidate.categorySlugs,
     tagSlugs: candidate.tagSlugs,
@@ -130,7 +209,7 @@ function mergeUnique(values: string[], fallbackValues: string[], limit: number) 
 }
 
 function mergeExistingSummary(fallback: SummaryFields, existingSummary?: ExistingSummaryFields | null): SummaryFields {
-  if (!existingSummary?.summary || !existingSummary.shortSummary || !existingSummary.whyItMatters) {
+  if (!existingSummary?.summary || !existingSummary.shortSummary) {
     return fallback;
   }
 
@@ -138,55 +217,27 @@ function mergeExistingSummary(fallback: SummaryFields, existingSummary?: Existin
     ...fallback,
     summary: existingSummary.summary,
     shortSummary: existingSummary.shortSummary,
-    whyItMatters: existingSummary.whyItMatters,
+    whyItMatters: existingSummary.whyItMatters ?? fallback.whyItMatters,
     summarizerModel: existingSummary.summarizerModel ?? fallback.summarizerModel,
   };
 }
 
-function sanitizeSummaryFields(fields: Partial<SummaryFields>, fallback: SummaryFields): SummaryFields {
-  const categoriesFromLlm = Array.isArray(fields.categorySlugs)
-    ? fields.categorySlugs
-        .map((value) => normalizeCategorySlug(String(value)))
-        .filter((value): value is string => Boolean(value))
-    : Array.isArray((fields as { categories?: unknown[] }).categories)
-      ? ((fields as { categories?: unknown[] }).categories ?? [])
-          .map((value) => normalizeCategorySlug(String(value)))
-          .filter((value): value is string => Boolean(value))
-      : [];
-  const tagsFromLlm = Array.isArray(fields.tagSlugs)
-    ? fields.tagSlugs.map((value) => normalizeTag(String(value))).filter((value): value is string => Boolean(value))
-    : Array.isArray((fields as { tags?: unknown[] }).tags)
-      ? ((fields as { tags?: unknown[] }).tags ?? [])
-          .map((value) => normalizeTag(String(value)))
-          .filter((value): value is string => Boolean(value))
-      : [];
-  const impactDirection =
-    fields.impactDirection === "positive" || fields.impactDirection === "negative" || fields.impactDirection === "neutral"
-      ? fields.impactDirection
-      : typeof (fields as { impactDirection?: string }).impactDirection === "string" &&
-          ["positive", "negative", "neutral"].includes(String((fields as { impactDirection?: string }).impactDirection))
-        ? (fields as { impactDirection: ImpactDirection }).impactDirection
-        : fallback.impactDirection;
-  const importanceScoreRaw =
-    typeof fields.importanceScore === "number"
-      ? fields.importanceScore
-      : typeof (fields as { importanceScore?: unknown }).importanceScore === "string"
-        ? Number((fields as { importanceScore?: string }).importanceScore)
-        : fallback.importanceScore;
+function sanitizeSummaryFields(fields: Partial<SummaryFields>, fallback: SummaryFields, candidate: ScoredCandidate): SummaryFields {
+  const summaryCandidate = typeof fields.summary === "string" ? normalizeSentence(fields.summary, 420) : "";
+  const shortSummaryCandidate = typeof fields.shortSummary === "string" ? normalizeSentence(fields.shortSummary, 120) : "";
+  const whyItMattersCandidate = typeof fields.whyItMatters === "string" ? normalizeSentence(fields.whyItMatters, 220) : "";
 
   return {
-    summary: typeof fields.summary === "string" && fields.summary.trim() ? fields.summary.trim() : fallback.summary,
+    summary: summaryCandidate && !isWeakSummary(summaryCandidate, fallback.shortSummary) ? summaryCandidate : fallback.summary,
     shortSummary:
-      typeof fields.shortSummary === "string" && fields.shortSummary.trim()
-        ? fields.shortSummary.trim().slice(0, 120)
+      shortSummaryCandidate && !isHeadlineRestatement(fallback.summary, shortSummaryCandidate)
+        ? shortSummaryCandidate
         : fallback.shortSummary,
-    whyItMatters:
-      typeof fields.whyItMatters === "string" && fields.whyItMatters.trim() ? fields.whyItMatters.trim() : fallback.whyItMatters,
-    categorySlugs:
-      categoriesFromLlm.length > 0 ? mergeUnique(categoriesFromLlm, fallback.categorySlugs, 4) : fallback.categorySlugs,
-    tagSlugs: tagsFromLlm.length > 0 ? mergeUnique(tagsFromLlm, fallback.tagSlugs, TAG_LIMIT) : fallback.tagSlugs,
-    impactDirection,
-    importanceScore: Number.isFinite(importanceScoreRaw) ? clamp(Math.round(importanceScoreRaw)) : fallback.importanceScore,
+    whyItMatters: sanitizeWhyItMatters(whyItMattersCandidate, candidate) || fallback.whyItMatters,
+    categorySlugs: fallback.categorySlugs,
+    tagSlugs: fallback.tagSlugs,
+    impactDirection: fallback.impactDirection,
+    importanceScore: fallback.importanceScore,
     summarizerModel: fields.summarizerModel ?? fallback.summarizerModel,
   };
 }
@@ -209,54 +260,41 @@ export async function summarizeWithLLM(candidate: ScoredCandidate) {
   }
 
   const startedAt = Date.now();
+  const tier = getImportanceTier(candidate.importanceScore);
   const response = await generateLlmText({
     systemPrompt: `You write for ${BRAND_NAME}, an editorial product about the AI industry.
 
-Be concise, factual, analytical, and grounded. No hype. State what happened first, then why it matters. Separate facts from interpretation. Flag uncertainty when source detail is thin. Return lowercase kebab-case tags. Keep categories inside the supported set.
+Be concise, factual, and grounded in the source text. No hype. Do not reclassify the story. Do not change its score, tags, companies, or category. If the source does not support a specific why-it-matters sentence, return an empty string for whyItMatters.
 
 Return only valid JSON with these keys:
 - summary
 - shortSummary
-- whyItMatters
-- categories
-- tags
-- impactDirection
-- importanceScore`,
+- whyItMatters`,
     prompt: `Provider: ${provider}
 Model: ${model}
 Headline: ${candidate.headline}
 Companies: ${companyNames.join(", ") || "Unknown"}
-Existing categories: ${candidate.categorySlugs.join(", ") || "none"}
-Existing tags: ${candidate.tagSlugs.join(", ") || "none"}
-Current impact direction: ${candidate.impactDirection}
-Current importance score: ${candidate.importanceScore}
+Categories: ${candidate.categorySlugs.join(", ") || "none"}
+Tags: ${candidate.tagSlugs.join(", ") || "none"}
+Impact direction: ${candidate.impactDirection}
+Importance score: ${candidate.importanceScore}
+Importance tier: ${tier}
 Confidence: ${candidate.confidenceScore}/10
 Source: ${candidate.sourceName}
 Source URL: ${candidate.sourceUrl}
 Raw text: ${candidate.cleanedText ?? candidate.rawText ?? candidate.headline}
 
 Requirements:
-- summary must be 2 to 3 sentences.
+- summary must be specific to this event and never repeat the headline verbatim.
+- for critical/high items, summary should be 2 factual sentences.
+- for medium items, summary should be 1 to 2 factual sentences.
+- for low items, summary should be 1 short factual sentence.
 - shortSummary must be a single sentence no longer than 120 characters.
-- whyItMatters must be 1 to 2 sentences about industry significance.
-- categories must be an array of supported slugs only.
-- tags must be 2 to 5 lowercase kebab-case strings.
-- impactDirection must be one of positive, negative, neutral.
-- importanceScore must be an integer from 1 to 10.
-
-Allowed categories:
-- model-release
-- product-launch
-- funding
-- partnership
-- research
-- benchmark
-- policy-regulation
-- infrastructure
-- leadership
-- controversy`,
+- whyItMatters must be a single specific sentence tied to the actual event, or "" if the source is too thin.
+- never use phrases like "this matters because", "reshapes the race", "execution quality", "adoption potential", or "market reads".
+- never add facts that are not in the source text.`,
     temperature: 0.2,
-    maxOutputTokens: 700,
+    maxOutputTokens: 500,
   });
 
   lastLlmCallAt = Date.now();
@@ -290,19 +328,31 @@ export async function summarizeCandidate(
 
   const fallback = mergeExistingSummary(fallbackSummary(candidate), options?.existingSummary);
 
-  if (!options?.forceResummarize && options?.existingSummary?.summary && options.existingSummary.shortSummary && options.existingSummary.whyItMatters) {
+  if (
+    !options?.forceResummarize &&
+    options?.existingSummary?.summary &&
+    options.existingSummary.shortSummary &&
+    typeof options.existingSummary.whyItMatters === "string"
+  ) {
     runCache.set(cacheKey, fallback);
     return fallback;
   }
 
-  if (!isLlmConfigured() || llmCallsThisRun >= MAX_LLM_CALLS_PER_RUN) {
+  const shouldUseLlm =
+    isLlmConfigured() &&
+    llmCallsThisRun < MAX_LLM_CALLS_PER_RUN &&
+    candidate.importanceScore >= 6 &&
+    candidate.confidenceScore >= 7 &&
+    candidate.sourceTier !== "community";
+
+  if (!shouldUseLlm) {
     runCache.set(cacheKey, fallback);
     return fallback;
   }
 
   try {
     llmCallsThisRun += 1;
-    const result = sanitizeSummaryFields(await summarizeWithLLM(candidate), fallback);
+    const result = sanitizeSummaryFields(await summarizeWithLLM(candidate), fallback, candidate);
     runCache.set(cacheKey, result);
     return result;
   } catch (error) {
