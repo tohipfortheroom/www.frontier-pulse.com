@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { ArrowDownRight, ArrowUpRight, Radar, Sparkles, TrendingUp } from "lucide-react";
 import { useRouter } from "next/navigation";
+import type { TooltipContentProps } from "recharts";
+import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
@@ -26,6 +28,7 @@ type LeaderboardCommandCenterProps = {
 };
 
 type FilterId = "7d" | "30d" | "90d" | "all" | "momentum";
+type ChartWindow = 7 | 30;
 
 type LeaderboardEntry = {
   company: CompanyCardRecord["company"];
@@ -49,6 +52,19 @@ const FILTERS: Array<{
   { id: "90d", label: "90 Days", description: "Longer durability weighting" },
   { id: "all", label: "All Time", description: "Pure composite score ranking" },
   { id: "momentum", label: "Momentum", description: "Acceleration-first ranking lens" },
+];
+
+const CHART_FALLBACK_COLORS = [
+  "#5ba2ff",
+  "#f5b74a",
+  "#8dc3ff",
+  "#d7dce5",
+  "#3bc9ff",
+  "#8e72ff",
+  "#94d82d",
+  "#fb7185",
+  "#7dd3fc",
+  "#fb923c",
 ];
 
 function formatUpdatedAt(timestamp: string) {
@@ -76,6 +92,23 @@ function extendSparkline(values: number[]) {
 
   const first = values[0];
   return [...Array.from({ length: 8 - values.length }, () => first), ...values];
+}
+
+function expandSeries(values: number[], targetLength: number) {
+  if (values.length >= targetLength) {
+    return values.slice(values.length - targetLength);
+  }
+
+  return Array.from({ length: targetLength }, (_, index) => {
+    const ratio = targetLength === 1 ? 0 : index / (targetLength - 1);
+    const sourceIndex = ratio * Math.max(values.length - 1, 0);
+    const lowerIndex = Math.floor(sourceIndex);
+    const upperIndex = Math.min(values.length - 1, Math.ceil(sourceIndex));
+    const lower = values[lowerIndex] ?? values[0] ?? 0;
+    const upper = values[upperIndex] ?? values[values.length - 1] ?? lower;
+    const mix = sourceIndex - lowerIndex;
+    return Number((lower + (upper - lower) * mix).toFixed(2));
+  });
 }
 
 function sparklinePath(data: number[], width = 120, height = 38) {
@@ -145,12 +178,43 @@ function podiumTone(index: number) {
   return "bronze";
 }
 
+function HistoryTooltip({ active, label, payload }: TooltipContentProps) {
+  if (!active || !payload || payload.length === 0) {
+    return null;
+  }
+
+  const rows = [...payload]
+    .filter((entry) => typeof entry.value === "number" && typeof entry.name === "string")
+    .sort((left, right) => Number(right.value ?? 0) - Number(left.value ?? 0));
+
+  return (
+    <div className={styles.comparisonTooltip}>
+      <p className={styles.tooltipLabel}>{label} window</p>
+      <div className={styles.tooltipList}>
+        {rows.map((entry) => (
+          <div key={String(entry.name)} className={styles.tooltipRow}>
+            <span className={styles.tooltipName}>
+              <span className={styles.tooltipDot} style={{ backgroundColor: String(entry.color ?? "var(--cyan)") }} />
+              {entry.name}
+            </span>
+            <span className={styles.tooltipValue}>{formatScore(Number(entry.value ?? 0))}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: LeaderboardCommandCenterProps) {
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<FilterId>("7d");
+  const [chartWindow, setChartWindow] = useState<ChartWindow>(30);
   const [liveTime, setLiveTime] = useState(renderedAt);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+
     const interval = window.setInterval(() => {
       setLiveTime(new Date().toISOString());
     }, 1000);
@@ -201,6 +265,21 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
 
   const podiumEntries = [rankedEntries[1], rankedEntries[0], rankedEntries[2]].filter(Boolean);
   const remainingEntries = rankedEntries.slice(3, 12);
+  const comparisonEntries = rankedEntries.slice(0, 10).map((entry, index) => ({
+    ...entry,
+    lineColor: entry.company.color || CHART_FALLBACK_COLORS[index % CHART_FALLBACK_COLORS.length],
+  }));
+  const comparisonSeries = Array.from({ length: chartWindow }, (_, index) => {
+    const point = {
+      label: `${chartWindow - index}d`,
+    } as Record<string, string | number>;
+
+    comparisonEntries.forEach((entry) => {
+      point[entry.company.slug] = expandSeries(entry.sparkline, chartWindow)[index];
+    });
+
+    return point;
+  });
   const biggestMover = [...rankedEntries].sort((left, right) => right.sevenDayPercent - left.sevenDayPercent)[0];
   const risingStar =
     [...rankedEntries]
@@ -249,6 +328,88 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
           <span>Updated {formatUpdatedAt(liveTime)}</span>
           <span className={styles.timestampDivider}>/</span>
           <span>{FILTERS.find((filter) => filter.id === activeFilter)?.description}</span>
+        </div>
+      </section>
+
+      <section className={styles.comparisonSection}>
+        <div className={styles.comparisonCard}>
+          <div className={styles.comparisonHeader}>
+            <div>
+              <p className={styles.kicker}>Momentum History</p>
+              <h2 className={styles.sectionTitle}>Overlay the board before the podium</h2>
+              <p className={styles.comparisonDescription}>
+                Compare the current leaders across a compressed momentum window to see who is sustaining pressure versus drifting off the pace.
+              </p>
+            </div>
+
+            <div className={styles.comparisonControls}>
+              <span className={styles.comparisonMeta}>{comparisonEntries.length} leaders tracked</span>
+              <div className={styles.windowToggle}>
+                {[7, 30].map((windowSize) => (
+                  <button
+                    key={windowSize}
+                    type="button"
+                    className={cn(styles.windowButton, chartWindow === windowSize && styles.windowButtonActive)}
+                    onClick={() => setChartWindow(windowSize as ChartWindow)}
+                  >
+                    {windowSize}d
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.chartCanvas}>
+            {mounted ? (
+              <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+                <LineChart data={comparisonSeries} margin={{ top: 10, right: 8, left: -8, bottom: 0 }}>
+                  <CartesianGrid stroke="rgba(139, 143, 168, 0.14)" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    stroke="var(--text-dim)"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    minTickGap={chartWindow === 30 ? 14 : 8}
+                    interval={chartWindow === 30 ? 2 : 0}
+                  />
+                  <YAxis
+                    stroke="var(--text-dim)"
+                    tickLine={false}
+                    axisLine={false}
+                    tickMargin={10}
+                    width={42}
+                    tickFormatter={(value) => formatScore(Number(value))}
+                  />
+                  <Tooltip content={(props) => <HistoryTooltip {...props} />} cursor={{ stroke: "rgba(0, 229, 255, 0.18)", strokeDasharray: "4 4" }} />
+                  {comparisonEntries.map((entry) => (
+                    <Line
+                      key={entry.company.slug}
+                      type="monotone"
+                      dataKey={entry.company.slug}
+                      name={entry.company.name}
+                      stroke={entry.lineColor}
+                      strokeWidth={entry.displayRank <= 3 ? 2.4 : 1.9}
+                      dot={false}
+                      activeDot={{ r: 4, strokeWidth: 0, fill: entry.lineColor }}
+                      isAnimationActive={false}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className={styles.chartFallback} />
+            )}
+          </div>
+
+          <div className={styles.chartLegend}>
+            {comparisonEntries.map((entry) => (
+              <span key={entry.company.slug} className={styles.chartLegendItem}>
+                <span className={styles.chartLegendDot} style={{ backgroundColor: entry.lineColor }} />
+                {entry.company.name}
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 
