@@ -123,12 +123,14 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
           </div>
           <div className="rounded-2xl border border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] p-6">
             <p className="font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] text-[var(--accent-blue)]">
-              Most Important Launch
+              Most Important Story
             </p>
             <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
               {mostImportantStory.headline}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{mostImportantStory.whyItMatters}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
+              {mostImportantStory.whyItMatters || mostImportantStory.summary}
+            </p>
           </div>
         </div>
       </section>
