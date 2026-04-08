@@ -48,6 +48,7 @@ import {
   type TrendDirection,
 } from "@/lib/seed/data";
 import { getConfidenceLabel, getImportanceLabel } from "@/lib/utils";
+import { getCompanyLogoUrl } from "@/lib/company-logo";
 
 type CompanyNewsRow = {
   company_id: string;
@@ -217,6 +218,14 @@ function mergeCompanyRow(companyRow: CompanyRow): CompanyProfile {
     name: companyRow.name,
     shortName: presentation?.shortName ?? companyRow.name,
     color: presentation?.color ?? "#4D9FFF",
+    logoUrl:
+      companyRow.logo_url ??
+      presentation?.logoUrl ??
+      getCompanyLogoUrl({
+        websiteUrl: companyRow.website_url,
+        logoUrl: presentation?.logoUrl ?? undefined,
+      }) ??
+      undefined,
     description: companyRow.description,
     overview: companyRow.overview,
     strengths: companyRow.strengths ?? presentation?.strengths ?? [],

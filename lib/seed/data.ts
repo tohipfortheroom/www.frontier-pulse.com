@@ -43,6 +43,7 @@ export type CompanyProfile = {
   name: string;
   shortName: string;
   color: string;
+  logoUrl?: string;
   description: string;
   overview: string;
   strengths: string[];

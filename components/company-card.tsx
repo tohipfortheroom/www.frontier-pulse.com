@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 
 import type { CompanyProfile, MomentumSnapshot } from "@/lib/seed/data";
 
+import { CompanyLogo } from "@/components/company-logo";
 import { ScorePill } from "@/components/score-pill";
 
 type CompanyCardProps = {
@@ -18,14 +19,17 @@ export function CompanyCard({ company, activityCount, momentum }: CompanyCardPro
       className="surface-card group rounded-2xl border border-[var(--border)] p-6 backdrop-blur-sm transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[var(--border-hover)] hover:bg-[var(--bg-card-hover)] hover:shadow-[var(--company-glow)]"
     >
       <div className="flex items-start justify-between gap-4">
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <span className="h-4 w-4 rounded-full border border-[var(--border)]" style={{ backgroundColor: company.color }} />
-            <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
-              {company.name}
-            </h3>
+        <div className="flex items-start gap-4">
+          <CompanyLogo company={company} className="h-14 w-14 rounded-2xl" imageClassName="p-2.5" />
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <span className="h-3 w-3 rounded-full border border-[var(--border)]" style={{ backgroundColor: company.color }} />
+              <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
+                {company.name}
+              </h3>
+            </div>
+            <p className="max-w-sm text-sm leading-6 text-[var(--text-secondary)]">{company.description}</p>
           </div>
-          <p className="max-w-sm text-sm leading-6 text-[var(--text-secondary)]">{company.description}</p>
         </div>
         {momentum ? <ScorePill value={momentum.score} /> : null}
       </div>
