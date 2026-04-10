@@ -155,6 +155,23 @@ export default async function HomePage() {
               footerHref="/leaderboard"
               footerLabel="Full leaderboard →"
             />
+
+            <div className="surface-card rounded-3xl border border-[var(--border)] p-6 backdrop-blur-sm lg:p-8">
+              <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--accent-blue)]">
+                HOW SCORING WORKS
+              </p>
+              <h3 className="mt-3 font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
+                What moves a company up or down the board
+              </h3>
+              <ul className="mt-6 grid gap-3 text-sm leading-7 text-[var(--text-secondary)] lg:grid-cols-2">
+                <li>Scores reflect weighted real-world events such as launches, partnerships, funding, breakthroughs, and policy moves.</li>
+                <li>Recent developments count more than older ones, so new execution can outrank legacy reputation.</li>
+                <li>Each signal decays over time, which keeps the ranking focused on current momentum instead of stale headlines.</li>
+                <li>Negative events, including lawsuits, outages, and safety incidents, pull scores down.</li>
+                <li>Official announcements and major publications carry more weight than low-credibility chatter.</li>
+                <li>Scores refresh throughout the day, with priority checks every 15 minutes and broader updates every 30 minutes.</li>
+              </ul>
+            </div>
           </section>
         </ScrollReveal>
 

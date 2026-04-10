@@ -45,11 +45,11 @@ export function Hero({ stats, tickerItems, firstSectionId }: HeroProps) {
           </div>
           <div className="space-y-6">
             <h1 className="max-w-4xl font-[family-name:var(--font-display)] text-[36px] font-bold leading-[0.96] tracking-[-0.04em] text-[var(--text-primary)] [text-shadow:0_0_48px_var(--accent-blue-soft)] sm:text-5xl lg:text-[56px]">
-              Track the AI race in real time.
+              The AI Race, Scored and Explained.
             </h1>
             <p className="max-w-2xl text-lg leading-8 text-[var(--text-secondary)]">
-              The AI world moves fast. Frontier Pulse turns the daily flood of announcements, product launches, funding
-              news, research claims, and policy shifts into a clean scoreboard you can actually follow.
+              Frontier Pulse tracks momentum across the companies shaping AI, turning launches, partnerships, funding,
+              policy moves, and breakthroughs into a readable competitive brief.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
