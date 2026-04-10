@@ -96,7 +96,55 @@ function normalizeWhitespace(value: string) {
 }
 
 function extractSentences(value: string) {
-  return value.match(/[^.!?]+[.!?]+(?:["')\]]+)?/g)?.map((sentence) => normalizeWhitespace(sentence)) ?? [];
+  const sentences: string[] = [];
+  let sentenceStart = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (!/[.!?]/.test(character)) {
+      continue;
+    }
+
+    let boundaryIndex = index + 1;
+
+    while (boundaryIndex < value.length && /["')\]]/.test(value[boundaryIndex])) {
+      boundaryIndex += 1;
+    }
+
+    if (boundaryIndex >= value.length) {
+      const sentence = normalizeWhitespace(value.slice(sentenceStart, boundaryIndex));
+
+      if (sentence) {
+        sentences.push(sentence);
+      }
+
+      sentenceStart = boundaryIndex;
+      break;
+    }
+
+    if (!/\s/.test(value[boundaryIndex])) {
+      continue;
+    }
+
+    let nextTokenIndex = boundaryIndex;
+
+    while (nextTokenIndex < value.length && /\s/.test(value[nextTokenIndex])) {
+      nextTokenIndex += 1;
+    }
+
+    if (nextTokenIndex >= value.length || /[A-Z0-9(]/.test(value[nextTokenIndex])) {
+      const sentence = normalizeWhitespace(value.slice(sentenceStart, boundaryIndex));
+
+      if (sentence) {
+        sentences.push(sentence);
+      }
+
+      sentenceStart = nextTokenIndex;
+    }
+  }
+
+  return sentences;
 }
 
 export function toCompleteSentence(value: string | null | undefined) {

@@ -42,6 +42,15 @@ type LeaderboardEntry = {
   sparkline: number[];
 };
 
+type NotableMover = {
+  id: string;
+  label: string;
+  direction: "up" | "down";
+  deltaLabel: string;
+  timeframe: string;
+  entry: LeaderboardEntry;
+};
+
 const FILTERS: Array<{
   id: FilterId;
   label: string;
@@ -131,6 +140,10 @@ function formatPercent(value: number) {
 
 function formatCompactDelta(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}`;
+}
+
+function formatMagnitude(value: number) {
+  return Math.abs(value).toFixed(1);
 }
 
 function getLensScore(entry: LeaderboardEntry, filter: FilterId) {
@@ -226,7 +239,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
     };
   }, [router]);
 
-  const sortedEntries = records
+  const allEntries = records
     .filter(
       (record): record is CompanyCardRecord & { momentum: NonNullable<CompanyCardRecord["momentum"]> } =>
         Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score)),
@@ -241,7 +254,9 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
       trend: record.momentum.trend,
       keyDriver: toCompleteSentence(record.momentum.keyDriver),
       sparkline: extendSparkline(record.momentum.sparkline),
-    }))
+    }));
+
+  const sortedEntries = [...allEntries]
     .sort((left, right) => getLensScore(right, activeFilter) - getLensScore(left, activeFilter))
     .slice(0, 12);
 
@@ -288,6 +303,66 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
         ? "More companies are gaining than slipping right now, which usually means the next ranking update rewards execution depth rather than one-off hype."
         : "Recent events are spread across partnerships, infrastructure, and leadership, so competitive advantage is being won through operational follow-through.";
   const lastUpdatedLabel = formatLastUpdatedLabel(liveTime);
+  const notableMoverSpecs: Array<{
+    id: string;
+    label: string;
+    timeframe: string;
+    direction: "up" | "down";
+    items: LeaderboardEntry[];
+    getDelta: (entry: LeaderboardEntry) => number;
+  }> = [
+    {
+      id: "sharpest-climb",
+      label: "Sharpest Climb",
+      timeframe: "7d",
+      direction: "up",
+      items: [...allEntries].filter((entry) => entry.scoreChange7d > 0).sort((left, right) => right.scoreChange7d - left.scoreChange7d),
+      getDelta: (entry) => entry.scoreChange7d,
+    },
+    {
+      id: "sharpest-drop",
+      label: "Sharpest Drop",
+      timeframe: "7d",
+      direction: "down",
+      items: [...allEntries].filter((entry) => entry.scoreChange7d < 0).sort((left, right) => left.scoreChange7d - right.scoreChange7d),
+      getDelta: (entry) => entry.scoreChange7d,
+    },
+    {
+      id: "Biggest 24h Jump",
+      label: "Biggest 24h Jump",
+      timeframe: "24h",
+      direction: "up",
+      items: [...allEntries].filter((entry) => entry.scoreChange24h > 0).sort((left, right) => right.scoreChange24h - left.scoreChange24h),
+      getDelta: (entry) => entry.scoreChange24h,
+    },
+  ];
+  const usedMoverSlugs = new Set<string>();
+  const notableMovers = notableMoverSpecs
+    .map<NotableMover | null>((spec) => {
+      const entry = spec.items.find((candidate) => {
+        if (usedMoverSlugs.has(candidate.company.slug)) {
+          return false;
+        }
+
+        usedMoverSlugs.add(candidate.company.slug);
+        return true;
+      });
+
+      if (!entry) {
+        return null;
+      }
+
+      return {
+        id: spec.id,
+        label: spec.label,
+        direction: spec.direction,
+        deltaLabel: `${spec.direction === "up" ? "▲" : "▼"} ${formatMagnitude(spec.getDelta(entry))}`,
+        timeframe: spec.timeframe,
+        entry,
+      };
+    })
+    .filter((mover): mover is NotableMover => Boolean(mover))
+    .slice(0, 3);
 
   if (rankedEntries.length === 0) {
     return (
@@ -582,6 +657,38 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
         </div>
       </section>
 
+      {notableMovers.length > 0 ? (
+        <section className={styles.insightsSection}>
+          <div className={styles.sectionHeading}>
+            <p className={styles.kicker}>Notable Movers</p>
+            <h2 className={styles.sectionTitle}>Where the ranking is moving fastest</h2>
+          </div>
+
+          <div className={styles.insightGrid}>
+            {notableMovers.map((mover) => {
+              const TrendIcon = getTrendIcon(mover.direction === "up" ? 1 : -1);
+
+              return (
+                <article key={mover.id} className={styles.insightCard}>
+                  <div className={styles.insightLabel}>
+                    <TrendIcon className={styles.insightIcon} />
+                    {mover.label}
+                  </div>
+                  <div className={styles.moverHeader}>
+                    <h3 className={styles.insightTitle}>{mover.entry.company.name}</h3>
+                    <span className={cn(styles.deltaPill, mover.direction === "up" ? styles.deltaUp : styles.deltaDown)}>
+                      {mover.deltaLabel}
+                      <span className={styles.moverTimeframe}>{mover.timeframe}</span>
+                    </span>
+                  </div>
+                  <p className={styles.insightBody}>{mover.entry.keyDriver}</p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <section className={styles.insightsSection}>
         <div className={styles.sectionHeading}>
           <p className={styles.kicker}>Key Insights</p>
@@ -596,7 +703,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
             </div>
             <h3 className={styles.insightTitle}>{biggestMover.company.name} is moving the board fastest</h3>
             <p className={styles.insightBody}>
-              {formatPercent(biggestMover.sevenDayPercent)} over the last seven days, with {biggestMover.keyDriver.toLowerCase()} driving the largest acceleration in the field.
+              {biggestMover.company.name} has posted the strongest seven-day acceleration on the board at {formatPercent(biggestMover.sevenDayPercent)}.
             </p>
           </article>
 
@@ -607,7 +714,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
             </div>
             <h3 className={styles.insightTitle}>{risingStar.company.name} is the pressure build to watch</h3>
             <p className={styles.insightBody}>
-              Outside the podium, {risingStar.company.shortName} has the sharpest upward slope, pairing {formatCompactDelta(risingStar.scoreChange7d)} score acceleration with clear execution momentum.
+              Outside the podium, {risingStar.company.shortName} has the steepest positive slope, adding {formatCompactDelta(risingStar.scoreChange7d)} points over the last seven days.
             </p>
           </article>
 
