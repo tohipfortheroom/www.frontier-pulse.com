@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
+import { formatCompactDate, formatLongDate } from "@/lib/utils";
 
 interface DigestArchiveNavProps {
   currentDate: string;
@@ -20,7 +20,7 @@ export function DigestArchiveNav({ currentDate, availableDates }: DigestArchiveN
     router.push(`/daily-digest?date=${date}`);
   }
 
-  const formattedCurrent = format(new Date(currentDate + "T00:00:00"), "EEEE, MMMM d, yyyy");
+  const formattedCurrent = formatLongDate(new Date(currentDate + "T00:00:00"));
 
   return (
     <div className="mb-8 space-y-4">
@@ -62,7 +62,7 @@ export function DigestArchiveNav({ currentDate, availableDates }: DigestArchiveN
                 : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
             }`}
           >
-            {format(new Date(date + "T00:00:00"), "MMM d")}
+            {formatCompactDate(new Date(date + "T00:00:00"))}
           </button>
         ))}
       </nav>

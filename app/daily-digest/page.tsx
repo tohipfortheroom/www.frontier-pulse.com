@@ -9,6 +9,7 @@ import { DigestArchiveNav } from "@/components/digest-archive-nav";
 import { SectionHeader } from "@/components/section-header";
 import { ShareButton } from "@/components/share-button";
 import { BRAND_DIGEST_NAME, BRAND_NAME } from "@/lib/brand";
+import { formatLastUpdatedLabel, formatLongDate, toCompleteSentence } from "@/lib/utils";
 
 export async function generateMetadata({ searchParams }: DailyDigestPageProps): Promise<Metadata> {
   try {
@@ -52,6 +53,7 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
   const winner = companiesBySlug[digest.biggestWinnerCompanySlug];
   const loser = companiesBySlug[digest.biggestLoserCompanySlug];
   const narrativeParagraphs = (digest.narrative ?? "").split("\n\n").filter(Boolean);
+  const lastUpdatedLabel = formatLastUpdatedLabel(digestResult.lastUpdatedAt);
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -61,16 +63,19 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
         <div className="flex flex-wrap items-start justify-between gap-4">
           <SectionHeader
             label="DAILY DIGEST"
-            title={digest.headlineOfTheDay ?? format(new Date(digest.date), "EEEE, MMMM d, yyyy")}
-            subtitle={digest.summary}
+            title={digest.headlineOfTheDay ?? formatLongDate(digest.date)}
+            subtitle={toCompleteSentence(digest.summary)}
             tone="blue"
           />
           <ShareButton path="/daily-digest" title={BRAND_DIGEST_NAME} text={digest.summary} />
         </div>
+        {lastUpdatedLabel ? (
+          <p className="text-xs text-[var(--text-tertiary)]">{lastUpdatedLabel}</p>
+        ) : null}
 
         <div className="surface-card rounded-3xl border border-[var(--border)] px-6 py-8 backdrop-blur-sm sm:px-8">
           <p className="font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-            {format(new Date(digest.date), "EEEE, MMMM d, yyyy")}
+            {formatLongDate(digest.date)}
           </p>
           {digest.themes?.length ? (
             <div className="mt-4 flex flex-wrap gap-2">
@@ -85,7 +90,7 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
             </div>
           ) : null}
           <div className="mt-6 space-y-5 text-base leading-8 text-[var(--text-secondary)] sm:text-lg">
-            {(narrativeParagraphs.length > 0 ? narrativeParagraphs : [digest.summary]).map((paragraph, index) => (
+            {(narrativeParagraphs.length > 0 ? narrativeParagraphs : [toCompleteSentence(digest.summary)]).filter(Boolean).map((paragraph, index) => (
               <p key={`${index}-${paragraph.slice(0, 24)}`}>
                 {index === 0 ? (
                   <>
@@ -103,6 +108,7 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
         </div>
 
         <div className="grid gap-5 xl:grid-cols-3">
+          {winner && biggestWinnerMomentum ? (
           <div className="rounded-2xl border border-[var(--accent-green-border)] bg-[var(--accent-green-soft)] p-6">
             <p className="font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] text-[var(--accent-green)]">
               Biggest Winner
@@ -110,8 +116,10 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
             <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
               {winner.name}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{biggestWinnerMomentum?.keyDriver}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(biggestWinnerMomentum.keyDriver)}</p>
           </div>
+          ) : null}
+          {loser && biggestLoserMomentum ? (
           <div className="rounded-2xl border border-[var(--accent-red-border)] bg-[var(--accent-red-soft)] p-6">
             <p className="font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] text-[var(--accent-red)]">
               Biggest Loser
@@ -119,8 +127,9 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
             <h2 className="mt-4 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
               {loser.name}
             </h2>
-            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{biggestLoserMomentum?.keyDriver}</p>
+            <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(biggestLoserMomentum.keyDriver)}</p>
           </div>
+          ) : null}
           <div className="rounded-2xl border border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] p-6">
             <p className="font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] text-[var(--accent-blue)]">
               Most Important Story
@@ -129,34 +138,38 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
               {mostImportantStory.headline}
             </h2>
             <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">
-              {mostImportantStory.whyItMatters || mostImportantStory.summary}
+              {toCompleteSentence(mostImportantStory.whyItMatters || mostImportantStory.summary)}
             </p>
           </div>
         </div>
       </section>
 
-      <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.08s" }}>
-        <SectionHeader label="TOP 10 STORIES" title="The day in order" tone="amber" />
-        <div className="grid gap-5">
-          {topStories.map((item, index) => (
-            <DailyDigestBlock key={item.slug} index={index + 1} item={item} />
-          ))}
-        </div>
-      </section>
+      {topStories.length > 0 ? (
+        <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.08s" }}>
+          <SectionHeader label="TOP 10 STORIES" title="The day in order" tone="amber" />
+          <div className="grid gap-5">
+            {topStories.map((item, index) => (
+              <DailyDigestBlock key={item.slug} index={index + 1} item={item} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
-      <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.14s" }}>
-        <SectionHeader label="WHAT TO WATCH NEXT" title="Forward-looking signals" tone="purple" />
-        <div className="grid gap-5 md:grid-cols-3">
-          {digest.watchNext.map((item) => (
-            <div
-              key={item}
-              className="surface-card rounded-2xl border border-[var(--border)] p-6 backdrop-blur-sm"
-            >
-              <p className="text-sm leading-7 text-[var(--text-secondary)]">{item}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {digest.watchNext.length > 0 ? (
+        <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.14s" }}>
+          <SectionHeader label="WHAT TO WATCH NEXT" title="Forward-looking signals" tone="purple" />
+          <div className="grid gap-5 md:grid-cols-3">
+            {digest.watchNext.map((item) => (
+              <div
+                key={item}
+                className="surface-card rounded-2xl border border-[var(--border)] p-6 backdrop-blur-sm"
+              >
+                <p className="text-sm leading-7 text-[var(--text-secondary)]">{toCompleteSentence(item)}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -6,7 +6,7 @@ import { ChevronDown, ExternalLink } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
 import { categoriesBySlug, seedNow, type NewsItem } from "@/lib/seed/data";
-import { cn, formatSmartTime, formatTimestamp } from "@/lib/utils";
+import { cn, formatSmartTime, formatTimestamp, toCompleteSentence } from "@/lib/utils";
 
 import { BookmarkButton } from "@/components/bookmark-button";
 import { CompanyBadge } from "@/components/company-badge";
@@ -119,8 +119,8 @@ export function NewsCard({
 
   const previewCopy =
     mode === "default"
-      ? news.summary
-      : news.shortSummary || news.summary;
+      ? toCompleteSentence(news.summary)
+      : toCompleteSentence(news.shortSummary || news.summary);
 
   return (
     <article
@@ -255,7 +255,7 @@ export function NewsCard({
                 <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
                   Full Summary
                 </p>
-                <p className="text-sm leading-7 text-[var(--text-secondary)]">{news.summary}</p>
+                <p className="text-sm leading-7 text-[var(--text-secondary)]">{toCompleteSentence(news.summary)}</p>
               </div>
 
               {news.whyItMatters ? (
@@ -266,7 +266,7 @@ export function NewsCard({
                   <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
                     Why It Matters
                   </p>
-                  <p className="mt-2 text-sm italic leading-7 text-[var(--text-secondary)]">{news.whyItMatters}</p>
+                  <p className="mt-2 text-sm italic leading-7 text-[var(--text-secondary)]">{toCompleteSentence(news.whyItMatters)}</p>
                 </div>
               ) : null}
 

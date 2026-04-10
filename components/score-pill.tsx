@@ -1,4 +1,4 @@
-import { accentClasses, cn, formatScore, getChangeTone } from "@/lib/utils";
+import { accentClasses, cn, formatScore, getChangeTone, hasMeaningfulMetric } from "@/lib/utils";
 
 type ScorePillProps = {
   value: number;
@@ -7,6 +7,10 @@ type ScorePillProps = {
 };
 
 export function ScorePill({ value, className, compact = false }: ScorePillProps) {
+  if (!hasMeaningfulMetric(value)) {
+    return null;
+  }
+
   const tone = getChangeTone(value);
   const toneClasses = accentClasses(tone);
 

@@ -1,5 +1,5 @@
 import { companiesBySlug, type TimelineEntry } from "@/lib/seed/data";
-import { formatTimestamp } from "@/lib/utils";
+import { formatTimestamp, toCompleteSentence } from "@/lib/utils";
 
 type TimelineItemProps = {
   entry: TimelineEntry;
@@ -21,7 +21,7 @@ export function TimelineItem({ entry, align }: TimelineItemProps) {
       <h3 className="mt-3 font-[family-name:var(--font-display)] text-xl font-semibold text-[var(--text-primary)]">
         {entry.headline}
       </h3>
-      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{entry.detail}</p>
+      <p className="mt-2 text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(entry.detail)}</p>
     </div>
   );
 

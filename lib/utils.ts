@@ -1,9 +1,26 @@
-import { format, isToday, isYesterday } from "date-fns";
+import { differenceInCalendarDays, differenceInHours, format, isValid } from "date-fns";
 
 export type AccentTone = "green" | "red" | "blue" | "amber" | "purple" | "neutral";
 
 export function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
+}
+
+function toValidDate(value: Date | string) {
+  const normalizedValue =
+    typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+      ? `${value}T12:00:00`
+      : value;
+  const date = normalizedValue instanceof Date ? normalizedValue : new Date(normalizedValue);
+  return isValid(date) ? date : null;
+}
+
+export function hasMeaningfulMetric(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) && value !== 0;
+}
+
+export function hasDisplayText(value: string | null | undefined) {
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 export function formatScore(value: number, digits = 1) {
@@ -12,25 +29,136 @@ export function formatScore(value: number, digits = 1) {
 }
 
 export function formatCompactDate(date: Date | string) {
-  return format(new Date(date), "MMM d");
+  const parsed = toValidDate(date);
+  return parsed ? format(parsed, "MMM d") : "";
+}
+
+export function formatDateLabel(date: Date | string) {
+  const parsed = toValidDate(date);
+  return parsed ? format(parsed, "MMM d, yyyy") : "";
 }
 
 export function formatTimestamp(date: Date | string) {
-  return format(new Date(date), "MMM d, h:mm a");
+  const parsed = toValidDate(date);
+
+  if (!parsed) {
+    return "";
+  }
+
+  const now = new Date();
+  const hoursAgo = differenceInHours(now, parsed);
+  const daysAgo = differenceInCalendarDays(now, parsed);
+
+  if (hoursAgo < 1) {
+    return "Just now";
+  }
+
+  if (hoursAgo < 24) {
+    return `${hoursAgo}h ago`;
+  }
+
+  if (daysAgo === 1) {
+    return "Yesterday";
+  }
+
+  if (daysAgo < 7) {
+    return `${daysAgo} days ago`;
+  }
+
+  return format(parsed, "MMM d, yyyy");
 }
 
 export function formatSmartTime(date: Date | string) {
-  const d = new Date(date);
+  return formatTimestamp(date);
+}
 
-  if (isToday(d)) {
-    return `Today ${format(d, "h:mm a")}`;
+export function formatTimeOfDay(date: Date | string) {
+  const parsed = toValidDate(date);
+  return parsed ? format(parsed, "h:mm a") : "";
+}
+
+export function formatLongDate(date: Date | string) {
+  const parsed = toValidDate(date);
+  return parsed ? format(parsed, "EEEE, MMMM d, yyyy") : "";
+}
+
+export function formatLastUpdatedLabel(date: Date | string | null | undefined) {
+  if (!date) {
+    return "";
   }
 
-  if (isYesterday(d)) {
-    return `Yesterday ${format(d, "h:mm a")}`;
+  const timestamp = formatTimestamp(date);
+  return timestamp ? `Last updated: ${timestamp}` : "";
+}
+
+function normalizeWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function extractSentences(value: string) {
+  return value.match(/[^.!?]+[.!?]+(?:["')\]]+)?/g)?.map((sentence) => normalizeWhitespace(sentence)) ?? [];
+}
+
+export function toCompleteSentence(value: string | null | undefined) {
+  const input = typeof value === "string" ? value : "";
+
+  if (!hasDisplayText(input)) {
+    return "";
   }
 
-  return format(d, "MMM d, h:mm a");
+  const normalized = normalizeWhitespace(input.trim().replace(/(?:\s*\.\.\.+)+$/, ""));
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (/[.!?]["')\]]*$/.test(normalized)) {
+    return normalized;
+  }
+
+  const sentences = extractSentences(normalized);
+
+  if (sentences.length > 0) {
+    return sentences.join(" ");
+  }
+
+  return `${normalized.replace(/[,:;\-–—]+$/, "").trim()}.`;
+}
+
+export function cleanNarrativeText(value: string | null | undefined) {
+  const input = typeof value === "string" ? value : "";
+
+  if (!hasDisplayText(input)) {
+    return "";
+  }
+
+  const paragraphs = input
+    .split(/\n{2,}/)
+    .map((paragraph) => normalizeWhitespace(paragraph))
+    .filter(Boolean)
+    .map((paragraph) => {
+      const sentences = extractSentences(paragraph);
+      const sourceSentences = sentences.length > 0 ? sentences : [toCompleteSentence(paragraph)];
+      const seen = new Set<string>();
+
+      return sourceSentences
+        .map((sentence) => normalizeWhitespace(sentence))
+        .filter(Boolean)
+        .filter((sentence) => {
+          const key = sentence.toLowerCase();
+
+          if (seen.has(key)) {
+            return false;
+          }
+
+          seen.add(key);
+          return true;
+        })
+        .join(" ");
+    })
+    .filter(Boolean);
+
+  return paragraphs.join("\n\n");
 }
 
 export function getImportanceLabel(score: number) {

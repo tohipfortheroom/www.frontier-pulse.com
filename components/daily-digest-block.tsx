@@ -1,4 +1,5 @@
 import { type NewsItem } from "@/lib/seed/data";
+import { toCompleteSentence } from "@/lib/utils";
 
 import { CompanyBadge } from "@/components/company-badge";
 
@@ -8,6 +9,8 @@ type DailyDigestBlockProps = {
 };
 
 export function DailyDigestBlock({ index, item }: DailyDigestBlockProps) {
+  const summary = toCompleteSentence(item.shortSummary || item.summary);
+
   return (
     <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
       <div className="flex items-start gap-4">
@@ -18,7 +21,7 @@ export function DailyDigestBlock({ index, item }: DailyDigestBlockProps) {
           <h3 className="font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
             {item.headline}
           </h3>
-          <p className="text-sm leading-6 text-[var(--text-secondary)]">{item.shortSummary}</p>
+          {summary ? <p className="text-sm leading-6 text-[var(--text-secondary)]">{summary}</p> : null}
           <div className="flex flex-wrap gap-2">
             {item.companySlugs.map((companySlug) => (
               <CompanyBadge key={`${item.slug}-${companySlug}`} companySlug={companySlug} />

@@ -8,7 +8,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
-import { cn, formatScore } from "@/lib/utils";
+import { cn, formatLastUpdatedLabel, formatScore, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { CompanyLogo } from "@/components/company-logo";
 import styles from "@/components/leaderboard-command-center.module.css";
@@ -66,15 +66,6 @@ const CHART_FALLBACK_COLORS = [
   "#7dd3fc",
   "#fb923c",
 ];
-
-function formatUpdatedAt(timestamp: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(timestamp));
-}
 
 function computeSevenDayPercent(entry: LeaderboardEntry) {
   const baseline = Math.max(entry.score - entry.scoreChange7d, 1);
@@ -214,12 +205,6 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
 
   useEffect(() => {
     setMounted(true);
-
-    const interval = window.setInterval(() => {
-      setLiveTime(new Date().toISOString());
-    }, 1000);
-
-    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -242,7 +227,10 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
   }, [router]);
 
   const sortedEntries = records
-    .filter((record): record is CompanyCardRecord & { momentum: NonNullable<CompanyCardRecord["momentum"]> } => Boolean(record.momentum))
+    .filter(
+      (record): record is CompanyCardRecord & { momentum: NonNullable<CompanyCardRecord["momentum"]> } =>
+        Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score)),
+    )
     .map<LeaderboardEntry>((record) => ({
       company: record.company,
       activityCount: record.activityCount,
@@ -251,7 +239,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
       scoreChange24h: record.momentum.scoreChange24h,
       scoreChange7d: record.momentum.scoreChange7d,
       trend: record.momentum.trend,
-      keyDriver: record.momentum.keyDriver,
+      keyDriver: toCompleteSentence(record.momentum.keyDriver),
       sparkline: extendSparkline(record.momentum.sparkline),
     }))
     .sort((left, right) => getLensScore(right, activeFilter) - getLensScore(left, activeFilter))
@@ -299,6 +287,26 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
       : positiveEvents >= Math.ceil(recentEvents.length * 0.7)
         ? "More companies are gaining than slipping right now, which usually means the next ranking update rewards execution depth rather than one-off hype."
         : "Recent events are spread across partnerships, infrastructure, and leadership, so competitive advantage is being won through operational follow-through.";
+  const lastUpdatedLabel = formatLastUpdatedLabel(liveTime);
+
+  if (rankedEntries.length === 0) {
+    return (
+      <div className={styles.shell}>
+        <section className={styles.hero}>
+          <div className={styles.heroMeta}>
+            <span className={styles.liveBadge}>
+              <span className={styles.liveDotWrap}>
+                <span className={styles.liveDot} />
+              </span>
+              Live Tracking
+            </span>
+          </div>
+          <h1 className={styles.title}>Frontier Pulse Leaderboard</h1>
+          <p className={styles.subtitle}>Leaderboard data is temporarily unavailable.</p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.shell}>
@@ -325,7 +333,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
 
         <div className={styles.timestampRow}>
           <span className={styles.clockDot} />
-          <span>Updated {formatUpdatedAt(liveTime)}</span>
+          <span>{lastUpdatedLabel ? `Last updated: ${lastUpdatedLabel}` : "Leaderboard data is updating."}</span>
           <span className={styles.timestampDivider}>/</span>
           <span>{FILTERS.find((filter) => filter.id === activeFilter)?.description}</span>
         </div>
@@ -493,7 +501,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
                   </div>
                   <div>
                     <p className={styles.metricLabel}>Key Driver</p>
-                    <p className={styles.metricDriver}>{entry.keyDriver}</p>
+                    <p className={styles.metricDriver}>{toCompleteSentence(entry.keyDriver)}</p>
                   </div>
                 </div>
               </article>
@@ -536,8 +544,10 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
                     <CompanyLogo company={entry.company} className={styles.rowLogo} imageClassName={styles.rowLogoImage} />
                     <span className={styles.companyMeta}>
                       <span className={styles.companyPrimary}>{entry.company.name}</span>
-                      <span className={styles.companySecondary}>{entry.company.shortName} · {entry.activityCount} recent moves</span>
+                    <span className={styles.companySecondary}>
+                      {entry.activityCount > 0 ? `${entry.company.shortName} · ${entry.activityCount} recent moves` : entry.company.shortName}
                     </span>
+                  </span>
                   </span>
 
                   <span className={styles.scoreCell}>
@@ -612,9 +622,9 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
         </div>
       </section>
 
-      <footer className={styles.footer}>
+      <div className={styles.footer}>
         Composite score based on benchmarks, shipping velocity, market traction &amp; research impact.
-      </footer>
+      </div>
     </div>
   );
 }

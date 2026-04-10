@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
 import { companiesBySlug, type MomentumSnapshot } from "@/lib/seed/data";
-import { cn, formatScore } from "@/lib/utils";
+import { cn, formatScore, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { ScorePill } from "@/components/score-pill";
 import { TrendSparkline } from "@/components/trend-sparkline";
@@ -29,7 +29,7 @@ export function LeaderboardTable({
 }: LeaderboardTableProps) {
   const router = useRouter();
   const sortedRows = useMemo(
-    () => [...rows].sort((left, right) => left.rank - right.rank),
+    () => [...rows].filter((row) => hasMeaningfulMetric(row.score)).sort((left, right) => left.rank - right.rank),
     [rows],
   );
   const previousScores = useRef<Record<string, number>>({});
@@ -85,6 +85,14 @@ export function LeaderboardTable({
       void supabase.removeChannel(channel);
     };
   }, [realtime, router]);
+
+  if (sortedRows.length === 0) {
+    return (
+      <div className="surface-card rounded-2xl border border-[var(--border)] p-5 text-sm text-[var(--text-secondary)] backdrop-blur-sm">
+        Leaderboard data is updating.
+      </div>
+    );
+  }
 
   return (
     <div className="surface-card rounded-2xl border border-[var(--border)] backdrop-blur-sm">
@@ -187,7 +195,7 @@ export function LeaderboardTable({
                       </div>
                     </td>
                   ) : null}
-                  <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{row.keyDriver}</td>
+                  <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{toCompleteSentence(row.keyDriver)}</td>
                 </tr>
               );
             })}
@@ -230,7 +238,7 @@ export function LeaderboardTable({
                     <span className="h-3 w-3 rounded-full" style={{ backgroundColor: company.color }} />
                     <span className="font-medium text-[var(--text-primary)]">{company.name}</span>
                   </div>
-                  <p className="hidden text-sm text-[var(--text-secondary)] sm:block">{row.keyDriver}</p>
+                  <p className="hidden text-sm text-[var(--text-secondary)] sm:block">{toCompleteSentence(row.keyDriver)}</p>
                 </div>
                 <ScorePill value={row.score} />
               </div>
@@ -250,7 +258,7 @@ export function LeaderboardTable({
                 )}
               </div>
               <div className="mt-4 flex items-center justify-between gap-3">
-                <span className="text-xs text-[var(--text-tertiary)] sm:hidden">{row.keyDriver}</span>
+                <span className="text-xs text-[var(--text-tertiary)] sm:hidden">{toCompleteSentence(row.keyDriver)}</span>
                 <Link href={`/companies/${row.companySlug}`} className="ml-auto text-xs font-medium text-[var(--accent-blue)]">
                   Full details →
                 </Link>

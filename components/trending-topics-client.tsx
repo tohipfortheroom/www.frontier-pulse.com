@@ -2,11 +2,10 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { format } from "date-fns";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import type { TrendingTag } from "@/lib/db/queries";
-import { cn } from "@/lib/utils";
+import { cn, formatTimestamp } from "@/lib/utils";
 
 type TrendingTopicsClientProps = {
   topics: TrendingTag[];
@@ -115,7 +114,7 @@ export function TrendingTopicsClient({ topics }: TrendingTopicsClientProps) {
                               </span>
                             ) : null}
                             <span className="font-[family-name:var(--font-mono)] text-[11px] text-[var(--text-tertiary)]">
-                              {format(new Date(story.publishedAt), "MMM d, yyyy")}
+                              {formatTimestamp(story.publishedAt)}
                             </span>
                           </div>
                         </div>

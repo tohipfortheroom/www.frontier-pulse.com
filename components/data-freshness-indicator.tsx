@@ -1,13 +1,13 @@
 "use client";
 
-import { differenceInMinutes, format } from "date-fns";
+import { differenceInMinutes } from "date-fns";
 import { useEffect, useRef, useState } from "react";
 
 import { useToast } from "@/components/toast-provider";
 import type { SourceHealthSnapshot } from "@/lib/ingestion/source-health";
 import { useNetworkStatus } from "@/lib/hooks/use-network-status";
 import { fetchJsonWithRetry } from "@/lib/network/fetch";
-import { cn } from "@/lib/utils";
+import { cn, formatTimestamp } from "@/lib/utils";
 
 type FreshnessState = Pick<
   SourceHealthSnapshot,
@@ -116,7 +116,7 @@ export function DataFreshnessIndicator() {
         ? "Sources checked recently"
         : minutesAgo === null
           ? "All systems live"
-          : `Updated at ${format(new Date(referenceTime), "h:mm a")}`
+          : `Updated ${formatTimestamp(referenceTime).toLowerCase()}`
       : freshness.currentStatus === "DELAYED"
         ? "Ingestion delayed"
         : freshness.currentStatus === "DEGRADED"

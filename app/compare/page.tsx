@@ -8,9 +8,7 @@ const ComparePageClient = dynamicImport(
   () => import("@/components/compare-page-client").then((module) => module.ComparePageClient),
   {
     loading: () => (
-      <div className="surface-card rounded-3xl border border-[var(--border)] p-6 text-sm text-[var(--text-secondary)] backdrop-blur-sm">
-        Loading comparison workspace...
-      </div>
+      <div className="surface-card h-[420px] rounded-3xl border border-[var(--border)] backdrop-blur-sm" aria-hidden="true" />
     ),
   },
 );

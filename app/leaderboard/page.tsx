@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Outfit } from "next/font/google";
 
-import { getCompaniesIndexData, getRecentMomentumEventsData } from "@/lib/db/queries";
+import { getCompaniesIndexData, getLeaderboardLastUpdatedAt, getRecentMomentumEventsData } from "@/lib/db/queries";
 import { companiesBySlug } from "@/lib/seed/data";
 import { formatScore } from "@/lib/utils";
 
@@ -44,11 +44,15 @@ export async function generateMetadata(): Promise<Metadata> {
 export const revalidate = 300;
 
 export default async function LeaderboardPage() {
-  const [records, recentEvents] = await Promise.all([getCompaniesIndexData(), getRecentMomentumEventsData()]);
+  const [records, recentEvents, lastUpdatedAt] = await Promise.all([
+    getCompaniesIndexData(),
+    getRecentMomentumEventsData(),
+    getLeaderboardLastUpdatedAt(),
+  ]);
 
   return (
     <div className={`${displayFont.variable} ${monoFont.variable} relative z-10 mx-auto max-w-7xl px-4 py-12 sm:px-5 lg:py-16`}>
-      <LeaderboardCommandCenter records={records} recentEvents={recentEvents} renderedAt={new Date().toISOString()} />
+      <LeaderboardCommandCenter records={records} recentEvents={recentEvents} renderedAt={lastUpdatedAt ?? ""} />
     </div>
   );
 }

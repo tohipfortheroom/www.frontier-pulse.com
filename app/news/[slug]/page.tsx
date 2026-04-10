@@ -5,7 +5,7 @@ import Script from "next/script";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import { getNewsItemDetailData, getNewsItemsData } from "@/lib/db/queries";
-import { accentClasses, cn, formatTimestamp } from "@/lib/utils";
+import { accentClasses, cn, formatTimestamp, toCompleteSentence } from "@/lib/utils";
 
 import { BookmarkButton } from "@/components/bookmark-button";
 import { CompanyBadge } from "@/components/company-badge";
@@ -149,7 +149,7 @@ export default async function NewsDetailPage({
 
             <div className="mt-8 grid gap-4 md:grid-cols-[1.3fr_0.7fr]">
               <div className="space-y-6">
-                <p className="text-lg leading-8 text-[var(--text-secondary)]">{news.summary}</p>
+                <p className="text-lg leading-8 text-[var(--text-secondary)]">{toCompleteSentence(news.summary)}</p>
 
                 {news.whyItMatters ? (
                   <div className="surface-subtle rounded-2xl border border-[var(--border)] p-5">
@@ -157,7 +157,7 @@ export default async function NewsDetailPage({
                       Why It Matters
                     </p>
                     <p className="mt-3 border-l-2 border-[var(--accent-blue)] pl-4 text-base italic leading-7 text-[var(--text-secondary)]">
-                      {news.whyItMatters}
+                      {toCompleteSentence(news.whyItMatters)}
                     </p>
                   </div>
                 ) : null}

@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
 import dynamicImport from "next/dynamic";
-import { format } from "date-fns";
 
 import { getFullTimelineData } from "@/lib/db/queries";
 import { SectionHeader } from "@/components/section-header";
+import { formatLastUpdatedLabel } from "@/lib/utils";
 
 const TimelinePageClient = dynamicImport(
   () => import("@/components/timeline-page-client").then((module) => module.TimelinePageClient),
   {
     loading: () => (
-      <div className="surface-card rounded-3xl border border-[var(--border)] p-6 text-sm text-[var(--text-secondary)] backdrop-blur-sm">
-        Loading timeline...
-      </div>
+      <div className="surface-card h-[420px] rounded-3xl border border-[var(--border)] backdrop-blur-sm" aria-hidden="true" />
     ),
   },
 );
@@ -39,7 +37,7 @@ export const dynamic = "force-dynamic";
 
 export default async function TimelinePage() {
   const data = await getFullTimelineData(14);
-  const lastUpdatedLabel = format(new Date(data.lastUpdatedAt), "MMM d, h:mm a");
+  const lastUpdatedLabel = formatLastUpdatedLabel(data.lastUpdatedAt);
 
   return (
     <div className="relative z-10 mx-auto max-w-5xl px-5 py-16 lg:py-20">
@@ -50,9 +48,7 @@ export default async function TimelinePage() {
           subtitle="Browse the last two weeks of AI frontier activity in chronological order. Filter by company to focus on the players that matter to you."
           tone="purple"
         />
-        <p className="text-xs text-[var(--text-tertiary)]">
-          Last updated {lastUpdatedLabel}
-        </p>
+        {lastUpdatedLabel ? <p className="text-xs text-[var(--text-tertiary)]">{lastUpdatedLabel}</p> : null}
         <TimelinePageClient
           entries={data.entries}
           newsItems={data.newsItems}

@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/toast-provider";
 import { useNetworkStatus } from "@/lib/hooks/use-network-status";
 import { fetchJsonWithRetry } from "@/lib/network/fetch";
-import { cn } from "@/lib/utils";
+import { cn, formatTimestamp, toCompleteSentence } from "@/lib/utils";
 import type { SearchResponse, SearchSuggestion } from "@/lib/search/types";
 
 type FlatResult =
@@ -388,7 +388,7 @@ export function GlobalSearch() {
                                 </span>
                               ) : null}
                             </div>
-                            <p className="text-sm leading-6 text-[var(--text-secondary)]">{result.description}</p>
+                            <p className="text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(result.description)}</p>
                           </div>
                         </button>
                       ))}
@@ -419,9 +419,9 @@ export function GlobalSearch() {
                             <Newspaper className="mt-0.5 h-4 w-4 text-[var(--accent-amber)]" />
                             <div className="space-y-1">
                               <p className="font-medium text-[var(--text-primary)]">{result.headline}</p>
-                              <p className="text-sm leading-6 text-[var(--text-secondary)]">{result.summary}</p>
+                              <p className="text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(result.summary)}</p>
                               <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-                                {result.sourceName} · {format(new Date(result.publishedAt), "MMM d, h:mm a")}
+                                {result.sourceName} · {formatTimestamp(result.publishedAt)}
                               </p>
                             </div>
                           </button>

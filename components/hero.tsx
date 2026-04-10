@@ -4,7 +4,7 @@ import type { HomeTickerItem } from "@/lib/seed/data";
 
 import { AnimatedCounter } from "@/components/animated-counter";
 import { BrandLogo } from "@/components/brand-logo";
-import { formatSmartTime } from "@/lib/utils";
+import { formatLastUpdatedLabel, hasMeaningfulMetric } from "@/lib/utils";
 import { HeroScrollCue } from "@/components/hero-scroll-cue";
 import { InteractiveTicker } from "@/components/interactive-ticker";
 import { buttonVariants } from "@/components/ui/button";
@@ -26,7 +26,9 @@ export function Hero({ stats, tickerItems, firstSectionId }: HeroProps) {
     { label: "Stories tracked", target: stats.totalStories },
     { label: "Companies monitored", target: stats.totalCompanies },
     { label: "Launches in play", target: stats.totalLaunches },
-  ];
+  ].filter((item) => hasMeaningfulMetric(item.target));
+  const lastUpdatedLabel = formatLastUpdatedLabel(stats.lastUpdatedAt);
+  const showStatsCard = counterItems.length > 0 || stats.seedMode || Boolean(lastUpdatedLabel);
 
   return (
     <section className="fade-slide-up pt-24 sm:pt-28 lg:pt-32">
@@ -59,37 +61,41 @@ export function Hero({ stats, tickerItems, firstSectionId }: HeroProps) {
             </Link>
           </div>
 
-          <div className="surface-card grid gap-3 rounded-2xl border border-[var(--border)] p-4 backdrop-blur-sm sm:grid-cols-2 xl:grid-cols-4 xl:gap-0 xl:p-0">
-            {counterItems.map((item) => (
-              <div
-                key={item.label}
-                className="xl:border-r xl:border-[var(--border)] xl:px-5 xl:py-4"
-              >
-                <AnimatedCounter label={item.label} target={item.target} />
-              </div>
-            ))}
-            <div className="xl:px-5 xl:py-4">
+          {showStatsCard ? (
+            <div className="surface-card grid gap-3 rounded-2xl border border-[var(--border)] p-4 backdrop-blur-sm sm:grid-cols-2 xl:grid-cols-4 xl:gap-0 xl:p-0">
+              {counterItems.map((item, index) => (
+                <div
+                  key={item.label}
+                  className={index < counterItems.length - 1 || stats.seedMode || lastUpdatedLabel ? "xl:border-r xl:border-[var(--border)] xl:px-5 xl:py-4" : "xl:px-5 xl:py-4"}
+                >
+                  <AnimatedCounter label={item.label} target={item.target} />
+                </div>
+              ))}
               {stats.seedMode ? (
-                <div className="min-w-[140px] space-y-2">
-                  <div className="font-[family-name:var(--font-mono)] text-2xl font-semibold tracking-[-0.04em] text-[var(--text-tertiary)] sm:text-[28px]">
-                    Demo
+                <div className="xl:px-5 xl:py-4">
+                  <div className="min-w-[140px] space-y-2">
+                    <div className="font-[family-name:var(--font-mono)] text-2xl font-semibold tracking-[-0.04em] text-[var(--text-tertiary)] sm:text-[28px]">
+                      Demo
+                    </div>
+                    <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+                      Sample data
+                    </p>
                   </div>
-                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-                    Sample data
-                  </p>
                 </div>
-              ) : (
-                <div className="min-w-[140px] space-y-2">
-                  <div className="font-[family-name:var(--font-mono)] text-lg font-semibold tracking-[-0.04em] text-[var(--text-primary)] sm:text-xl">
-                    {formatSmartTime(stats.lastUpdatedAt)}
+              ) : lastUpdatedLabel ? (
+                <div className="xl:px-5 xl:py-4">
+                  <div className="min-w-[140px] space-y-2">
+                    <div className="font-[family-name:var(--font-mono)] text-lg font-semibold tracking-[-0.04em] text-[var(--text-primary)] sm:text-xl">
+                      {lastUpdatedLabel.replace("Last updated: ", "")}
+                    </div>
+                    <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
+                      Last updated
+                    </p>
                   </div>
-                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
-                    Last updated
-                  </p>
                 </div>
-              )}
+              ) : null}
             </div>
-          </div>
+          ) : null}
         </div>
 
         <div className="mt-10">

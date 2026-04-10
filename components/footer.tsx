@@ -2,10 +2,15 @@ import Link from "next/link";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { NewsletterForm } from "@/components/newsletter-form";
+import { getSiteLastUpdatedAt } from "@/lib/db/queries";
 import { BRAND_NAME } from "@/lib/brand";
 import { companies } from "@/lib/seed/data";
+import { formatLastUpdatedLabel } from "@/lib/utils";
 
-export function Footer() {
+export async function Footer() {
+  const lastUpdatedAt = await getSiteLastUpdatedAt();
+  const lastUpdatedLabel = formatLastUpdatedLabel(lastUpdatedAt);
+
   return (
     <footer className="surface-card mt-20 border-t border-[var(--border)] py-12">
       <div className="mx-auto max-w-6xl space-y-10 px-5">
@@ -17,9 +22,16 @@ export function Footer() {
               scoring, and daily signal across launches, infrastructure, regulation, and partnerships.
             </p>
           </div>
-          <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-            Built with conviction. Updated daily.
-          </p>
+          <div className="space-y-1 text-right">
+            <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+              Tracking the AI race with transparent scoring.
+            </p>
+            {lastUpdatedLabel ? (
+              <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                {lastUpdatedLabel}
+              </p>
+            ) : null}
+          </div>
         </div>
 
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-4">

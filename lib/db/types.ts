@@ -68,6 +68,7 @@ export type DailyDigestRecord = {
   biggestWinnerMomentum?: MomentumSnapshot;
   biggestLoserMomentum?: MomentumSnapshot;
   mostImportantStory: NewsItem;
+  lastUpdatedAt?: string;
 };
 
 export type NewsDetailRecord = {

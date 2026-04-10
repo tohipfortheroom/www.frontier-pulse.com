@@ -7,7 +7,7 @@ import { Check, Copy } from "lucide-react";
 
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { categories, type NewsItem } from "@/lib/seed/data";
-import { cn, formatScore } from "@/lib/utils";
+import { cn, formatScore, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { EmptyState } from "@/components/empty-state";
 import { NewsCard } from "@/components/news-card";
@@ -299,10 +299,10 @@ export function ComparePageClient({
                       </h3>
                     </div>
                     <p className="mt-4 text-4xl font-semibold text-[var(--text-primary)]">
-                      {formatScore(record.momentum?.score ?? 0)}
+                      {record.momentum && hasMeaningfulMetric(record.momentum.score) ? formatScore(record.momentum.score) : "Score pending"}
                     </p>
                     <p className="mt-2 text-sm text-[var(--text-secondary)]">
-                      {record.momentum?.keyDriver ?? record.company.description}
+                      {toCompleteSentence(record.momentum?.keyDriver ?? record.company.description)}
                     </p>
                   </div>
                 );

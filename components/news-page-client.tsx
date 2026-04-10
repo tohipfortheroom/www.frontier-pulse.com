@@ -13,7 +13,7 @@ import { fetchJsonWithRetry } from "@/lib/network/fetch";
 import type { NewsItem, NewsCategory } from "@/lib/seed/data";
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { matchesSearchQuery } from "@/lib/search/syntax";
-import { cn } from "@/lib/utils";
+import { cn, formatTimestamp } from "@/lib/utils";
 
 import { EmptyState } from "@/components/empty-state";
 import { NewsCard } from "@/components/news-card";
@@ -359,7 +359,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
         : freshness.currentStatus === "DEGRADED"
           ? "Some sources degraded"
           : "Feed stale";
-  const lastRefreshLabel = freshnessReference ? `at ${format(new Date(freshnessReference), "h:mm a")}` : "recently";
+  const lastRefreshLabel = freshnessReference ? formatTimestamp(freshnessReference).toLowerCase() : "recently";
   const statusBody =
     !freshness.configured
       ? "Live pipeline is not configured in this environment. Showing the editorial seed dataset."
@@ -398,7 +398,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>{statusEyebrow}</span>
           <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-            {!isOnline ? "Offline" : latestStoryHoursAgo <= 0 ? "Latest story just now" : `Latest story ${format(new Date(freshness.latestPublishedAt), "h:mm a")}`}
+            {!isOnline ? "Offline" : latestStoryHoursAgo <= 0 ? "Latest story just now" : `Latest story ${formatTimestamp(freshness.latestPublishedAt).toLowerCase()}`}
           </span>
         </div>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">

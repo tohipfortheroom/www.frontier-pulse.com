@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 
 import type { CompanyProfile, MomentumSnapshot } from "@/lib/seed/data";
+import { hasMeaningfulMetric } from "@/lib/utils";
 
 import { CompanyLogo } from "@/components/company-logo";
 import { ScorePill } from "@/components/score-pill";
@@ -13,6 +14,9 @@ type CompanyCardProps = {
 };
 
 export function CompanyCard({ company, activityCount, momentum }: CompanyCardProps) {
+  const showMomentum = Boolean(momentum && hasMeaningfulMetric(momentum.score));
+  const showActivityCount = hasMeaningfulMetric(activityCount);
+
   return (
     <article
       style={{ "--company-glow": `0 20px 42px ${company.color}22` } as CSSProperties}
@@ -31,14 +35,16 @@ export function CompanyCard({ company, activityCount, momentum }: CompanyCardPro
             <p className="max-w-sm text-sm leading-6 text-[var(--text-secondary)]">{company.description}</p>
           </div>
         </div>
-        {momentum ? <ScorePill value={momentum.score} /> : null}
+        {showMomentum && momentum ? <ScorePill value={momentum.score} /> : null}
       </div>
 
       <div className="mt-6 flex items-center justify-between gap-3">
-        <span className="surface-subtle rounded-full border border-[var(--border)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-          {activityCount} recent moves
-        </span>
-        {momentum ? (
+        {showActivityCount ? (
+          <span className="surface-subtle rounded-full border border-[var(--border)] px-3 py-1.5 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+            {activityCount} recent moves
+          </span>
+        ) : <span />}
+        {showMomentum && momentum ? (
           <span className="font-[family-name:var(--font-mono)] text-xs uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
             {momentum.trend} 7d trend
           </span>

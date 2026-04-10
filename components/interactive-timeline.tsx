@@ -4,7 +4,7 @@ import { differenceInDays, format } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { companiesBySlug, type TimelineEntry } from "@/lib/seed/data";
-import { cn } from "@/lib/utils";
+import { cn, formatTimestamp, toCompleteSentence } from "@/lib/utils";
 
 function inferTone(headline: string) {
   const normalized = headline.toLowerCase();
@@ -114,7 +114,7 @@ export function InteractiveTimeline({ entries }: { entries: TimelineEntry[] }) {
                   </div>
                   <div>
                     <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-                      {format(new Date(entry.timestamp), "MMM d · h:mm a")}
+                      {formatTimestamp(entry.timestamp)}
                     </p>
                     <p className="mt-2 line-clamp-2 max-w-[220px] text-sm font-semibold text-[var(--text-primary)]">
                       {entry.headline}
@@ -131,12 +131,12 @@ export function InteractiveTimeline({ entries }: { entries: TimelineEntry[] }) {
       {selectedEntry ? (
         <div className="surface-soft mt-8 rounded-2xl border border-[var(--border)] p-5">
           <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-            {format(new Date(selectedEntry.timestamp), "MMMM d, yyyy · h:mm a")}
+            {formatTimestamp(selectedEntry.timestamp)}
           </p>
           <h3 className="mt-3 font-[family-name:var(--font-display)] text-2xl font-semibold text-[var(--text-primary)]">
             {selectedEntry.headline}
           </h3>
-          <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">{selectedEntry.detail}</p>
+          <p className="mt-3 text-sm leading-7 text-[var(--text-secondary)]">{toCompleteSentence(selectedEntry.detail)}</p>
         </div>
       ) : null}
     </div>

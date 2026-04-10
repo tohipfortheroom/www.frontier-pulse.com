@@ -47,7 +47,7 @@ import {
   type TopMover,
   type TrendDirection,
 } from "@/lib/seed/data";
-import { getConfidenceLabel, getImportanceLabel } from "@/lib/utils";
+import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 
 type CompanyNewsRow = {
@@ -89,6 +89,10 @@ function impactToScore(impact: NewsItem["impactDirection"]) {
   }
 
   return 0;
+}
+
+function withMeaningfulMomentum<T extends { score: number }>(value: T | undefined) {
+  return value && hasMeaningfulMetric(value.score) ? value : undefined;
 }
 
 function deriveCompanyEnrichment(companyNews: NewsItem[], momentum?: MomentumSnapshot): CompanyProfile["enrichmentData"] {
@@ -275,7 +279,7 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
 
   return {
     company,
-    momentum: getCompanyMomentum(slug),
+    momentum: withMeaningfulMomentum(getCompanyMomentum(slug)),
     recentNews: companyNews.slice(0, 5),
     partnerships: company.partnerships,
     milestones: company.milestones,
@@ -288,7 +292,7 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
         total: event.scoreDelta,
         eventType: event.eventType,
         scoreDelta: event.scoreDelta,
-        explanation: event.explanation,
+        explanation: toCompleteSentence(event.explanation),
       })),
     categoryBreakdown,
   };
@@ -296,10 +300,15 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
 
 function fallbackDailyDigest(): DailyDigestRecord {
   return {
-    digest: dailyDigest,
+    digest: {
+      ...dailyDigest,
+      summary: toCompleteSentence(dailyDigest.summary),
+      narrative: cleanNarrativeText(dailyDigest.narrative),
+      watchNext: dailyDigest.watchNext.map((item) => toCompleteSentence(item)).filter(Boolean),
+    },
     topStories: dailyDigest.topStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean),
-    biggestWinnerMomentum: getCompanyMomentum(dailyDigest.biggestWinnerCompanySlug),
-    biggestLoserMomentum: getCompanyMomentum(dailyDigest.biggestLoserCompanySlug),
+    biggestWinnerMomentum: withMeaningfulMomentum(getCompanyMomentum(dailyDigest.biggestWinnerCompanySlug)),
+    biggestLoserMomentum: withMeaningfulMomentum(getCompanyMomentum(dailyDigest.biggestLoserCompanySlug)),
     mostImportantStory: newsItemsBySlug[dailyDigest.mostImportantNewsSlug],
   };
 }
@@ -539,9 +548,9 @@ function buildNewsFromDatabase(
     sourceName: row.source_name,
     sourceUrl: row.canonical_url ?? row.source_url,
     publishedAt: row.published_at,
-    summary: row.summary,
-    shortSummary: row.short_summary,
-    whyItMatters: row.why_it_matters,
+    summary: toCompleteSentence(row.summary),
+    shortSummary: toCompleteSentence(row.short_summary),
+    whyItMatters: toCompleteSentence(row.why_it_matters),
     summarizerModel: row.summarizer_model ?? undefined,
     importanceScore: row.importance_score,
     importanceLevel: getImportanceLabel(row.importance_score) as NewsItem["importanceLevel"],
@@ -591,7 +600,7 @@ function buildMomentumSnapshotsFromDatabase(
       scoreChange24h: Number(latest?.score_change_24h ?? fallback?.scoreChange24h ?? 0),
       scoreChange7d: Number(latest?.score_change_7d ?? fallback?.scoreChange7d ?? 0),
       trend: toTrendDirection(Number(latest?.score_change_7d ?? fallback?.scoreChange7d ?? 0)),
-      keyDriver: leadingEvent?.explanation ?? fallback?.keyDriver ?? "Recent activity",
+      keyDriver: toCompleteSentence(leadingEvent?.explanation ?? fallback?.keyDriver ?? "Recent activity"),
       sparkline:
         history.length > 0
           ? history.slice(-7).map((row) => Number(row.score))
@@ -780,7 +789,7 @@ export const getTopMoversData = cache(async (): Promise<TopMover[]> => {
       label: "Biggest Gainer",
       companySlug: biggestGainer.companySlug,
       delta: biggestGainer.scoreChange24h,
-      reason: biggestGainer.keyDriver,
+      reason: toCompleteSentence(biggestGainer.keyDriver),
       accent: "green",
       chart: biggestGainer.sparkline,
     },
@@ -788,7 +797,7 @@ export const getTopMoversData = cache(async (): Promise<TopMover[]> => {
       label: "Biggest Drop",
       companySlug: biggestDrop.companySlug,
       delta: biggestDrop.scoreChange24h,
-      reason: biggestDrop.keyDriver,
+      reason: toCompleteSentence(biggestDrop.keyDriver),
       accent: "red",
       chart: biggestDrop.sparkline,
     },
@@ -796,7 +805,7 @@ export const getTopMoversData = cache(async (): Promise<TopMover[]> => {
       label: "One To Watch",
       companySlug: watchCandidate.companySlug,
       delta: watchCandidate.scoreChange7d,
-      reason: watchCandidate.keyDriver,
+      reason: toCompleteSentence(watchCandidate.keyDriver),
       accent: "purple",
       chart: watchCandidate.sparkline,
     },
@@ -847,7 +856,7 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
       .slice(0, 2)
       .map<Partnership>((item) => ({
         name: item.headline,
-        detail: item.summary,
+        detail: toCompleteSentence(item.summary),
       }));
 
     const milestones = eventRows
@@ -856,7 +865,7 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
       .map<Milestone>((row) => ({
         date: format(new Date(row.event_date), "yyyy-MM-dd"),
         title: row.event_type,
-        detail: row.explanation,
+        detail: toCompleteSentence(row.explanation),
       }));
     const scoreBreakdown = eventRows
       .filter((row) => row.company_id === companyRow.id)
@@ -868,12 +877,12 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
         total: row.score_delta,
         eventType: row.event_type,
         scoreDelta: row.score_delta,
-        explanation: row.explanation,
+        explanation: toCompleteSentence(row.explanation),
       }));
 
     return {
       company,
-      momentum: leaderboard.find((row) => row.companySlug === slug),
+      momentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === slug)),
       recentNews,
       partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
       milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
@@ -943,20 +952,23 @@ export const getDailyDigestData = async (
     digest: {
       date: digestRow.digest_date,
       title: digestRow.title,
-      summary: digestRow.summary,
-      narrative: digestRow.narrative ?? dailyDigest.narrative,
+      summary: toCompleteSentence(digestRow.summary),
+      narrative: cleanNarrativeText(digestRow.narrative ?? dailyDigest.narrative),
       headlineOfTheDay: digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay,
       themes: digestRow.themes?.length ? digestRow.themes : dailyDigest.themes,
       biggestWinnerCompanySlug: winnerSlug,
       biggestLoserCompanySlug: loserSlug,
       mostImportantNewsSlug: mostImportantStory.slug,
       topStorySlugs: resolvedTopStorySlugs,
-      watchNext: digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext,
+      watchNext: (digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext)
+        .map((item) => toCompleteSentence(item))
+        .filter(Boolean),
     },
     topStories: resolvedTopStories,
-    biggestWinnerMomentum: leaderboard.find((row) => row.companySlug === winnerSlug),
-    biggestLoserMomentum: leaderboard.find((row) => row.companySlug === loserSlug),
+    biggestWinnerMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === winnerSlug)),
+    biggestLoserMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === loserSlug)),
     mostImportantStory,
+    lastUpdatedAt: digestRow.created_at,
   };
 };
 
@@ -977,10 +989,15 @@ export const getDailyDigestByDate = async (date: string): Promise<DailyDigestRec
   const digestSource = pastMatch ?? { ...dailyDigest, date };
 
   return {
-    digest: digestSource,
+    digest: {
+      ...digestSource,
+      summary: toCompleteSentence(digestSource.summary),
+      narrative: cleanNarrativeText(digestSource.narrative),
+      watchNext: digestSource.watchNext.map((item) => toCompleteSentence(item)).filter(Boolean),
+    },
     topStories: digestSource.topStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean),
-    biggestWinnerMomentum: getCompanyMomentum(digestSource.biggestWinnerCompanySlug),
-    biggestLoserMomentum: getCompanyMomentum(digestSource.biggestLoserCompanySlug),
+    biggestWinnerMomentum: withMeaningfulMomentum(getCompanyMomentum(digestSource.biggestWinnerCompanySlug)),
+    biggestLoserMomentum: withMeaningfulMomentum(getCompanyMomentum(digestSource.biggestLoserCompanySlug)),
     mostImportantStory: newsItemsBySlug[digestSource.mostImportantNewsSlug],
   };
 };
@@ -1026,9 +1043,29 @@ export const getRecentMomentumEventsData = cache(async () => {
     companySlug: companyById[row.company_id]?.slug ?? "openai",
     eventType: row.event_type,
     scoreDelta: row.score_delta,
-    explanation: row.explanation,
+    explanation: toCompleteSentence(row.explanation),
     headline: row.news_item_id ? newsById[row.news_item_id]?.headline ?? row.event_type : row.event_type,
   }));
+});
+
+export const getSiteLastUpdatedAt = cache(async (): Promise<string | null> => {
+  const newsRows = await getNewsRows();
+
+  if (!newsRows || newsRows.length === 0) {
+    return null;
+  }
+
+  return newsRows[0]?.updated_at ?? newsRows[0]?.published_at ?? null;
+});
+
+export const getLeaderboardLastUpdatedAt = cache(async (): Promise<string | null> => {
+  const momentumRows = await getMomentumRows();
+
+  if (momentumRows && momentumRows.length > 0) {
+    return momentumRows.at(-1)?.calculated_at ?? null;
+  }
+
+  return null;
 });
 
 export const getHomePageData = cache(async (): Promise<HomePageData> => {
