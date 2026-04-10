@@ -108,6 +108,40 @@ export default async function CompanyDetailPage({
   const safeStrengths = company.strengths ?? [];
   const safeWeaknesses = company.weaknesses ?? [];
   const sentimentSeries = enrichment?.sentimentHistory?.map((entry) => entry.score) ?? [];
+  const totalCoverageValue = enrichment ? formatMetricValue(enrichment.totalNewsCount) : "—";
+  const avgImportanceValue = enrichment ? formatMetricValue(enrichment.avgImportanceScore, { digits: 1, suffix: "/10" }) : "—";
+  const activeStreakValue = enrichment ? formatMetricValue(enrichment.activeStreak, { suffix: "d" }) : "—";
+  const sentimentTrendValue = enrichment ? formatTrendMetric(enrichment.sentimentTrend) : "—";
+  const metricCards = [
+    {
+      label: "Total Coverage",
+      value: totalCoverageValue,
+    },
+    {
+      label: "Avg Importance",
+      value: avgImportanceValue,
+    },
+    {
+      label: "Active Streak",
+      value: activeStreakValue,
+    },
+    {
+      label: "Sentiment Trend",
+      value: sentimentTrendValue,
+      chart:
+        sentimentTrendValue !== "—" && sentimentSeries.some((entry) => Math.abs(entry) >= 0.01)
+          ? (
+              <div className="mt-4">
+                <TrendSparkline
+                  data={sentimentSeries}
+                  color={(enrichment?.sentimentTrend ?? 0) >= 0 ? "var(--accent-green)" : "var(--accent-red)"}
+                  height={56}
+                />
+              </div>
+            )
+          : null,
+    },
+  ].filter((item) => item.value !== "—");
   const showMomentum = Boolean(momentum && hasMeaningfulMetric(momentum.score));
   const latestCoverageAt = recentNews[0]?.publishedAt ?? null;
   const staleWarning =
@@ -213,49 +247,19 @@ export default async function CompanyDetailPage({
         </div>
       </section>
 
-      {enrichment ? (
+      {metricCards.length > 0 ? (
         <section className="fade-slide-up mt-16 grid gap-5 md:grid-cols-2 xl:grid-cols-4" style={{ animationDelay: "0.05s" }}>
-          <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
-            <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              Total Coverage
-            </p>
-            <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {formatMetricValue(enrichment.totalNewsCount)}
-            </p>
-          </div>
-          <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
-            <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              Avg Importance
-            </p>
-            <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {formatMetricValue(enrichment.avgImportanceScore, { digits: 1, suffix: "/10" })}
-            </p>
-          </div>
-          <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
-            <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              Active Streak
-            </p>
-            <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {formatMetricValue(enrichment.activeStreak, { suffix: "d" })}
-            </p>
-          </div>
-          <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
-            <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              Sentiment Trend
-            </p>
-            <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {formatTrendMetric(enrichment.sentimentTrend)}
-            </p>
-            {sentimentSeries.length > 0 ? (
-              <div className="mt-4">
-                <TrendSparkline
-                  data={sentimentSeries}
-                  color={enrichment.sentimentTrend >= 0 ? "var(--accent-green)" : "var(--accent-red)"}
-                  height={56}
-                />
-              </div>
-            ) : null}
-          </div>
+          {metricCards.map((card) => (
+            <div key={card.label} className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
+              <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                {card.label}
+              </p>
+              <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
+                {card.value}
+              </p>
+              {card.chart}
+            </div>
+          ))}
         </section>
       ) : null}
 

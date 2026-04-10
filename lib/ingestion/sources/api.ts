@@ -1,6 +1,51 @@
-import { matchesAnyKeyword, trackedAiKeywords } from "../keywords.ts";
+import { companyKeywordMap, matchesAnyKeyword, trackedAiKeywords } from "../keywords.ts";
 import { fetchSourceJson } from "../server-fetch.ts";
 import type { RawIngestedItem, SourceDefinition } from "../types.ts";
+
+const HN_SHOWCASE_PATTERN = /^(show|ask|tell) hn\b/i;
+const HN_LOW_SIGNAL_PROJECT_PATTERN =
+  /\b(client library|sdk|wrapper|bindings|plugin|starter|template|demo|sample app|side project|weekend project|tooling|visualqa|ollama client|cli)\b/i;
+
+function hostnameFromUrl(value: string | null | undefined) {
+  if (!value) {
+    return "";
+  }
+
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+function hasExplicitTrackedCompanySignal(text: string) {
+  return Object.values(companyKeywordMap).some((keywords) => matchesAnyKeyword(text, keywords));
+}
+
+export function shouldKeepHackerNewsHit(hit: { title?: string | null; story_text?: string | null; url?: string | null }, keywords: string[]) {
+  const title = hit.title ?? "";
+  const body = hit.story_text ?? "";
+  const url = hit.url ?? "";
+  const text = `${title} ${body}`.trim();
+
+  if (!title || !matchesAnyKeyword(text, keywords)) {
+    return false;
+  }
+
+  const showcase = HN_SHOWCASE_PATTERN.test(title);
+  const host = hostnameFromUrl(url);
+  const explicitTrackedCompanySignal = hasExplicitTrackedCompanySignal(`${text} ${url}`);
+
+  if (showcase && !explicitTrackedCompanySignal) {
+    return false;
+  }
+
+  if (showcase && (host === "github.com" || HN_LOW_SIGNAL_PROJECT_PATTERN.test(text))) {
+    return false;
+  }
+
+  return true;
+}
 
 async function delay(ms: number) {
   await new Promise((resolve) => setTimeout(resolve, ms));
@@ -50,10 +95,7 @@ async function ingestHackerNews(source: SourceDefinition) {
   const keywords = getFilterKeywords(source);
 
   return (payload.hits ?? [])
-    .filter((hit) => {
-      const text = `${hit.title ?? ""} ${hit.story_text ?? ""}`.trim();
-      return Boolean(hit.title) && matchesAnyKeyword(text, keywords);
-    })
+    .filter((hit) => shouldKeepHackerNewsHit(hit, keywords))
     .slice(0, source.maxItems ?? 20)
     .map((hit) =>
       buildRawItem(source, {

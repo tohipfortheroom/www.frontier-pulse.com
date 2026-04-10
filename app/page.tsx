@@ -180,7 +180,7 @@ export default async function HomePage() {
             />
             <ModuleStatusStrip
               items={[
-                { label: "Snapshot", value: sectionFreshness.leaderboard.newestContentAt ? formatDateLabel(sectionFreshness.leaderboard.newestContentAt) : "Unavailable" },
+                { label: "Snapshot", value: leaderboardRefreshState.lastUpdatedAt ? formatUpdateTimestamp(leaderboardRefreshState.lastUpdatedAt) : "Unavailable" },
                 { label: "Surface", value: `Top ${Math.min(10, leaderboard.length)} of ${stats.totalCompanies}` },
                 { label: "Window", value: "Decay-weighted score" },
               ]}

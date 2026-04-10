@@ -29,7 +29,7 @@ const HIGH_CONFIDENCE_CATEGORIES = new Set([
 const COMMUNITY_TITLE_PATTERNS = [/^show hn\b/i, /^ask hn\b/i, /^tell hn\b/i];
 const COMMUNITY_PROJECT_PATTERN =
   /\b(client library|sdk|wrapper|bindings|plugin|starter|template|boilerplate|demo|sample app|side project|weekend project|tooling|visualqa|ollama client|cli)\b/i;
-const OPINION_PATTERN = /\b(says|said|comments on|commented on|argues|believes|thinks|predicts|reacts to|interview|podcast)\b/i;
+const OPINION_PATTERN = /\b(says|said|tells|told|urges|urged|advises|advised|comments on|commented on|argues|believes|thinks|predicts|reacts to|interview|podcast)\b/i;
 const RESEARCH_PATTERN = /\b(arxiv|paper|preprint|researchers?|study|technical report|working paper)\b/i;
 const BENCHMARK_PATTERN = /\b(benchmark|benchmarks|eval|evals|evaluation|leaderboard|scores?|scored)\b/i;
 const FUNDING_PATTERN = /\b(funding|raises|raised|financing|valuation|series [a-z]|seed round)\b/i;
@@ -144,13 +144,13 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
   const showHn = COMMUNITY_TITLE_PATTERNS.some((pattern) => pattern.test(headline));
   const openSourceDevTool = COMMUNITY_PROJECT_PATTERN.test(combinedText);
   const opinionOnly =
-    OPINION_PATTERN.test(combinedText) &&
-    !FUNDING_PATTERN.test(combinedText) &&
-    !PARTNERSHIP_PATTERN.test(combinedText) &&
-    !ACQUISITION_PATTERN.test(combinedText) &&
-    !LEADERSHIP_PATTERN.test(combinedText) &&
-    !POLICY_PATTERN.test(combinedText) &&
-    !COMMERCIAL_ROLLOUT_PATTERN.test(combinedText);
+    OPINION_PATTERN.test(headline) &&
+    !FUNDING_PATTERN.test(headline) &&
+    !PARTNERSHIP_PATTERN.test(headline) &&
+    !ACQUISITION_PATTERN.test(headline) &&
+    !LEADERSHIP_PATTERN.test(headline) &&
+    !POLICY_PATTERN.test(headline) &&
+    !COMMERCIAL_ROLLOUT_PATTERN.test(headline);
   const researchSignal = RESEARCH_PATTERN.test(combinedText) || sourceTier === "research-repository";
   const benchmarkSignal = BENCHMARK_PATTERN.test(combinedText);
   const fundingSignal = FUNDING_PATTERN.test(combinedText);

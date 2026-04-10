@@ -1,6 +1,7 @@
 import { cache } from "react";
 import { eachDayOfInterval, format, startOfDay, subDays } from "date-fns";
 
+import { TRACKED_COMPANY_COUNT } from "@/lib/company-registry";
 import { getSupabaseServerClient } from "@/lib/db/client";
 import type {
   CompanyCardRecord,
@@ -58,6 +59,10 @@ import {
   type TopMover,
   type TrendDirection,
 } from "@/lib/seed/data";
+import { applyEditorialRules } from "@/lib/ingestion/editorial";
+import { normalizeIngestedItem } from "@/lib/ingestion/normalizer";
+import { sourceRegistry } from "@/lib/ingestion/pipeline";
+import type { RawIngestedItem } from "@/lib/ingestion/types";
 import { getPipelineStateRow } from "@/lib/ingestion/run-state";
 import { logger } from "@/lib/monitoring/logger";
 import { buildSectionFreshness, getCanonicalLeaderboardRecords, getContentDateKey, getLatestPublishedAt, resolveDigestLeadStory } from "@/lib/surface-data";
@@ -188,20 +193,203 @@ function deriveCompanyEnrichment(companyNews: NewsItem[], momentum?: MomentumSna
   };
 }
 
-function toTrendDirection(scoreChange7d: number): TrendDirection {
-  if (scoreChange7d >= 4) {
+function normalizeSourceId(value: string) {
+  return sanitizeEditorialText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function resolveStoredSourceDefinition(sourceName: string, sourceUrl: string) {
+  const normalizedSourceId = normalizeSourceId(sourceName);
+  const normalizedSourceName = sanitizeEditorialText(sourceName).toLowerCase();
+
+  return (
+    sourceRegistry.find((source) => source.id === normalizedSourceId || source.name.toLowerCase() === normalizedSourceName) ??
+    sourceRegistry.find((source) => {
+      try {
+        const sourceHost = new URL(source.url ?? "").hostname.replace(/^www\./, "");
+        const candidateHost = new URL(sourceUrl).hostname.replace(/^www\./, "");
+        return Boolean(sourceHost && candidateHost && sourceHost === candidateHost);
+      } catch {
+        return false;
+      }
+    }) ??
+    null
+  );
+}
+
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+function hasMeaningfulEnrichmentValue(value: number | null | undefined, { allowZero = false }: { allowZero?: boolean } = {}) {
+  return typeof value === "number" && Number.isFinite(value) && (allowZero ? true : value > 0);
+}
+
+function mergeCompanyEnrichment(
+  stored: Partial<CompanyEnrichment> | null | undefined,
+  derived: CompanyProfile["enrichmentData"],
+): CompanyProfile["enrichmentData"] {
+  const storedValue = stored && typeof stored === "object" ? stored : undefined;
+
+  if (!storedValue && !derived) {
+    return undefined;
+  }
+
+  const merged: CompanyEnrichment = {
+    totalNewsCount: hasMeaningfulEnrichmentValue(storedValue?.totalNewsCount) ? Number(storedValue?.totalNewsCount) : Number(derived?.totalNewsCount ?? 0),
+    avgImportanceScore: hasMeaningfulEnrichmentValue(storedValue?.avgImportanceScore) ? Number(storedValue?.avgImportanceScore) : Number(derived?.avgImportanceScore ?? 0),
+    topCategories: Array.isArray(storedValue?.topCategories) && storedValue.topCategories.length > 0 ? storedValue.topCategories : derived?.topCategories ?? [],
+    sentimentTrend:
+      typeof storedValue?.sentimentTrend === "number" && Number.isFinite(storedValue.sentimentTrend)
+        ? Number(storedValue.sentimentTrend)
+        : Number(derived?.sentimentTrend ?? 0),
+    peakMomentumDate:
+      typeof storedValue?.peakMomentumDate === "string" && storedValue.peakMomentumDate.trim()
+        ? storedValue.peakMomentumDate
+        : derived?.peakMomentumDate ?? format(seedNow, "yyyy-MM-dd"),
+    activeStreak: hasMeaningfulEnrichmentValue(storedValue?.activeStreak) ? Number(storedValue?.activeStreak) : Number(derived?.activeStreak ?? 0),
+    sentimentHistory:
+      Array.isArray(storedValue?.sentimentHistory) && storedValue.sentimentHistory.length > 0
+        ? storedValue.sentimentHistory
+        : derived?.sentimentHistory,
+  };
+
+  const hasVisibleMetrics =
+    hasMeaningfulEnrichmentValue(merged.totalNewsCount) ||
+    hasMeaningfulEnrichmentValue(merged.avgImportanceScore) ||
+    hasMeaningfulEnrichmentValue(merged.activeStreak) ||
+    Math.abs(merged.sentimentTrend) >= 0.01 ||
+    (merged.sentimentHistory?.some((entry) => Math.abs(entry.score) >= 0.01) ?? false);
+
+  return hasVisibleMetrics ? merged : undefined;
+}
+
+function buildStoredRawItem(row: NewsItemRow): RawIngestedItem {
+  const sourceDefinition = resolveStoredSourceDefinition(row.source_name, row.canonical_url ?? row.source_url);
+
+  return {
+    sourceId: (sourceDefinition?.id ?? normalizeSourceId(row.source_name)) || "stored-story",
+    sourceName: getStorySourceName(row),
+    sourceUrl: sourceDefinition?.url ?? row.canonical_url ?? row.source_url,
+    sourceReliability: sourceDefinition?.reliability ?? 0.8,
+    sourcePriority: sourceDefinition?.priority ?? 2,
+    url: row.canonical_url ?? row.source_url,
+    title: getStoryHeadline(row),
+    excerpt: sanitizeEditorialText(row.cleaned_text ?? row.summary ?? row.short_summary),
+    rawText: sanitizeEditorialText(row.raw_text ?? row.cleaned_text ?? row.summary ?? row.short_summary),
+    publishedAt: row.published_at,
+    fetchedAt: row.updated_at ?? row.last_seen_at ?? row.ingested_at,
+    companyHint: sourceDefinition?.companyHint,
+  };
+}
+
+function auditStoredStory(
+  row: NewsItemRow,
+  seedCompanySlugs: string[],
+  seedCategorySlugs: string[],
+  seedTagSlugs: string[],
+) {
+  const rawItem = buildStoredRawItem(row);
+  const normalized = normalizeIngestedItem(rawItem);
+
+  if (!normalized) {
+    return {
+      publishable: false,
+      candidate: null,
+    };
+  }
+
+  const body = [row.short_summary, row.summary, row.why_it_matters, row.cleaned_text, row.raw_text].filter(Boolean).join(" ");
+  const mergedCandidate = {
+    ...normalized,
+    companySlugs: rankCompanySlugsByStoryContext(uniqueValues([...seedCompanySlugs, ...normalized.companySlugs]), {
+      headline: normalized.headline,
+      body,
+      sourceName: normalized.sourceName,
+      sourceUrl: normalized.sourceUrl,
+      companyHint: rawItem.companyHint,
+    }),
+    categorySlugs: uniqueValues([...normalized.categorySlugs, ...seedCategorySlugs]),
+    tagSlugs: uniqueValues([...normalized.tagSlugs, ...seedTagSlugs]),
+    impactDirection: normalized.impactDirection ?? row.impact_direction,
+  };
+  const editorial = applyEditorialRules(mergedCandidate, rawItem);
+
+  return {
+    publishable: editorial.publishable,
+    candidate: editorial.candidate,
+  };
+}
+
+function buildTickerItems(news: NewsItem[]) {
+  const seenCompanies = new Map<string, number>();
+  const seenTexts = new Set<string>();
+  const dynamicTickerItems: HomeTickerItem[] = [];
+
+  for (const companyLimit of [1, 2]) {
+    for (const item of news) {
+      const companySlug = item.companySlugs[0];
+
+      if (!companySlug) {
+        continue;
+      }
+
+      const companyCount = seenCompanies.get(companySlug) ?? 0;
+
+      if (companyCount >= companyLimit) {
+        continue;
+      }
+
+      const text = item.headline.length > 52 ? `${item.headline.slice(0, 49)}...` : item.headline;
+      const textFingerprint = text.toLowerCase();
+
+      if (seenTexts.has(textFingerprint)) {
+        continue;
+      }
+
+      seenTexts.add(textFingerprint);
+      seenCompanies.set(companySlug, companyCount + 1);
+
+      const company = companiesBySlug[companySlug];
+      const tone: CategoryAccent =
+        item.impactDirection === "positive" ? "green" : item.impactDirection === "negative" ? "red" : "neutral";
+
+      dynamicTickerItems.push({
+        slug: item.slug,
+        company: company?.shortName ?? companySlug.toUpperCase(),
+        direction: item.impactDirection === "positive" ? "↑" : item.impactDirection === "negative" ? "↓" : "→",
+        tone,
+        text,
+      });
+
+      if (dynamicTickerItems.length >= 18) {
+        return dynamicTickerItems;
+      }
+    }
+  }
+
+  return dynamicTickerItems;
+}
+
+function toTrendDirection(scoreChange7d: number, score?: number): TrendDirection {
+  const baseline = Math.max(Math.abs((score ?? 0) - scoreChange7d), 10);
+  const relativeChange = scoreChange7d / baseline;
+
+  if (scoreChange7d >= 6 || relativeChange >= 0.14) {
     return "↑↑";
   }
 
-  if (scoreChange7d > 0.35) {
+  if (scoreChange7d >= 1.25 || relativeChange >= 0.035) {
     return "↑";
   }
 
-  if (scoreChange7d <= -4) {
+  if (scoreChange7d <= -6 || relativeChange <= -0.14) {
     return "↓↓";
   }
 
-  if (scoreChange7d < -0.35) {
+  if (scoreChange7d <= -1.25 || relativeChange <= -0.035) {
     return "↓";
   }
 
@@ -489,7 +677,7 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
     recentNews: companyNews.slice(0, 5),
     partnerships: company.partnerships,
     milestones: company.milestones,
-    enrichment: company.enrichmentData ?? deriveCompanyEnrichment(companyNews, getCompanyMomentum(slug)),
+    enrichment: mergeCompanyEnrichment(company.enrichmentData, deriveCompanyEnrichment(companyNews, getCompanyMomentum(slug))),
     scoreBreakdown: momentumEvents
       .filter((event) => event.companySlug === slug)
       .map((event) => ({
@@ -531,6 +719,7 @@ function fallbackHomePage(): HomePageData {
   const latestDateKey = getContentDateKey(latestPublishedAt);
   const todayStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && getContentDateKey(item.publishedAt) === latestDateKey).slice(0, 5);
   const breakingStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
+  const tickerItems = buildTickerItems(sortedNewsItems);
 
   return {
     generatedAt,
@@ -542,7 +731,7 @@ function fallbackHomePage(): HomePageData {
     topMovers,
     trendingTopics,
     digest: dailyDigest,
-    tickerItems: homeTickerItems,
+    tickerItems: tickerItems.length >= 8 ? tickerItems : homeTickerItems,
     sectionFreshness: {
       todayInAi: buildSectionFreshness({
         cacheKey: "home:today-in-ai:fallback",
@@ -578,7 +767,7 @@ function fallbackHomePage(): HomePageData {
     },
     stats: {
       totalStories: sortedNewsItems.length,
-      totalCompanies: companies.length,
+      totalCompanies: Math.max(companies.length, TRACKED_COMPANY_COUNT),
       totalLaunches: launches.length,
       lastUpdatedAt: latestPublishedAt,
       seedMode: true,
@@ -792,7 +981,10 @@ function buildNewsFromDatabase(
     }
   });
 
-  return newsRows.map<NewsItem>((row) => {
+  return newsRows.flatMap<NewsItem>((row) => {
+    const seedCompanySlugs = companySlugsByNewsId.get(row.id) ?? [];
+    const seedCategorySlugs = categorySlugsByNewsId.get(row.id) ?? [];
+    const seedTagSlugs = tagSlugsByNewsId.get(row.id) ?? [];
     const headline = getStoryHeadline(row);
     const sourceName = getStorySourceName(row);
     const context = {
@@ -801,13 +993,21 @@ function buildNewsFromDatabase(
       sourceName,
       sourceUrl: row.canonical_url ?? row.source_url,
     };
+    const editorialAudit = auditStoredStory(row, seedCompanySlugs, seedCategorySlugs, seedTagSlugs);
+
+    if (!editorialAudit.publishable || !editorialAudit.candidate) {
+      return [];
+    }
+
     const inferredPrimaryCompany = inferPrimaryCompanySlug(context);
     const companySlugs = rankCompanySlugsByStoryContext(
-      inferredPrimaryCompany ? [...(companySlugsByNewsId.get(row.id) ?? []), inferredPrimaryCompany] : (companySlugsByNewsId.get(row.id) ?? []),
+      inferredPrimaryCompany
+        ? uniqueValues([...editorialAudit.candidate.companySlugs, inferredPrimaryCompany])
+        : editorialAudit.candidate.companySlugs,
       context,
     );
 
-    return {
+    return [{
       slug: row.slug,
       headline,
       sourceName,
@@ -821,12 +1021,12 @@ function buildNewsFromDatabase(
       importanceLevel: getImportanceLabel(row.importance_score) as NewsItem["importanceLevel"],
       confidenceScore: row.confidence_score,
       confidenceLevel: getConfidenceLabel(row.confidence_score) as NewsItem["confidenceLevel"],
-      impactDirection: row.impact_direction,
+      impactDirection: editorialAudit.candidate.impactDirection,
       companySlugs,
-      categorySlugs: categorySlugsByNewsId.get(row.id) ?? [],
-      tagSlugs: tagSlugsByNewsId.get(row.id) ?? [],
+      categorySlugs: editorialAudit.candidate.categorySlugs,
+      tagSlugs: editorialAudit.candidate.tagSlugs,
       breaking: row.importance_score >= 9,
-    };
+    }];
   });
 }
 
@@ -858,14 +1058,16 @@ function buildMomentumSnapshotsFromDatabase(
     const latest = history.at(-1);
     const leadingEvent = (eventsByCompanyId.get(companyRow.id) ?? [])[0];
     const leadingNewsSlug = leadingEvent?.news_item_id ? newsById[leadingEvent.news_item_id]?.slug : undefined;
+    const score = Number(latest?.score ?? fallback?.score ?? 0);
+    const scoreChange7d = Number(latest?.score_change_7d ?? fallback?.scoreChange7d ?? 0);
 
     return {
       companySlug: companyRow.slug,
       rank: 0,
-      score: Number(latest?.score ?? fallback?.score ?? 0),
+      score,
       scoreChange24h: Number(latest?.score_change_24h ?? fallback?.scoreChange24h ?? 0),
-      scoreChange7d: Number(latest?.score_change_7d ?? fallback?.scoreChange7d ?? 0),
-      trend: toTrendDirection(Number(latest?.score_change_7d ?? fallback?.scoreChange7d ?? 0)),
+      scoreChange7d,
+      trend: toTrendDirection(scoreChange7d, score),
       keyDriver: toCompleteSentence(leadingEvent?.explanation ?? fallback?.keyDriver ?? "Recent activity"),
       sparkline:
         history.length > 0
@@ -1168,9 +1370,10 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
       recentNews,
       partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
       milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
-      enrichment: hasValidEnrichmentData(company.enrichmentData)
-        ? company.enrichmentData
-        : deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
+      enrichment: mergeCompanyEnrichment(
+        company.enrichmentData,
+        deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
+      ),
       scoreBreakdown,
       categoryBreakdown,
     };
@@ -1452,35 +1655,8 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
   const latestNewsDateKey = getContentDateKey(latestPublishedAt);
   const todayStories = news.filter((item) => isHomepageStoryEligible(item) && getContentDateKey(item.publishedAt) === latestNewsDateKey).slice(0, 5);
   const breakingStories = news.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
-  const seenCompanies = new Map<string, number>();
-  const dynamicTickerItems: HomeTickerItem[] = [];
-
-  for (const item of news) {
-    const companyKey = item.companySlugs[0] ?? "ai";
-    const companyCount = seenCompanies.get(companyKey) ?? 0;
-
-    if (companyCount >= 2) {
-      continue;
-    }
-
-    seenCompanies.set(companyKey, companyCount + 1);
-    const tone: CategoryAccent =
-      item.impactDirection === "positive" ? "green" : item.impactDirection === "negative" ? "red" : "neutral";
-
-    dynamicTickerItems.push({
-      slug: item.slug,
-      company: companyKey.toUpperCase(),
-      direction: item.impactDirection === "positive" ? "↑" : item.impactDirection === "negative" ? "↓" : "→",
-      tone,
-      text: item.headline.length > 40 ? item.headline.slice(0, 37) + "..." : item.headline,
-    });
-
-    if (dynamicTickerItems.length >= 12) {
-      break;
-    }
-  }
-
-  const tickerItems = dynamicTickerItems.length >= 6 ? dynamicTickerItems : homeTickerItems;
+  const dynamicTickerItems = buildTickerItems(news);
+  const tickerItems = dynamicTickerItems.length >= 8 ? dynamicTickerItems : homeTickerItems;
 
   const sectionFreshness = {
     todayInAi: buildSectionFreshness({
@@ -1535,7 +1711,7 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     leaderboardRefreshState,
     stats: {
       totalStories: news.length,
-      totalCompanies: companyCards.length,
+      totalCompanies: Math.max(companyCards.length, TRACKED_COMPANY_COUNT),
       totalLaunches: launchData.length,
       lastUpdatedAt: siteLastUpdatedAt ?? latestPublishedAt,
       seedMode: false,

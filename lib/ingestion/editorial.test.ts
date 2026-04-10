@@ -69,6 +69,17 @@ describe("applyEditorialRules", () => {
     expect(editorial.publishable).toBe(false);
   });
 
+  it("suppresses leadership opinion headlines that are not product activity", () => {
+    const rawItem = buildRawItem({
+      title: "Sam Altman tells companies to try a four-day working week",
+      excerpt: "The interview contains advice and opinion, not a launch, hiring move, or policy action by OpenAI.",
+    });
+
+    const { editorial } = prepare(rawItem);
+
+    expect(editorial.publishable).toBe(false);
+  });
+
   it("keeps research papers in research with a capped score when there is no rollout", () => {
     const rawItem = buildRawItem({
       sourceId: "arxiv-cs-ai",
@@ -86,6 +97,35 @@ describe("applyEditorialRules", () => {
     expect(editorial.candidate.categorySlugs).toContain("research");
     expect(editorial.candidate.categorySlugs).not.toContain("model-release");
     expect(scored.importanceScore).toBeLessThanOrEqual(4);
+  });
+
+  it("does not let research headlines fall through to product launch", () => {
+    const rawItem = buildRawItem({
+      title: "Frequent ChatGPT users are accurate detectors of AI-generated text",
+      excerpt: "The study presents research findings about detection performance, with no launch or rollout.",
+    });
+
+    const { editorial } = prepare(rawItem);
+
+    expect(editorial.candidate.categorySlugs).toContain("research");
+    expect(editorial.candidate.categorySlugs).not.toContain("product-launch");
+  });
+
+  it("suppresses community showcase partnership false positives", () => {
+    const rawItem = buildRawItem({
+      sourceId: "hacker-news-ai",
+      sourceName: "Hacker News AI",
+      sourceReliability: 0.7,
+      sourcePriority: 2,
+      url: "https://github.com/example/frontend-visualqa",
+      title: "Show HN: Frontend-VisualQA",
+      excerpt: "A visual QA tool that works with Claude, GPT, and other APIs for frontend testing.",
+    });
+
+    const { editorial } = prepare(rawItem);
+
+    expect(editorial.publishable).toBe(false);
+    expect(editorial.candidate.categorySlugs).not.toContain("partnership");
   });
 
   it("allows official launches to stay publishable and digest-eligible", () => {

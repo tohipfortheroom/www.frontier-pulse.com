@@ -42,8 +42,11 @@ function detectCompanies(text: string, companyHint?: string) {
 function detectCategories(text: string) {
   const normalized = text.toLowerCase();
   const categories = new Set<string>();
+  const communityShowcase = /^(show|ask|tell) hn\b/i.test(text);
+  const researchOnly = /(research|paper|study|preprint|researchers?|findings?)/i.test(normalized);
+  const opinionOnly = /(says|said|tells|told|urges|advises|interview|podcast|opinion)/i.test(normalized);
 
-  if (/(launch|release|ships|rolls out|rollout|preview|general availability|now available)/i.test(normalized)) {
+  if (!communityShowcase && !researchOnly && !opinionOnly && /(launch|release|ships|rolls out|rollout|preview|general availability|now available)/i.test(normalized)) {
     categories.add(/model|llm|claude|gpt|gemini|llama|grok|reasoning/i.test(normalized) ? "model-release" : "product-launch");
   }
 
@@ -59,7 +62,7 @@ function detectCategories(text: string) {
     categories.add("funding");
   }
 
-  if (/(research|paper|study|preprint)/i.test(normalized)) {
+  if (/(research|paper|study|preprint|researchers?|findings?)/i.test(normalized)) {
     categories.add("research");
   }
 

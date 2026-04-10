@@ -123,14 +123,11 @@ export function NewsCard({
       ? toCompleteSentence(news.summary)
       : toCompleteSentence(news.shortSummary || news.summary);
   const fullSummary = toCompleteSentence(news.summary);
-  const showExpandedSummary =
-    mode === "default"
-      ? Boolean(fullSummary)
-      : hasUsableExpandedSummary({
-          summary: news.summary,
-          shortSummary: news.shortSummary || previewCopy,
-          headline: news.headline,
-        });
+  const showExpandedSummary = hasUsableExpandedSummary({
+    summary: news.summary,
+    shortSummary: news.shortSummary || previewCopy,
+    headline: news.headline,
+  });
   const whyItMattersCopy = toCompleteSentence(news.whyItMatters);
   const showWhyItMatters = Boolean(whyItMattersCopy && whyItMattersCopy !== fullSummary && whyItMattersCopy !== previewCopy);
 
@@ -228,20 +225,16 @@ export function NewsCard({
               <span>{news.sourceName}</span>
               <span>{formatTimestamp(news.publishedAt)}</span>
             </div>
-            <div className="hidden items-center gap-2 font-[family-name:var(--font-mono)] uppercase tracking-[0.12em] text-[var(--text-tertiary)] sm:flex">
-              <span className="transition-colors duration-200 group-hover:text-[var(--text-secondary)]">
-                {isExpanded ? "Collapse" : "Expand"}
-              </span>
+            <div className="hidden items-center justify-center rounded-full border border-[var(--border)] px-2 py-1 text-[var(--text-tertiary)] sm:flex">
+              <span className="sr-only">{isExpanded ? "Collapse story" : "Expand story"}</span>
               <ChevronDown
                 className={cn("h-4 w-4 transition-transform duration-300", isExpanded && "rotate-180")}
               />
             </div>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2 sm:hidden">
-            <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              {isExpanded ? "Collapse" : "Expand"}
-            </span>
+          <div className="flex items-center justify-end rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2 sm:hidden">
+            <span className="sr-only">{isExpanded ? "Collapse story" : "Expand story"}</span>
             <ChevronDown className={cn("h-4 w-4 text-[var(--text-tertiary)] transition-transform duration-300", isExpanded && "rotate-180")} />
           </div>
         </div>
