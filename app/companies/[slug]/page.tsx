@@ -28,6 +28,22 @@ const ScoreBreakdownChart = dynamicImport(
 
 export const revalidate = 300;
 
+function formatMetricValue(value: number | null | undefined, { digits = 0, suffix = "" }: { digits?: number; suffix?: string } = {}) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "—";
+  }
+
+  return `${value.toFixed(digits)}${suffix}`;
+}
+
+function formatTrendMetric(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value === 0) {
+    return "—";
+  }
+
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
+}
+
 export function generateStaticParams() {
   return getCompaniesIndexData().then((records) => records.map(({ company }) => ({ slug: company.slug })));
 }
@@ -169,8 +185,8 @@ export default async function CompanyDetailPage({
                   />
                 </div>
                 <div className="mt-6 flex gap-3">
-                  <ScorePill value={momentum.scoreChange24h ?? 0} />
-                  <ScorePill value={momentum.scoreChange7d ?? 0} />
+                  <ScorePill value={momentum.scoreChange24h ?? 0} label="24h" />
+                  <ScorePill value={momentum.scoreChange7d ?? 0} label="7d" />
                 </div>
                 <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(momentum.keyDriver)}</p>
               </>
@@ -188,7 +204,7 @@ export default async function CompanyDetailPage({
               Total Coverage
             </p>
             <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {enrichment.totalNewsCount}
+              {formatMetricValue(enrichment.totalNewsCount)}
             </p>
           </div>
           <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
@@ -196,7 +212,7 @@ export default async function CompanyDetailPage({
               Avg Importance
             </p>
             <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {enrichment.avgImportanceScore}/10
+              {formatMetricValue(enrichment.avgImportanceScore, { digits: 1, suffix: "/10" })}
             </p>
           </div>
           <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
@@ -204,7 +220,7 @@ export default async function CompanyDetailPage({
               Active Streak
             </p>
             <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {enrichment.activeStreak}d
+              {formatMetricValue(enrichment.activeStreak, { suffix: "d" })}
             </p>
           </div>
           <div className="surface-card rounded-2xl border border-[var(--border)] p-5 backdrop-blur-sm">
@@ -212,8 +228,7 @@ export default async function CompanyDetailPage({
               Sentiment Trend
             </p>
             <p className="mt-3 font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--text-primary)]">
-              {(enrichment.sentimentTrend ?? 0) >= 0 ? "+" : ""}
-              {(enrichment.sentimentTrend ?? 0).toFixed(2)}
+              {formatTrendMetric(enrichment.sentimentTrend)}
             </p>
             {sentimentSeries.length > 0 ? (
               <div className="mt-4">

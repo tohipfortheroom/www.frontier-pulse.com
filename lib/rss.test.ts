@@ -33,6 +33,8 @@ describe("buildRssFeed", () => {
     });
 
     expect(xml).toContain("<title>Copilot’s policy update</title>");
+    expect(xml).toContain("<link>https://example.com/news/entity-check</link>");
+    expect(xml).toContain('<guid isPermaLink="true">https://example.com/news/entity-check</guid>');
     expect(xml).toContain("Summary with &amp;, ‘entities’, and &amp;lt; 24 hours.");
     expect(xml).not.toContain("&amp;#8217;");
     expect(xml).not.toContain("&amp;#8216;");

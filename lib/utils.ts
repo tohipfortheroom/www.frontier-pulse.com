@@ -1,5 +1,7 @@
 import { differenceInCalendarDays, differenceInHours, format, isValid } from "date-fns";
 
+import { buildSentenceExcerpt, sanitizeEditorialText } from "@/lib/content";
+
 export type AccentTone = "green" | "red" | "blue" | "amber" | "purple" | "neutral";
 
 export function cn(...values: Array<string | false | null | undefined>) {
@@ -92,8 +94,10 @@ export function formatLastUpdatedLabel(date: Date | string | null | undefined) {
 }
 
 function normalizeWhitespace(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+  return sanitizeEditorialText(value).replace(/\s+/g, " ").trim();
 }
+
+const SENTENCE_ABBREVIATIONS = new Set(["no", "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc"]);
 
 function extractSentences(value: string) {
   const sentences: string[] = [];
@@ -104,6 +108,14 @@ function extractSentences(value: string) {
 
     if (!/[.!?]/.test(character)) {
       continue;
+    }
+
+    if (character === ".") {
+      const abbreviation = value.slice(sentenceStart, index + 1).match(/([A-Za-z]+)\.$/)?.[1]?.toLowerCase();
+
+      if (abbreviation && SENTENCE_ABBREVIATIONS.has(abbreviation)) {
+        continue;
+      }
     }
 
     let boundaryIndex = index + 1;
@@ -148,7 +160,7 @@ function extractSentences(value: string) {
 }
 
 export function toCompleteSentence(value: string | null | undefined) {
-  const input = typeof value === "string" ? value : "";
+  const input = sanitizeEditorialText(value);
 
   if (!hasDisplayText(input)) {
     return "";
@@ -170,11 +182,12 @@ export function toCompleteSentence(value: string | null | undefined) {
     return sentences.join(" ");
   }
 
-  return `${normalized.replace(/[,:;\-–—]+$/, "").trim()}.`;
+  const excerpt = buildSentenceExcerpt(normalized, { maxChars: 420, maxSentences: 2 });
+  return excerpt || `${normalized.replace(/[,:;\-–—]+$/, "").trim()}.`;
 }
 
 export function cleanNarrativeText(value: string | null | undefined) {
-  const input = typeof value === "string" ? value : "";
+  const input = sanitizeEditorialText(value);
 
   if (!hasDisplayText(input)) {
     return "";

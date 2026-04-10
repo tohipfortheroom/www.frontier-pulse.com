@@ -18,6 +18,14 @@ import type {
   NewsItemRow,
 } from "@/lib/db/types";
 import {
+  buildSentenceExcerpt,
+  isHighSignalDigestText,
+  looksLikeCorruptedDigestText,
+  selectBestShortSummary,
+  selectBestSummary,
+  sanitizeEditorialText,
+} from "@/lib/content";
+import {
   categories,
   companies,
   companiesBySlug,
@@ -36,6 +44,7 @@ import {
   topMovers,
   trendingTopics,
   type CategoryAccent,
+  type CompanyEnrichment,
   type CompanyProfile,
   type HomeTickerItem,
   type LaunchCardData,
@@ -282,8 +291,140 @@ function mergeCompanyRow(companyRow: CompanyRow): CompanyProfile {
     partnerships: presentation?.partnerships ?? [],
     milestones: presentation?.milestones ?? [],
     sparkline: presentation?.sparkline ?? [0, 0, 0, 0, 0, 0, 0],
-    enrichmentData: companyRow.enrichment_data ?? presentation?.enrichmentData,
+    enrichmentData: hasValidEnrichmentData(companyRow.enrichment_data) ? companyRow.enrichment_data : presentation?.enrichmentData,
   };
+}
+
+function hasValidEnrichmentData(value: CompanyEnrichment | null | undefined): value is CompanyEnrichment {
+  return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
+}
+
+function getLatestSiteTimestampFromNewsRows(newsRows: NewsItemRow[]) {
+  return newsRows.reduce<string | null>((latest, row) => {
+    const candidate = row.updated_at ?? row.published_at;
+
+    if (!candidate) {
+      return latest;
+    }
+
+    if (!latest) {
+      return candidate;
+    }
+
+    return new Date(candidate).getTime() > new Date(latest).getTime() ? candidate : latest;
+  }, null);
+}
+
+function getStorySummary(row: NewsItemRow) {
+  return toCompleteSentence(
+    selectBestSummary({
+      summary: row.summary,
+      fallbackText: row.cleaned_text ?? row.raw_text,
+      headline: row.headline,
+    }),
+  );
+}
+
+function getStoryShortSummary(row: NewsItemRow) {
+  return toCompleteSentence(
+    selectBestShortSummary({
+      shortSummary: row.short_summary,
+      summary: row.summary,
+      fallbackText: row.cleaned_text ?? row.raw_text,
+      headline: row.headline,
+    }),
+  );
+}
+
+function getStoryWhyItMatters(row: NewsItemRow) {
+  return toCompleteSentence(buildSentenceExcerpt(row.why_it_matters, { maxChars: 220, maxSentences: 1 }));
+}
+
+function getDigestStoryEvidence(story: NewsItem) {
+  const candidates = [story.whyItMatters, story.summary, story.shortSummary]
+    .map((candidate) => sanitizeEditorialText(candidate))
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (isHighSignalDigestText(candidate)) {
+      return candidate;
+    }
+  }
+
+  for (const candidate of candidates) {
+    if (!looksLikeCorruptedDigestText(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+}
+
+function getUniqueDigestStoryEvidence(stories: NewsItem[]) {
+  const seen = new Set<string>();
+
+  return stories
+    .map((story) => ({
+      story,
+      evidence: getDigestStoryEvidence(story),
+    }))
+    .filter(({ evidence }) => {
+      if (!evidence) {
+        return false;
+      }
+
+      const fingerprint = evidence.toLowerCase();
+
+      if (seen.has(fingerprint)) {
+        return false;
+      }
+
+      seen.add(fingerprint);
+      return true;
+    });
+}
+
+function combineHeadlineWithEvidence(headline: string, evidence: string) {
+  const cleanedHeadline = sanitizeEditorialText(headline);
+
+  if (!evidence || evidence === cleanedHeadline) {
+    return cleanedHeadline;
+  }
+
+  const separator = /[.!?]["')\]]*$/.test(cleanedHeadline) ? " " : ". ";
+  return `${cleanedHeadline}${separator}${evidence}`;
+}
+
+function buildDigestSummaryFromStories(stories: NewsItem[]) {
+  const evidence = getUniqueDigestStoryEvidence(stories)
+    .map(({ evidence }) => evidence)
+    .slice(0, 3);
+
+  if (evidence.length === 0) {
+    return "";
+  }
+
+  return toCompleteSentence(
+    buildSentenceExcerpt(evidence.join(" "), { maxChars: 420, maxSentences: 2 }),
+  );
+}
+
+function buildDigestNarrativeFromStories(stories: NewsItem[]) {
+  return getUniqueDigestStoryEvidence(stories)
+    .slice(0, 3)
+    .map(({ story, evidence }) =>
+      buildSentenceExcerpt(combineHeadlineWithEvidence(story.headline, evidence), {
+        maxChars: 320,
+        maxSentences: 2,
+      }),
+    )
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function shouldUseDigestFallback(summary: string | null | undefined, narrative: string | null | undefined) {
+  const narrativeLead = sanitizeEditorialText(narrative).split(/\n{2,}/)[0] ?? "";
+  return looksLikeCorruptedDigestText(summary) || looksLikeCorruptedDigestText(narrativeLead);
 }
 
 function fallbackCompanyCards(): CompanyCardRecord[] {
@@ -588,9 +729,9 @@ function buildNewsFromDatabase(
     sourceName: row.source_name,
     sourceUrl: row.canonical_url ?? row.source_url,
     publishedAt: row.published_at,
-    summary: toCompleteSentence(row.summary),
-    shortSummary: toCompleteSentence(row.short_summary),
-    whyItMatters: toCompleteSentence(row.why_it_matters),
+    summary: getStorySummary(row),
+    shortSummary: getStoryShortSummary(row),
+    whyItMatters: getStoryWhyItMatters(row),
     summarizerModel: row.summarizer_model ?? undefined,
     importanceScore: row.importance_score,
     importanceLevel: getImportanceLabel(row.importance_score) as NewsItem["importanceLevel"],
@@ -926,7 +1067,9 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
       recentNews,
       partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
       milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
-      enrichment: company.enrichmentData ?? deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
+      enrichment: hasValidEnrichmentData(company.enrichmentData)
+        ? company.enrichmentData
+        : deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
       scoreBreakdown,
       categoryBreakdown,
     };
@@ -987,13 +1130,16 @@ export const getDailyDigestData = async (
   const resolvedTopStories =
     topStories.length > 0 ? topStories : inferredTopStories.length > 0 ? inferredTopStories : fallbackDigest.topStories;
   const resolvedTopStorySlugs = digestTopStorySlugs.length > 0 ? digestTopStorySlugs : fallbackDigest.digest.topStorySlugs;
+  const useFallbackCopy = shouldUseDigestFallback(digestRow.summary, digestRow.narrative);
+  const fallbackSummary = buildDigestSummaryFromStories(resolvedTopStories);
+  const fallbackNarrative = buildDigestNarrativeFromStories(resolvedTopStories);
 
   return {
     digest: {
       date: digestRow.digest_date,
       title: digestRow.title,
-      summary: toCompleteSentence(digestRow.summary),
-      narrative: cleanNarrativeText(digestRow.narrative ?? dailyDigest.narrative),
+      summary: useFallbackCopy ? fallbackSummary : toCompleteSentence(digestRow.summary),
+      narrative: useFallbackCopy ? fallbackNarrative : cleanNarrativeText(digestRow.narrative ?? dailyDigest.narrative),
       headlineOfTheDay: digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay,
       themes: digestRow.themes?.length ? digestRow.themes : dailyDigest.themes,
       biggestWinnerCompanySlug: winnerSlug,
@@ -1008,7 +1154,7 @@ export const getDailyDigestData = async (
     biggestWinnerMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === winnerSlug)),
     biggestLoserMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === loserSlug)),
     mostImportantStory,
-    lastUpdatedAt: digestRow.created_at,
+    lastUpdatedAt: useFallbackCopy ? getLatestSiteTimestampFromNewsRows(newsRows) ?? digestRow.created_at : digestRow.created_at,
   };
 };
 
@@ -1095,26 +1241,42 @@ export const getSiteLastUpdatedAt = cache(async (): Promise<string | null> => {
     return null;
   }
 
-  return newsRows[0]?.updated_at ?? newsRows[0]?.published_at ?? null;
+  return getLatestSiteTimestampFromNewsRows(newsRows);
 });
 
 export const getLeaderboardLastUpdatedAt = cache(async (): Promise<string | null> => {
-  const momentumRows = await getMomentumRows();
+  const [momentumRows, siteLastUpdatedAt] = await Promise.all([getMomentumRows(), getSiteLastUpdatedAt()]);
 
   if (momentumRows && momentumRows.length > 0) {
-    return momentumRows.at(-1)?.calculated_at ?? null;
+    const latestCalculatedAt = momentumRows.at(-1)?.calculated_at ?? null;
+
+    if (!latestCalculatedAt) {
+      return null;
+    }
+
+    if (siteLastUpdatedAt) {
+      const lagHours = Math.abs(new Date(siteLastUpdatedAt).getTime() - new Date(latestCalculatedAt).getTime()) / 36e5;
+
+      if (lagHours > 36) {
+        return null;
+      }
+    }
+
+    return latestCalculatedAt;
   }
 
   return null;
 });
 
 export const getHomePageData = cache(async (): Promise<HomePageData> => {
-  const [news, leaderboard, launchData, timeline, movers] = await Promise.all([
+  const [news, leaderboard, launchData, timeline, movers, companyCards, siteLastUpdatedAt] = await Promise.all([
     getNewsItemsData(),
     getLeaderboardData(),
     getLaunchesData(),
     getTimelineData(),
     getTopMoversData(),
+    getCompaniesIndexData(),
+    getSiteLastUpdatedAt(),
   ]);
 
   if (news === sortedNewsItems && leaderboard === momentumSnapshots && launchData === launches) {
@@ -1124,8 +1286,6 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
   const todayStories = news
     .filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === dailyDigest.date)
     .slice(0, 5);
-  const latestPublishedAt = news[0]?.publishedAt ?? seedNow.toISOString();
-
   const seenCompanies = new Map<string, number>();
   const dynamicTickerItems: HomeTickerItem[] = [];
 
@@ -1168,9 +1328,9 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     tickerItems,
     stats: {
       totalStories: news.length,
-      totalCompanies: companies.length,
+      totalCompanies: companyCards.length,
       totalLaunches: launchData.length,
-      lastUpdatedAt: latestPublishedAt,
+      lastUpdatedAt: siteLastUpdatedAt ?? news[0]?.publishedAt ?? seedNow.toISOString(),
       seedMode: false,
     },
   };

@@ -36,12 +36,31 @@ function expandSeries(values: number[], targetLength = 30) {
 
 const chartColors = ["var(--accent-blue)", "var(--accent-green)", "var(--accent-purple)", "var(--accent-amber)"];
 
+function normalizeSelection(rawSelection: string[], records: CompanyCardRecord[]) {
+  const available = new Set(records.map((record) => record.company.slug));
+  const parsed = Array.from(new Set(rawSelection.filter((slug) => available.has(slug)))).slice(0, 4);
+
+  if (parsed.length >= 2) {
+    return parsed;
+  }
+
+  const fallback = ["openai", "anthropic"].filter((slug) => available.has(slug));
+
+  if (fallback.length >= 2) {
+    return fallback;
+  }
+
+  return records.slice(0, Math.min(2, records.length)).map((record) => record.company.slug);
+}
+
 export function ComparePageClient({
   records,
   newsItems,
+  initialSelectedSlugs = [],
 }: {
   records: CompanyCardRecord[];
   newsItems: NewsItem[];
+  initialSelectedSlugs?: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -52,9 +71,9 @@ export function ComparePageClient({
   const [activeMobileSlug, setActiveMobileSlug] = useState<string>("openai");
   const selectedSlugs = useMemo(() => {
     const raw = searchParams.get("companies");
-    const parsed = raw?.split(",").map((value) => value.trim()).filter(Boolean) ?? [];
-    return parsed.length > 0 ? parsed.slice(0, 4) : ["openai", "anthropic"];
-  }, [searchParams]);
+    const parsed = raw?.split(",").map((value) => value.trim()).filter(Boolean) ?? initialSelectedSlugs;
+    return normalizeSelection(parsed, records);
+  }, [initialSelectedSlugs, records, searchParams]);
 
   useEffect(() => {
     setMounted(true);
@@ -192,6 +211,17 @@ export function ComparePageClient({
       return point;
     });
   }, [newsItems, selectedRecords]);
+
+  if (records.length === 0) {
+    return (
+      <EmptyState
+        title="Compare data is unavailable"
+        description="The compare view needs company records before it can render side-by-side analysis."
+        actionHref="/companies"
+        actionLabel="Browse companies"
+      />
+    );
+  }
 
   return (
     <div className="space-y-12">

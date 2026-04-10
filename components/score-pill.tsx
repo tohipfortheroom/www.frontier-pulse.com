@@ -4,9 +4,10 @@ type ScorePillProps = {
   value: number;
   className?: string;
   compact?: boolean;
+  label?: string;
 };
 
-export function ScorePill({ value, className, compact = false }: ScorePillProps) {
+export function ScorePill({ value, className, compact = false, label }: ScorePillProps) {
   if (!hasMeaningfulMetric(value)) {
     return null;
   }
@@ -25,6 +26,7 @@ export function ScorePill({ value, className, compact = false }: ScorePillProps)
         className,
       )}
     >
+      {label ? <span className="mr-2 opacity-80">{label}</span> : null}
       {formatScore(value)}
     </span>
   );

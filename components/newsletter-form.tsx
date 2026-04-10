@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { BRAND_NAME } from "@/lib/brand";
 import { useNetworkStatus } from "@/lib/hooks/use-network-status";
 import { fetchWithTimeout } from "@/lib/network/fetch";
-import { cn } from "@/lib/utils";
 
 export function NewsletterForm() {
   const [email, setEmail] = useState("");
@@ -104,16 +103,16 @@ export function NewsletterForm() {
         {!isOnline ? (
           <p className="text-sm text-[var(--accent-red)]">You&apos;re offline. Reconnect to subscribe.</p>
         ) : null}
-        <div
-          className={cn(
-            "inline-flex items-center gap-2 rounded-full border border-[var(--accent-green-border)] bg-[var(--accent-green-soft)] px-3 py-1.5 text-sm text-[var(--accent-green)] transition-all duration-300",
-            !isOnline && "hidden",
-            showSuccess ? "animate-[successPop_600ms_cubic-bezier(0.22,1,0.36,1)] opacity-100" : "pointer-events-none translate-y-2 opacity-0",
-          )}
-        >
-          <Check className="h-4 w-4" />
-          <span>Subscription confirmed</span>
-        </div>
+        {isOnline && showSuccess ? (
+          <div
+            role="status"
+            aria-live="polite"
+            className="inline-flex animate-[successPop_600ms_cubic-bezier(0.22,1,0.36,1)] items-center gap-2 rounded-full border border-[var(--accent-green-border)] bg-[var(--accent-green-soft)] px-3 py-1.5 text-sm text-[var(--accent-green)] transition-all duration-300"
+          >
+            <Check className="h-4 w-4" />
+            <span>Subscription confirmed</span>
+          </div>
+        ) : null}
       </div>
     </div>
   );

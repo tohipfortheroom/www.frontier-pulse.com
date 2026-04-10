@@ -99,7 +99,7 @@ export function buildRssFeed({
   const renderedItems = sortedItems
     .map((item) => {
       const companies = item.companySlugs.map((slug) => companiesBySlug[slug]?.name ?? slug).join(", ");
-      const link = `${siteUrl}/news#${item.slug}`;
+      const link = `${siteUrl}/news/${item.slug}`;
       const descriptionParts = [item.summary, item.whyItMatters, companies ? `Companies: ${companies}` : ""]
         .filter(Boolean)
         .join(" ");
@@ -116,7 +116,7 @@ export function buildRssFeed({
         "<item>",
         `<title>${escapeXml(item.headline)}</title>`,
         `<link>${escapeXml(link)}</link>`,
-        `<guid isPermaLink="false">${escapeXml(item.slug)}</guid>`,
+        `<guid isPermaLink="true">${escapeXml(link)}</guid>`,
         `<pubDate>${toRssDate(item.publishedAt, generatedAt)}</pubDate>`,
         `<description>${escapeXml(descriptionParts)}</description>`,
         source,

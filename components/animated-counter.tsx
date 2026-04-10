@@ -32,50 +32,31 @@ export function AnimatedCounter({
 }: AnimatedCounterProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const frameRef = useRef<number | null>(null);
-  const [started, setStarted] = useState(false);
-  const [value, setValue] = useState(0);
+  const previousTargetRef = useRef(target);
+  const [value, setValue] = useState(target);
 
   useEffect(() => {
-    const element = ref.current;
+    const previousTarget = previousTargetRef.current;
 
-    if (!element) {
-      return;
-    }
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setStarted(true);
+    if (previousTarget === target) {
       setValue(target);
       return;
     }
 
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) {
-          return;
-        }
+    previousTargetRef.current = target;
 
-        setStarted(true);
-        observer.disconnect();
-      },
-      { threshold: 0.4 },
-    );
-
-    observer.observe(element);
-
-    return () => observer.disconnect();
-  }, [target]);
-
-  useEffect(() => {
-    if (!started) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setValue(target);
       return;
     }
 
     const start = performance.now();
+    const delta = target - previousTarget;
 
     const tick = (now: number) => {
       const progress = Math.min((now - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
-      setValue(target * eased);
+      setValue(previousTarget + delta * eased);
 
       if (progress < 1) {
         frameRef.current = window.requestAnimationFrame(tick);
@@ -89,15 +70,13 @@ export function AnimatedCounter({
         window.cancelAnimationFrame(frameRef.current);
       }
     };
-  }, [duration, started, target]);
-
-  const displayValue = started ? value : 0;
+  }, [duration, target]);
 
   return (
     <div ref={ref} className={cn("min-w-[140px] space-y-2", className)}>
       <div className="font-[family-name:var(--font-mono)] text-2xl font-semibold tracking-[-0.04em] text-[var(--accent-blue)] sm:text-[28px]">
         {prefix}
-        {formatCounterValue(displayValue, decimals)}
+        {formatCounterValue(value, decimals)}
         {suffix}
       </div>
       <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">

@@ -5,11 +5,13 @@ import { NewsletterForm } from "@/components/newsletter-form";
 import { getSiteLastUpdatedAt } from "@/lib/db/queries";
 import { BRAND_NAME } from "@/lib/brand";
 import { companies } from "@/lib/seed/data";
+import { getSocialLinks } from "@/lib/site-config";
 import { formatLastUpdatedLabel } from "@/lib/utils";
 
 export async function Footer() {
   const lastUpdatedAt = await getSiteLastUpdatedAt();
   const lastUpdatedLabel = formatLastUpdatedLabel(lastUpdatedAt);
+  const socialLinks = getSocialLinks();
 
   return (
     <footer className="surface-card mt-20 border-t border-[var(--border)] py-12">
@@ -77,14 +79,20 @@ export async function Footer() {
               Connect
             </p>
             <NewsletterForm />
-            <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
-              <a href="https://x.com" target="_blank" rel="noreferrer" className="transition-colors duration-150 hover:text-[var(--text-primary)]">
-                X / Twitter
-              </a>
-              <a href="https://github.com" target="_blank" rel="noreferrer" className="transition-colors duration-150 hover:text-[var(--text-primary)]">
-                GitHub
-              </a>
-            </div>
+            {socialLinks.x || socialLinks.github ? (
+              <div className="flex flex-wrap gap-4 text-sm text-[var(--text-secondary)]">
+                {socialLinks.x ? (
+                  <a href={socialLinks.x} target="_blank" rel="noreferrer" className="transition-colors duration-150 hover:text-[var(--text-primary)]">
+                    X / Twitter
+                  </a>
+                ) : null}
+                {socialLinks.github ? (
+                  <a href={socialLinks.github} target="_blank" rel="noreferrer" className="transition-colors duration-150 hover:text-[var(--text-primary)]">
+                    GitHub
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
 
