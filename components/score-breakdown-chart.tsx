@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 type ScoreBreakdownRow = {
@@ -38,6 +38,7 @@ function formatEventKey(eventType: string) {
 }
 
 export function ScoreBreakdownChart({ rows }: { rows: ScoreBreakdownRow[] }) {
+  const [mounted, setMounted] = useState(false);
   const { chartRows, eventKeys } = useMemo(() => {
     const byDate = new Map<string, ChartRow>();
     const keys = new Set<string>();
@@ -61,6 +62,10 @@ export function ScoreBreakdownChart({ rows }: { rows: ScoreBreakdownRow[] }) {
     };
   }, [rows]);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   if (chartRows.length === 0) {
     return (
       <div className="surface-subtle flex h-[280px] items-center justify-center rounded-2xl border border-[var(--border)] px-6 text-sm text-[var(--text-secondary)]">
@@ -72,54 +77,58 @@ export function ScoreBreakdownChart({ rows }: { rows: ScoreBreakdownRow[] }) {
   return (
     <div className="surface-inline rounded-2xl border border-[var(--border)] p-4">
       <div className="h-[300px] w-full">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartRows} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
-            <CartesianGrid stroke="var(--border)" vertical={false} />
-            <XAxis dataKey="label" tick={{ fill: "var(--text-tertiary)", fontSize: 11 }} tickLine={false} axisLine={false} />
-            <YAxis tick={{ fill: "var(--text-tertiary)", fontSize: 11 }} tickLine={false} axisLine={false} />
-            <Tooltip
-              cursor={{ fill: "var(--surface-soft)" }}
-              content={({ active, payload }) => {
-                if (!active || !payload?.length) {
-                  return null;
-                }
+        {mounted ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <BarChart data={chartRows} margin={{ top: 10, right: 10, bottom: 0, left: -20 }}>
+              <CartesianGrid stroke="var(--border)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fill: "var(--text-tertiary)", fontSize: 11 }} tickLine={false} axisLine={false} />
+              <YAxis tick={{ fill: "var(--text-tertiary)", fontSize: 11 }} tickLine={false} axisLine={false} />
+              <Tooltip
+                cursor={{ fill: "var(--surface-soft)" }}
+                content={({ active, payload }) => {
+                  if (!active || !payload?.length) {
+                    return null;
+                  }
 
-                const row = payload[0]?.payload as ChartRow | undefined;
+                  const row = payload[0]?.payload as ChartRow | undefined;
 
-                if (!row) {
-                  return null;
-                }
+                  if (!row) {
+                    return null;
+                  }
 
-                return (
-                  <div className="w-72 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[var(--shadow-strong)]">
-                    <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-                      {row.label}
-                    </p>
-                    <div className="mt-3 space-y-3">
-                      {(row.details as ScoreBreakdownRow[]).map((detail) => (
-                        <div key={`${detail.date}-${detail.eventType}-${detail.explanation.slice(0, 24)}`}>
-                          <p className="text-sm font-medium text-[var(--text-primary)]">
-                            {detail.eventType} {detail.scoreDelta >= 0 ? `+${detail.scoreDelta}` : detail.scoreDelta}
-                          </p>
-                          <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{detail.explanation}</p>
-                        </div>
-                      ))}
+                  return (
+                    <div className="w-72 rounded-2xl border border-[var(--border)] bg-[var(--bg-elevated)] p-4 shadow-[var(--shadow-strong)]">
+                      <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                        {row.label}
+                      </p>
+                      <div className="mt-3 space-y-3">
+                        {(row.details as ScoreBreakdownRow[]).map((detail) => (
+                          <div key={`${detail.date}-${detail.eventType}-${detail.explanation.slice(0, 24)}`}>
+                            <p className="text-sm font-medium text-[var(--text-primary)]">
+                              {detail.eventType} {detail.scoreDelta >= 0 ? `+${detail.scoreDelta}` : detail.scoreDelta}
+                            </p>
+                            <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{detail.explanation}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                );
-              }}
-            />
-            {eventKeys.map((eventKey) => (
-              <Bar
-                key={eventKey}
-                dataKey={eventKey}
-                stackId="score"
-                radius={[6, 6, 0, 0]}
-                fill={EVENT_COLORS[eventKey.replace(/-/g, " ")] ?? "var(--accent-blue)"}
+                  );
+                }}
               />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
+              {eventKeys.map((eventKey) => (
+                <Bar
+                  key={eventKey}
+                  dataKey={eventKey}
+                  stackId="score"
+                  radius={[6, 6, 0, 0]}
+                  fill={EVENT_COLORS[eventKey.replace(/-/g, " ")] ?? "var(--accent-blue)"}
+                />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="surface-subtle h-full w-full rounded-2xl border border-[var(--border)]" aria-hidden="true" />
+        )}
       </div>
     </div>
   );

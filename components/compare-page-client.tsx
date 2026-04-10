@@ -206,7 +206,7 @@ export function ComparePageClient({
                 type="button"
                 onClick={() => toggleCompany(record.company.slug)}
                 className={cn(
-                  "rounded-full border px-4 py-2 text-sm transition-all duration-200 md:flex-none",
+                  "min-h-[44px] rounded-full border px-4 py-2 text-sm transition-all duration-200 md:flex-none",
                   "w-full sm:w-auto",
                   active
                     ? "border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] text-[var(--text-primary)]"
@@ -316,7 +316,7 @@ export function ComparePageClient({
                       type="button"
                       onClick={() => setActiveMobileSlug(record.company.slug)}
                       className={cn(
-                        "rounded-full border px-3 py-2 text-sm transition-colors",
+                        "min-h-[44px] rounded-full border px-3 py-2 text-sm transition-colors",
                         activeMobileSlug === record.company.slug
                           ? "border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] text-[var(--text-primary)]"
                           : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]",
