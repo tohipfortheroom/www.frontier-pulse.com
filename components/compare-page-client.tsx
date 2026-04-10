@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Check, Copy } from "lucide-react";
 
@@ -64,16 +64,15 @@ export function ComparePageClient({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [activeMobileSlug, setActiveMobileSlug] = useState<string>("openai");
-  const selectedSlugs = useMemo(() => {
-    const raw = searchParams.get("companies");
-    const parsed = raw?.split(",").map((value) => value.trim()).filter(Boolean) ?? initialSelectedSlugs;
-    return normalizeSelection(parsed, records);
-  }, [initialSelectedSlugs, records, searchParams]);
+  const [selectedSlugs, setSelectedSlugs] = useState(() => normalizeSelection(initialSelectedSlugs, records));
+
+  useEffect(() => {
+    setSelectedSlugs(normalizeSelection(initialSelectedSlugs, records));
+  }, [initialSelectedSlugs, records]);
 
   useEffect(() => {
     setMounted(true);
@@ -108,13 +107,16 @@ export function ComparePageClient({
   }, [activeMobileSlug, selectedRecords]);
 
   function updateSelection(nextSelection: string[]) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
+    const normalizedSelection = normalizeSelection(nextSelection, records);
 
-    if (nextSelection.length > 0) {
-      params.set("companies", nextSelection.join(","));
+    if (normalizedSelection.length > 0) {
+      params.set("companies", normalizedSelection.join(","));
     } else {
       params.delete("companies");
     }
+
+    setSelectedSlugs(normalizedSelection);
 
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -160,6 +162,16 @@ export function ComparePageClient({
   }, [newsItems, selectedRecords]);
 
   const sharedNews = newsItems.filter((item) => item.companySlugs.filter((slug) => selectedSlugs.includes(slug)).length >= 2).slice(0, 6);
+  const catalystsByCompany = useMemo(() => {
+    return Object.fromEntries(
+      selectedRecords.map((record) => [
+        record.company.slug,
+        newsItems
+          .filter((item) => item.companySlugs.includes(record.company.slug))
+          .slice(0, 2),
+      ]),
+    ) as Record<string, NewsItem[]>;
+  }, [newsItems, selectedRecords]);
 
   const [copied, setCopied] = useState(false);
 
@@ -470,6 +482,19 @@ export function ComparePageClient({
                       ))}
                     </div>
                   </div>
+                  {catalystsByCompany[record.company.slug]?.length ? (
+                    <div>
+                      <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--accent-purple)]">Recent catalysts</p>
+                      <div className="mt-3 space-y-2">
+                        {catalystsByCompany[record.company.slug].map((story) => (
+                          <div key={story.slug} className="surface-soft rounded-2xl border border-[var(--border)] p-3">
+                            <p className="text-sm font-semibold text-[var(--text-primary)]">{story.headline}</p>
+                            <p className="mt-1 text-sm text-[var(--text-secondary)]">{toCompleteSentence(story.whyItMatters || story.shortSummary || story.summary)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ))}

@@ -7,7 +7,7 @@ import { useToast } from "@/components/toast-provider";
 import type { SourceHealthSnapshot } from "@/lib/ingestion/source-health";
 import { useNetworkStatus } from "@/lib/hooks/use-network-status";
 import { fetchJsonWithRetry } from "@/lib/network/fetch";
-import { cn, formatTimestamp } from "@/lib/utils";
+import { cn, formatUpdateTimestamp } from "@/lib/utils";
 
 type FreshnessState = Pick<
   SourceHealthSnapshot,
@@ -110,13 +110,13 @@ export function DataFreshnessIndicator() {
         : "bg-[var(--accent-amber)]";
   const label =
     !freshness.configured
-      ? "Preview data"
-      : freshness.currentStatus === "LIVE"
-      ? freshness.quietFeed
+          ? "Preview data"
+          : freshness.currentStatus === "LIVE"
+          ? freshness.quietFeed
         ? "Sources checked recently"
         : minutesAgo === null
           ? "All systems live"
-          : `Updated ${formatTimestamp(referenceTime).toLowerCase()}`
+          : `Updated ${formatUpdateTimestamp(referenceTime).toLowerCase()}`
       : freshness.currentStatus === "DELAYED"
         ? "Ingestion delayed"
         : freshness.currentStatus === "DEGRADED"

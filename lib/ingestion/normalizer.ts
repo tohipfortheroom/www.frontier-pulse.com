@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { companiesBySlug } from "../seed/data.ts";
 import { companyKeywordMap, matchesAnyKeyword, tagKeywordMap } from "./keywords.ts";
 import { buildTitleFingerprint, canonicalizeUrl } from "./quality.ts";
+import { rankCompanySlugsByStoryContext } from "../company-attribution.ts";
 
 import type { NormalizedCandidate, RawIngestedItem } from "./types.ts";
 
@@ -24,7 +25,10 @@ function detectCompanies(text: string, companyHint?: string) {
     .map(([slug]) => slug);
 
   if (matches.length > 0) {
-    return matches;
+    return rankCompanySlugsByStoryContext(matches, {
+      headline: text,
+      companyHint,
+    });
   }
 
   if (companyHint && companiesBySlug[companyHint]) {

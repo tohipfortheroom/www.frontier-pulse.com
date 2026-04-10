@@ -62,6 +62,7 @@ import { logger } from "@/lib/monitoring/logger";
 import { buildSectionFreshness, getCanonicalLeaderboardRecords, getContentDateKey, getLatestPublishedAt, resolveDigestLeadStory } from "@/lib/surface-data";
 import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
+import { rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
 
 type CompanyNewsRow = {
   company_id: string;
@@ -771,26 +772,35 @@ function buildNewsFromDatabase(
     }
   });
 
-  return newsRows.map<NewsItem>((row) => ({
-    slug: row.slug,
-    headline: row.headline,
-    sourceName: row.source_name,
-    sourceUrl: row.canonical_url ?? row.source_url,
-    publishedAt: row.published_at,
-    summary: getStorySummary(row),
-    shortSummary: getStoryShortSummary(row),
-    whyItMatters: getStoryWhyItMatters(row),
-    summarizerModel: row.summarizer_model ?? undefined,
-    importanceScore: row.importance_score,
-    importanceLevel: getImportanceLabel(row.importance_score) as NewsItem["importanceLevel"],
-    confidenceScore: row.confidence_score,
-    confidenceLevel: getConfidenceLabel(row.confidence_score) as NewsItem["confidenceLevel"],
-    impactDirection: row.impact_direction,
-    companySlugs: companySlugsByNewsId.get(row.id) ?? [],
-    categorySlugs: categorySlugsByNewsId.get(row.id) ?? [],
-    tagSlugs: tagSlugsByNewsId.get(row.id) ?? [],
-    breaking: row.importance_score >= 9,
-  }));
+  return newsRows.map<NewsItem>((row) => {
+    const companySlugs = rankCompanySlugsByStoryContext(companySlugsByNewsId.get(row.id) ?? [], {
+      headline: row.headline,
+      body: [row.short_summary, row.summary, row.why_it_matters, row.cleaned_text, row.raw_text].filter(Boolean).join(" "),
+      sourceName: row.source_name,
+      sourceUrl: row.canonical_url ?? row.source_url,
+    });
+
+    return {
+      slug: row.slug,
+      headline: row.headline,
+      sourceName: row.source_name,
+      sourceUrl: row.canonical_url ?? row.source_url,
+      publishedAt: row.published_at,
+      summary: getStorySummary(row),
+      shortSummary: getStoryShortSummary(row),
+      whyItMatters: getStoryWhyItMatters(row),
+      summarizerModel: row.summarizer_model ?? undefined,
+      importanceScore: row.importance_score,
+      importanceLevel: getImportanceLabel(row.importance_score) as NewsItem["importanceLevel"],
+      confidenceScore: row.confidence_score,
+      confidenceLevel: getConfidenceLabel(row.confidence_score) as NewsItem["confidenceLevel"],
+      impactDirection: row.impact_direction,
+      companySlugs,
+      categorySlugs: categorySlugsByNewsId.get(row.id) ?? [],
+      tagSlugs: tagSlugsByNewsId.get(row.id) ?? [],
+      breaking: row.importance_score >= 9,
+    };
+  });
 }
 
 function buildMomentumSnapshotsFromDatabase(
@@ -870,7 +880,14 @@ export const getNewsItemsData = cache(async (): Promise<NewsItem[]> => {
     return sortedNewsItems;
   }
 
-  return buildNewsFromDatabase(newsRows, companyRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows);
+  const items = buildNewsFromDatabase(newsRows, companyRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows);
+  logger.info("ui", "news_stream_status", {
+    cacheKey: "news:stream",
+    latestPublishedAt: items[0]?.publishedAt ?? null,
+    recordCount: items.length,
+    trackedCompanyCount: companyRows.length,
+  });
+  return items;
 });
 
 export const getNewsItemDetailData = cache(async (slug: string): Promise<NewsDetailRecord | null> => {
@@ -931,7 +948,7 @@ export const getCompaniesIndexData = cache(async (): Promise<CompanyCardRecord[]
 
   const momentumBySlug = Object.fromEntries(leaderboard.map((row) => [row.companySlug, row]));
 
-  return companyRows
+  const records = companyRows
     .map((row) => {
       const company = mergeCompanyRow(row);
 
@@ -942,6 +959,15 @@ export const getCompaniesIndexData = cache(async (): Promise<CompanyCardRecord[]
       };
     })
     .sort((left, right) => (left.momentum?.rank ?? 999) - (right.momentum?.rank ?? 999));
+
+  logger.info("ui", "companies_index_status", {
+    cacheKey: "companies:index",
+    trackedCount: records.length,
+    rankedCount: records.filter((record) => Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score))).length,
+    latestCoverageAt: newsItems[0]?.publishedAt ?? null,
+  });
+
+  return records;
 });
 
 export const getLaunchesData = cache(async (): Promise<LaunchCardData[]> => {
@@ -1188,6 +1214,7 @@ export const getDailyDigestData = async (
   logger.info("ui", "daily_digest_story_cohesion", {
     cacheKey: `daily-digest:${digestRow.digest_date}`,
     generatedAt,
+    summaryGeneratedAt: digestRow.created_at,
     useFallbackCopy,
     digestHeadline: digestRow.headline_of_the_day,
     leadStorySlug: leadStory?.slug ?? null,
@@ -1597,7 +1624,7 @@ export const getTrendingTopicsData = cache(async (): Promise<TrendingTag[]> => {
 
   const tagLookup = Object.fromEntries(tagRows.map((row) => [row.slug, row.name]));
 
-  return [...tagCountMap.entries()]
+  const result = [...tagCountMap.entries()]
     .sort((left, right) => right[1].count - left[1].count)
     .slice(0, 20)
     .map<TrendingTag>(([slug, data]) => ({
@@ -1607,6 +1634,15 @@ export const getTrendingTopicsData = cache(async (): Promise<TrendingTag[]> => {
       trend: data.count >= 4 ? "up" : data.count <= 1 ? "down" : "stable",
       topStories: data.stories,
     }));
+
+  logger.info("ui", "trending_topics_status", {
+    cacheKey: "trending:topics",
+    topicCount: result.length,
+    recordCount: recentNews.length,
+    latestPublishedAt: recentNews[0]?.publishedAt ?? null,
+  });
+
+  return result;
 });
 
 /* ------------------------------------------------------------------ */
@@ -1614,9 +1650,9 @@ export const getTrendingTopicsData = cache(async (): Promise<TrendingTag[]> => {
 /* ------------------------------------------------------------------ */
 
 export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
-  const [companyRows, eventRows] = await Promise.all([getCompanyRows(), getEventRows()]);
+  const [companyRows, eventRows, newsRows] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows()]);
 
-  if (!companyRows || !eventRows) {
+  if (!companyRows || !eventRows || !newsRows) {
     const dates = eachDayOfInterval({
       start: subDays(seedNow, 29),
       end: seedNow,
@@ -1649,12 +1685,22 @@ export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
             eventType: event.eventType,
             scoreDelta: event.scoreDelta,
             explanation: event.explanation,
+            headline: newsItemsBySlug[event.newsSlug]?.headline,
+            newsSlug: event.newsSlug,
           })),
         });
       }
     }
 
-    return { cells, dates, companies: heatmapCompanies, lastUpdatedAt: seedNow.toISOString() };
+    const result = { cells, dates, companies: heatmapCompanies, lastUpdatedAt: seedNow.toISOString() };
+    logger.info("ui", "heatmap_status", {
+      cacheKey: "heatmap:surface:fallback",
+      lastUpdatedAt: result.lastUpdatedAt,
+      companyCount: result.companies.length,
+      activeCellCount: result.cells.filter((cell) => cell.eventCount > 0).length,
+      eventCount: result.cells.reduce((sum, cell) => sum + cell.eventCount, 0),
+    });
+    return result;
   }
 
   const today = startOfDay(new Date());
@@ -1669,6 +1715,7 @@ export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
   });
 
   const companyById = new Map(companyRows.map((row) => [row.id, row]));
+  const newsById = new Map(newsRows.map((row) => [row.id, row]));
   const cells: HeatmapCell[] = [];
   const cellLookup = new Map<string, HeatmapCell>();
 
@@ -1713,12 +1760,21 @@ export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
       eventType: event.event_type,
       scoreDelta: event.score_delta,
       explanation: event.explanation,
+      headline: event.news_item_id ? newsById.get(event.news_item_id)?.headline : undefined,
+      newsSlug: event.news_item_id ? newsById.get(event.news_item_id)?.slug : undefined,
     });
   }
 
   const lastUpdatedAt = eventRows[0]?.event_date ?? new Date().toISOString();
-
-  return { cells, dates, companies: heatmapCompanies, lastUpdatedAt };
+  const result = { cells, dates, companies: heatmapCompanies, lastUpdatedAt };
+  logger.info("ui", "heatmap_status", {
+    cacheKey: "heatmap:surface",
+    lastUpdatedAt,
+    companyCount: heatmapCompanies.length,
+    activeCellCount: cells.filter((cell) => cell.eventCount > 0).length,
+    eventCount: cells.reduce((sum, cell) => sum + cell.eventCount, 0),
+  });
+  return result;
 });
 
 /* ------------------------------------------------------------------ */
@@ -1757,7 +1813,14 @@ export const getFullTimelineData = cache(async (days: number): Promise<FullTimel
       color: c.color,
     }));
 
-    return { entries, newsItems: news, companies: timelineCompanies, lastUpdatedAt: seedNow.toISOString() };
+    const result = { entries, newsItems: news, companies: timelineCompanies, lastUpdatedAt: seedNow.toISOString() };
+    logger.info("ui", "timeline_status", {
+      cacheKey: `timeline:${days}:fallback`,
+      lastUpdatedAt: result.lastUpdatedAt,
+      entryCount: result.entries.length,
+      companyCount: result.companies.length,
+    });
+    return result;
   }
 
   const cutoff = subDays(new Date(), days);
@@ -1828,6 +1891,12 @@ export const getFullTimelineData = cache(async (days: number): Promise<FullTimel
   const newsInRange = newsItems.filter((item) => new Date(item.publishedAt) >= cutoff);
 
   const lastUpdatedAt = entries[0]?.timestamp ?? newsInRange[0]?.publishedAt ?? new Date().toISOString();
-
-  return { entries, newsItems: newsInRange, companies: timelineCompanies, lastUpdatedAt };
+  const result = { entries, newsItems: newsInRange, companies: timelineCompanies, lastUpdatedAt };
+  logger.info("ui", "timeline_status", {
+    cacheKey: `timeline:${days}`,
+    lastUpdatedAt,
+    entryCount: entries.length,
+    companyCount: timelineCompanies.length,
+  });
+  return result;
 });

@@ -221,6 +221,8 @@ export type HeatmapEvent = {
   eventType: string;
   scoreDelta: number;
   explanation: string;
+  headline?: string;
+  newsSlug?: string;
 };
 
 export type HeatmapCell = {

@@ -5,7 +5,9 @@ import Link from "next/link";
 import { ChevronDown, ChevronUp } from "lucide-react";
 
 import type { TrendingTag } from "@/lib/db/queries";
+import { companiesBySlug } from "@/lib/seed/data";
 import { cn, formatTimestamp } from "@/lib/utils";
+import { EmptyState } from "@/components/empty-state";
 
 type TrendingTopicsClientProps = {
   topics: TrendingTag[];
@@ -26,6 +28,17 @@ function trendArrow(trend: TrendingTag["trend"]) {
 export function TrendingTopicsClient({ topics }: TrendingTopicsClientProps) {
   const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
   const maxCount = Math.max(...topics.map((tag) => tag.count), 1);
+
+  if (topics.length === 0) {
+    return (
+      <EmptyState
+        title="No trending topics yet"
+        description="Topic clustering will populate once enough recent tagged stories are available."
+        actionHref="/news"
+        actionLabel="Browse news"
+      />
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -110,7 +123,7 @@ export function TrendingTopicsClient({ topics }: TrendingTopicsClientProps) {
                           <div className="mt-1 flex items-center gap-2">
                             {story.companySlugs[0] ? (
                               <span className="inline-flex items-center rounded-md border border-[var(--border)] px-1.5 py-0.5 font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.08em] text-[var(--text-tertiary)]">
-                                {story.companySlugs[0]}
+                                {companiesBySlug[story.companySlugs[0]]?.shortName ?? story.companySlugs[0]}
                               </span>
                             ) : null}
                             <span className="font-[family-name:var(--font-mono)] text-[11px] text-[var(--text-tertiary)]">

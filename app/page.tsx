@@ -10,6 +10,7 @@ import { HorizontalScroller } from "@/components/horizontal-scroller";
 import { InteractiveTimeline } from "@/components/interactive-timeline";
 import { LaunchCard } from "@/components/launch-card";
 import { LeaderboardTable } from "@/components/leaderboard-table";
+import { ModuleStatusStrip } from "@/components/module-status-strip";
 import { NewsletterForm } from "@/components/newsletter-form";
 import { NewsCard } from "@/components/news-card";
 import { ScrollProgress } from "@/components/scroll-progress";
@@ -20,29 +21,7 @@ import { TopMoverCard } from "@/components/top-mover-card";
 import { TrendSignals } from "@/components/trend-signals";
 import { buttonVariants } from "@/components/ui/button";
 import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
-import { formatDateLabel, formatTimestamp } from "@/lib/utils";
-
-function getSectionFreshnessCopy({
-  stale,
-  newestContentAt,
-  emptyCopy,
-  freshPrefix,
-  stalePrefix,
-}: {
-  stale: boolean;
-  newestContentAt: string | null;
-  emptyCopy: string;
-  freshPrefix: string;
-  stalePrefix: string;
-}) {
-  if (!newestContentAt) {
-    return emptyCopy;
-  }
-
-  return stale
-    ? `${stalePrefix} ${formatDateLabel(newestContentAt)}.`
-    : `${freshPrefix} ${formatTimestamp(newestContentAt)}.`;
-}
+import { formatDateLabel, formatUpdateTimestamp } from "@/lib/utils";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { stats } = await getHomePageData();
@@ -122,15 +101,19 @@ export default async function HomePage() {
               subtitle="The most important moves, launches, and shifts across the companies shaping the next era of technology."
               tone="amber"
             />
-            <p className="mt-4 text-xs text-[var(--text-tertiary)]">
-              {getSectionFreshnessCopy({
-                stale: sectionFreshness.todayInAi.stale,
-                newestContentAt: sectionFreshness.todayInAi.newestContentAt,
-                emptyCopy: "Current story bucket unavailable right now.",
-                freshPrefix: "Current through",
-                stalePrefix: "Stale snapshot from",
-              })}
-            </p>
+            <ModuleStatusStrip
+              className="mt-4"
+              items={[
+                { label: "Updated", value: sectionFreshness.todayInAi.newestContentAt ? formatUpdateTimestamp(sectionFreshness.todayInAi.newestContentAt) : "Unavailable" },
+                { label: "Stories", value: todayStories.length.toString() },
+                { label: "Window", value: "Current day" },
+              ]}
+              warning={
+                sectionFreshness.todayInAi.stale && sectionFreshness.todayInAi.newestContentAt
+                  ? `Today in AI is behind the live feed. The latest visible story is from ${formatDateLabel(sectionFreshness.todayInAi.newestContentAt)}.`
+                  : null
+              }
+            />
             {todayStories.length > 0 && !sectionFreshness.todayInAi.stale ? (
               <HorizontalScroller viewportClassName="-mx-5 mt-8 px-5">
                 <>
@@ -165,15 +148,13 @@ export default async function HomePage() {
               subtitle="The biggest headlines worth reading first, stripped down to what changed and why it matters."
               tone="amber"
             />
-            <p className="text-xs text-[var(--text-tertiary)]">
-              {getSectionFreshnessCopy({
-                stale: sectionFreshness.breakingMoves.stale,
-                newestContentAt: sectionFreshness.breakingMoves.newestContentAt,
-                emptyCopy: "Breaking queue unavailable right now.",
-                freshPrefix: "Current through",
-                stalePrefix: "Snapshot from",
-              })}
-            </p>
+            <ModuleStatusStrip
+              items={[
+                { label: "Updated", value: sectionFreshness.breakingMoves.newestContentAt ? formatUpdateTimestamp(sectionFreshness.breakingMoves.newestContentAt) : "Unavailable" },
+                { label: "Stories", value: breakingStories.length.toString() },
+                { label: "Window", value: "Critical only" },
+              ]}
+            />
             {breakingStories.length > 0 ? (
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {breakingStories.map((story) => (
@@ -197,17 +178,20 @@ export default async function HomePage() {
               subtitle="The companies whose momentum scores are climbing — and what&apos;s driving it."
               tone="blue"
             />
-            <p className="text-xs text-[var(--text-tertiary)]">
-              {leaderboardRefreshState.status === "running"
-                ? leaderboardRefreshState.reason
-                : getSectionFreshnessCopy({
-                    stale: sectionFreshness.leaderboard.stale,
-                    newestContentAt: sectionFreshness.leaderboard.newestContentAt,
-                    emptyCopy: "Ranking snapshot unavailable right now.",
-                    freshPrefix: "Ranking snapshot current through",
-                    stalePrefix: "Ranking snapshot from",
-                  })}
-            </p>
+            <ModuleStatusStrip
+              items={[
+                { label: "Snapshot", value: sectionFreshness.leaderboard.newestContentAt ? formatDateLabel(sectionFreshness.leaderboard.newestContentAt) : "Unavailable" },
+                { label: "Surface", value: `Top ${Math.min(10, leaderboard.length)} of ${stats.totalCompanies}` },
+                { label: "Window", value: "Decay-weighted score" },
+              ]}
+              warning={
+                leaderboardRefreshState.status === "running"
+                  ? leaderboardRefreshState.reason
+                  : sectionFreshness.leaderboard.stale
+                    ? leaderboardRefreshState.reason
+                    : null
+              }
+            />
             <LeaderboardTable
               rows={leaderboard}
               mode="preview"

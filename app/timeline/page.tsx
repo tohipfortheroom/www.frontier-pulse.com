@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import dynamicImport from "next/dynamic";
 
-import { getFullTimelineData } from "@/lib/db/queries";
+import { getFullTimelineData, getSiteLastUpdatedAt } from "@/lib/db/queries";
+import { ModuleStatusStrip } from "@/components/module-status-strip";
 import { SectionHeader } from "@/components/section-header";
-import { formatLastUpdatedLabel } from "@/lib/utils";
+import { formatUpdateTimestamp } from "@/lib/utils";
+import { buildSectionFreshness } from "@/lib/surface-data";
 
 const TimelinePageClient = dynamicImport(
   () => import("@/components/timeline-page-client").then((module) => module.TimelinePageClient),
@@ -36,8 +38,19 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = "force-dynamic";
 
 export default async function TimelinePage() {
-  const data = await getFullTimelineData(14);
-  const lastUpdatedLabel = formatLastUpdatedLabel(data.lastUpdatedAt);
+  const [data, siteLastUpdatedAt] = await Promise.all([getFullTimelineData(14), getSiteLastUpdatedAt()]);
+  const freshness = buildSectionFreshness({
+    cacheKey: "timeline:page",
+    generatedAt: new Date().toISOString(),
+    newestContentAt: data.lastUpdatedAt,
+    contentCount: data.entries.length,
+    staleAfterHours: 48,
+    now: siteLastUpdatedAt ?? new Date().toISOString(),
+  });
+  const staleWarning =
+    freshness.stale && freshness.newestContentAt
+      ? `Timeline events are behind the main news feed. The visible chronology last refreshed ${formatUpdateTimestamp(freshness.newestContentAt).toLowerCase()}.`
+      : null;
 
   return (
     <div className="relative z-10 mx-auto max-w-5xl px-5 py-16 lg:py-20">
@@ -48,7 +61,15 @@ export default async function TimelinePage() {
           subtitle="Browse the last two weeks of AI frontier activity in chronological order. Filter by company to focus on the players that matter to you."
           tone="purple"
         />
-        {lastUpdatedLabel ? <p className="text-xs text-[var(--text-tertiary)]">{lastUpdatedLabel}</p> : null}
+        <ModuleStatusStrip
+          items={[
+            { label: "Updated", value: data.lastUpdatedAt ? formatUpdateTimestamp(data.lastUpdatedAt) : "" },
+            { label: "Events", value: data.entries.length.toString() },
+            { label: "Companies", value: data.companies.length.toString() },
+            { label: "Window", value: "14 days" },
+          ]}
+          warning={staleWarning}
+        />
         <TimelinePageClient
           entries={data.entries}
           newsItems={data.newsItems}

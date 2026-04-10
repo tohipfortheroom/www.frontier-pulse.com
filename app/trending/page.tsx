@@ -1,12 +1,10 @@
 import type { Metadata } from "next";
-import nextDynamic from "next/dynamic";
 
 import { getTrendingTopicsData } from "@/lib/db/queries";
+import { ModuleStatusStrip } from "@/components/module-status-strip";
 import { SectionHeader } from "@/components/section-header";
-
-const TrendingTopicsClient = nextDynamic(() =>
-  import("@/components/trending-topics-client").then((mod) => mod.TrendingTopicsClient),
-);
+import { formatUpdateTimestamp } from "@/lib/utils";
+import { TrendingTopicsClient } from "@/components/trending-topics-client";
 
 export const metadata: Metadata = {
   title: "Trending Topics",
@@ -18,6 +16,8 @@ export const revalidate = 300;
 
 export default async function TrendingPage() {
   const topics = await getTrendingTopicsData();
+  const latestPublishedAt = topics.flatMap((topic) => topic.topStories).sort((left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())[0]?.publishedAt;
+  const storyCount = topics.reduce((sum, topic) => sum + topic.count, 0);
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -27,6 +27,14 @@ export default async function TrendingPage() {
           title="What the AI world is talking about"
           subtitle="Tag frequency across the last 7 days of coverage, ranked by volume and colored by momentum."
           tone="purple"
+        />
+        <ModuleStatusStrip
+          items={[
+            { label: "Updated", value: latestPublishedAt ? formatUpdateTimestamp(latestPublishedAt) : "" },
+            { label: "Topics", value: topics.length.toString() },
+            { label: "Stories", value: storyCount.toString() },
+            { label: "Window", value: "7 days" },
+          ]}
         />
         <TrendingTopicsClient topics={topics} />
       </section>

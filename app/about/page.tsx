@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { TRACKED_COMPANY_COUNT, trackedCompanies } from "@/lib/company-registry";
 import { SectionHeader } from "@/components/section-header";
 import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
 import { sourceRegistry } from "@/lib/ingestion/pipeline";
-import { companies } from "@/lib/seed/data";
 import { EVENT_WEIGHTS } from "@/lib/scoring/momentum";
 
 const audienceItems = [
@@ -71,6 +71,10 @@ export default function AboutPage() {
               The product watches the companies shaping the AI race across launches, infrastructure expansion,
               partnerships, funding, policy moves, leadership changes, and research claims. The goal is not to cover
               everything. The goal is to cover the moves that change competitive position.
+            </p>
+            <p className="mt-4 text-sm leading-7 text-[var(--text-secondary)]">
+              Frontier Pulse currently tracks {TRACKED_COMPANY_COUNT} companies across the editorial surface, with the
+              ranking board showing the top 10 momentum positions when score data is current.
             </p>
             <ul className="mt-6 space-y-3 text-sm leading-7 text-[var(--text-secondary)]">
               <li>Major model launches and product releases with real downstream impact.</li>
@@ -233,7 +237,7 @@ export default function AboutPage() {
             The companies currently on the board
           </h2>
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {companies.map((company) => (
+            {trackedCompanies.map((company) => (
               <Link
                 key={company.slug}
                 href={`/companies/${company.slug}`}

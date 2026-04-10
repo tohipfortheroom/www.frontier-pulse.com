@@ -2,9 +2,9 @@ import Link from "next/link";
 
 import { BrandLogo } from "@/components/brand-logo";
 import { NewsletterForm } from "@/components/newsletter-form";
+import { trackedCompanies } from "@/lib/company-registry";
 import { getSiteLastUpdatedAt } from "@/lib/db/queries";
 import { BRAND_NAME } from "@/lib/brand";
-import { companies } from "@/lib/seed/data";
 import { getSocialLinks } from "@/lib/site-config";
 import { formatLastUpdatedLabel } from "@/lib/utils";
 
@@ -101,7 +101,7 @@ export async function Footer() {
             Quick Links
           </p>
           <div className="flex flex-wrap gap-x-2.5 gap-y-2">
-            {companies.map((company) => (
+            {trackedCompanies.map((company) => (
               <Link
                 key={company.slug}
                 href={`/companies/${company.slug}`}

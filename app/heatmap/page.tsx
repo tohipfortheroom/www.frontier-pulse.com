@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 
-import { getHeatmapData } from "@/lib/db/queries";
+import { getHeatmapData, getSiteLastUpdatedAt } from "@/lib/db/queries";
 import { IndustryHeatmap } from "@/components/industry-heatmap";
+import { ModuleStatusStrip } from "@/components/module-status-strip";
 import { SectionHeader } from "@/components/section-header";
-import { formatLastUpdatedLabel } from "@/lib/utils";
+import { formatUpdateTimestamp } from "@/lib/utils";
+import { buildSectionFreshness } from "@/lib/surface-data";
 
 export const metadata: Metadata = {
   title: "Heatmap",
@@ -20,8 +22,20 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function HeatmapPage() {
-  const data = await getHeatmapData();
-  const lastUpdatedLabel = formatLastUpdatedLabel(data.lastUpdatedAt);
+  const [data, siteLastUpdatedAt] = await Promise.all([getHeatmapData(), getSiteLastUpdatedAt()]);
+  const eventCount = data.cells.reduce((sum, cell) => sum + cell.eventCount, 0);
+  const freshness = buildSectionFreshness({
+    cacheKey: "heatmap:page",
+    generatedAt: new Date().toISOString(),
+    newestContentAt: data.lastUpdatedAt,
+    contentCount: eventCount,
+    staleAfterHours: 48,
+    now: siteLastUpdatedAt ?? new Date().toISOString(),
+  });
+  const staleWarning =
+    freshness.stale && freshness.newestContentAt
+      ? `Heatmap activity is behind the news feed. The visible event surface last refreshed ${formatUpdateTimestamp(freshness.newestContentAt).toLowerCase()}.`
+      : null;
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -32,7 +46,15 @@ export default async function HeatmapPage() {
           subtitle="Each cell represents one company on one day. Green intensity shows positive momentum events, red shows setbacks. Click any cell to see the underlying events."
           tone="green"
         />
-        {lastUpdatedLabel ? <p className="text-xs text-[var(--text-tertiary)]">{lastUpdatedLabel}</p> : null}
+        <ModuleStatusStrip
+          items={[
+            { label: "Updated", value: data.lastUpdatedAt ? formatUpdateTimestamp(data.lastUpdatedAt) : "" },
+            { label: "Events", value: eventCount.toString() },
+            { label: "Companies", value: data.companies.length.toString() },
+            { label: "Window", value: "30 days" },
+          ]}
+          warning={staleWarning}
+        />
         <IndustryHeatmap data={data} />
       </section>
     </div>

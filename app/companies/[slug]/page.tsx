@@ -4,9 +4,10 @@ import dynamicImport from "next/dynamic";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 
-import { getCompaniesIndexData, getCompanyDetailData } from "@/lib/db/queries";
-import { formatDateLabel, formatScore, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
+import { getCompaniesIndexData, getCompanyDetailData, getLeaderboardRefreshState } from "@/lib/db/queries";
+import { formatDateLabel, formatScore, formatUpdateTimestamp, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
+import { ModuleStatusStrip } from "@/components/module-status-strip";
 import { NewsCard } from "@/components/news-card";
 import { SectionHeader } from "@/components/section-header";
 import { ShareButton } from "@/components/share-button";
@@ -54,7 +55,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const record = await getCompanyDetailData(slug);
+  const [record, refreshState] = await Promise.all([getCompanyDetailData(slug), getLeaderboardRefreshState()]);
 
   if (!record) {
     return {
@@ -88,7 +89,7 @@ export default async function CompanyDetailPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const record = await getCompanyDetailData(slug);
+  const [record, refreshState] = await Promise.all([getCompanyDetailData(slug), getLeaderboardRefreshState()]);
 
   if (!record) {
     notFound();
@@ -108,6 +109,11 @@ export default async function CompanyDetailPage({
   const safeWeaknesses = company.weaknesses ?? [];
   const sentimentSeries = enrichment?.sentimentHistory?.map((entry) => entry.score) ?? [];
   const showMomentum = Boolean(momentum && hasMeaningfulMetric(momentum.score));
+  const latestCoverageAt = recentNews[0]?.publishedAt ?? null;
+  const staleWarning =
+    refreshState.status === "stale" && refreshState.lastUpdatedAt
+      ? `Ranking data for this company is behind the coverage stream. The visible score surface last refreshed ${formatUpdateTimestamp(refreshState.lastUpdatedAt).toLowerCase()}.`
+      : null;
   const organizationSchema = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -148,6 +154,16 @@ export default async function CompanyDetailPage({
               </div>
             </div>
             <p className="mt-6 max-w-3xl text-lg leading-8 text-[var(--text-secondary)]">{toCompleteSentence(company.overview)}</p>
+            <div className="mt-6">
+              <ModuleStatusStrip
+                items={[
+                  { label: "Coverage", value: latestCoverageAt ? formatUpdateTimestamp(latestCoverageAt) : "Unavailable" },
+                  { label: "Recent stories", value: recentNews.length.toString() },
+                  { label: "Score", value: refreshState.lastUpdatedAt ? formatUpdateTimestamp(refreshState.lastUpdatedAt) : "Unavailable" },
+                ]}
+                warning={staleWarning}
+              />
+            </div>
             {safeTags.length > 0 ? (
               <div className="mt-6 flex flex-wrap gap-2">
                 {safeTags.map((tag) => (

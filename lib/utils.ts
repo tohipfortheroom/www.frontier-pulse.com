@@ -74,6 +74,36 @@ export function formatSmartTime(date: Date | string) {
   return formatTimestamp(date);
 }
 
+export function formatUpdateTimestamp(date: Date | string) {
+  const parsed = toValidDate(date);
+
+  if (!parsed) {
+    return "";
+  }
+
+  const now = new Date();
+  const hoursAgo = differenceInHours(now, parsed);
+  const daysAgo = differenceInCalendarDays(now, parsed);
+
+  if (hoursAgo < 1) {
+    return "<1h ago";
+  }
+
+  if (hoursAgo < 24) {
+    return `${hoursAgo}h ago`;
+  }
+
+  if (daysAgo === 1) {
+    return "Yesterday";
+  }
+
+  if (daysAgo < 7) {
+    return `${daysAgo} days ago`;
+  }
+
+  return format(parsed, "MMM d, yyyy");
+}
+
 export function formatTimeOfDay(date: Date | string) {
   const parsed = toValidDate(date);
   return parsed ? format(parsed, "h:mm a") : "";
@@ -89,7 +119,7 @@ export function formatLastUpdatedLabel(date: Date | string | null | undefined) {
     return "";
   }
 
-  const timestamp = formatTimestamp(date);
+  const timestamp = formatUpdateTimestamp(date);
   return timestamp ? `Last updated: ${timestamp}` : "";
 }
 

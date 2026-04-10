@@ -419,6 +419,8 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
           <span>{timestampCopy}</span>
           <span className={styles.timestampDivider}>/</span>
           <span>{FILTERS.find((filter) => filter.id === activeFilter)?.description}</span>
+          <span className={styles.timestampDivider}>/</span>
+          <span>Top {Math.min(10, rankedEntries.length)} of {allEntries.length} ranked companies</span>
         </div>
       </section>
 

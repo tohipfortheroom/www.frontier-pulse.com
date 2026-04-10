@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { HeatmapData, HeatmapCell } from "@/lib/db/types";
 
@@ -42,6 +43,10 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
   const [tooltip, setTooltip] = useState<TooltipState>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
+  const latestActiveCells = data.cells
+    .filter((cell) => cell.eventCount > 0)
+    .sort((left, right) => right.date.localeCompare(left.date) || right.eventCount - left.eventCount)
+    .slice(0, 8);
 
   const cellMap = useCallback(() => {
     const map = new Map<string, HeatmapCell>();
@@ -68,25 +73,52 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
     return totals;
   }, [data.dates, data.companies, cellMap])();
 
+  const openTooltip = useCallback((cell: HeatmapCell, rect: DOMRect) => {
+    if (cell.eventCount === 0) {
+      setTooltip(null);
+      return;
+    }
+
+    setTooltip({
+      cell,
+      x: rect.left + rect.width / 2,
+      y: rect.top,
+    });
+  }, []);
+
+  const openCenteredTooltip = useCallback((cell: HeatmapCell) => {
+    openTooltip(
+      cell,
+      {
+        left: window.innerWidth / 2,
+        top: window.innerHeight / 2,
+        width: 0,
+        height: 0,
+        right: 0,
+        bottom: 0,
+        x: 0,
+        y: 0,
+        toJSON() {
+          return {};
+        },
+      } as DOMRect,
+    );
+  }, [openTooltip]);
+
   const handleCellInteraction = useCallback(
-    (cell: HeatmapCell, event: React.MouseEvent<HTMLButtonElement>) => {
+    (cell: HeatmapCell, event: { currentTarget: HTMLButtonElement }) => {
       if (cell.eventCount === 0) {
         setTooltip(null);
         return;
       }
 
-      const rect = event.currentTarget.getBoundingClientRect();
-      setTooltip({
-        cell,
-        x: rect.left + rect.width / 2,
-        y: rect.top,
-      });
+      openTooltip(cell, event.currentTarget.getBoundingClientRect());
     },
-    [],
+    [openTooltip],
   );
 
   const handleTotalInteraction = useCallback(
-    (date: string, event: React.MouseEvent<HTMLButtonElement>) => {
+    (date: string, event: { currentTarget: HTMLButtonElement }) => {
       const total = industryTotals.get(date);
       if (!total || total.eventCount === 0) {
         setTooltip(null);
@@ -101,9 +133,8 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
         }
       }
 
-      const rect = event.currentTarget.getBoundingClientRect();
-      setTooltip({
-        cell: {
+      openTooltip(
+        {
           companySlug: "industry-total",
           companyName: "All companies",
           companyColor: "var(--accent-blue)",
@@ -112,11 +143,10 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
           netScore: total.netScore,
           events: allEvents,
         },
-        x: rect.left + rect.width / 2,
-        y: rect.top,
-      });
+        event.currentTarget.getBoundingClientRect(),
+      );
     },
-    [industryTotals, data.companies, cellMap],
+    [industryTotals, data.companies, cellMap, openTooltip],
   );
 
   useEffect(() => {
@@ -139,10 +169,22 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
 
   return (
     <div className="relative">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+          Green = positive score accumulation
+        </span>
+        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+          Red = negative score pressure
+        </span>
+        <span className="rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-1 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+          Number = event count for that day
+        </span>
+      </div>
+
       {/* Scrollable grid container */}
       <div
         ref={gridRef}
-        className="scrollbar-none overflow-x-auto rounded-2xl border border-[var(--border)] backdrop-blur-sm"
+        className="scrollbar-none mt-4 overflow-x-auto rounded-2xl border border-[var(--border)] backdrop-blur-sm"
         style={{ background: "var(--surface-card)" }}
       >
         <div
@@ -201,6 +243,17 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
                     className="flex h-7 w-7 items-center justify-center rounded-sm transition-transform hover:scale-125 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--accent-blue)]"
                     style={getCellStyle(cell.netScore, cell.eventCount)}
                     onClick={(e) => handleCellInteraction(cell, e)}
+                    onMouseEnter={(event) => handleCellInteraction(cell, event)}
+                    onFocus={(event) => handleCellInteraction(cell, event)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        openTooltip(cell, event.currentTarget.getBoundingClientRect());
+                      }
+                      if (event.key === "Escape") {
+                        setTooltip(null);
+                      }
+                    }}
                     role="gridcell"
                     aria-label={`${company.name}, ${date}: ${cell.eventCount} events, net score ${cell.netScore >= 0 ? "+" : ""}${cell.netScore}`}
                     tabIndex={0}
@@ -243,6 +296,42 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
                     borderTop: "1px solid var(--border)",
                   }}
                   onClick={(e) => handleTotalInteraction(date, e)}
+                  onMouseEnter={(event) => handleTotalInteraction(date, event)}
+                  onFocus={(event) => handleTotalInteraction(date, event)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      const total = industryTotals.get(date);
+                      if (!total || total.eventCount === 0) {
+                        setTooltip(null);
+                        return;
+                      }
+
+                      const allEvents: HeatmapCell["events"] = [];
+                      for (const company of data.companies) {
+                        const cell = cellMap.get(`${company.slug}::${date}`);
+                        if (cell) {
+                          allEvents.push(...cell.events);
+                        }
+                      }
+
+                      openTooltip(
+                        {
+                          companySlug: "industry-total",
+                          companyName: "All companies",
+                          companyColor: "var(--accent-blue)",
+                          date,
+                          eventCount: total.eventCount,
+                          netScore: total.netScore,
+                          events: allEvents,
+                        },
+                        event.currentTarget.getBoundingClientRect(),
+                      );
+                    }
+                    if (event.key === "Escape") {
+                      setTooltip(null);
+                    }
+                  }}
                   role="gridcell"
                   aria-label={`Industry total, ${date}: ${eventCount} events, net score ${netScore >= 0 ? "+" : ""}${netScore}`}
                   tabIndex={0}
@@ -257,6 +346,33 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
             })}
           </div>
         </div>
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-[var(--border)] p-4 md:hidden">
+        <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+          Recent active cells
+        </p>
+        {latestActiveCells.length > 0 ? (
+          <div className="mt-3 space-y-2">
+            {latestActiveCells.map((cell) => (
+              <button
+                key={`${cell.companySlug}-${cell.date}`}
+                type="button"
+                onClick={() => openCenteredTooltip(cell)}
+                className="flex w-full items-center justify-between rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-3 text-left"
+              >
+                <span className="text-sm text-[var(--text-primary)]">
+                  {cell.companyName} · {cell.date}
+                </span>
+                <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                  {cell.eventCount} events
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">No event cells are available for the current window.</p>
+        )}
       </div>
 
       {/* Tooltip / popover */}
@@ -311,13 +427,13 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
           <div className="max-h-48 space-y-2 overflow-y-auto">
             {tooltip.cell.events.map((event, index) => (
               <div
-                key={`${event.eventType}-${index}`}
+                key={`${event.newsSlug ?? event.eventType}-${index}`}
                 className="rounded-lg border border-[var(--border)] p-2.5"
                 style={{ background: "var(--surface-soft)" }}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-medium text-[var(--text-primary)]">
-                    {event.eventType}
+                    {event.headline ?? event.eventType}
                   </span>
                   <span
                     className={
@@ -333,6 +449,14 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
                 <p className="mt-1 text-[11px] leading-relaxed text-[var(--text-secondary)]">
                   {event.explanation}
                 </p>
+                {event.newsSlug ? (
+                  <Link
+                    href={`/news/${event.newsSlug}`}
+                    className="mt-2 inline-flex text-[11px] text-[var(--accent-blue)] transition-colors hover:text-[var(--text-primary)]"
+                  >
+                    Open story
+                  </Link>
+                ) : null}
               </div>
             ))}
           </div>

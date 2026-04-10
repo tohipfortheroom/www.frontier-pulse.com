@@ -1,16 +1,17 @@
 import { format } from "date-fns";
 import type { Metadata } from "next";
 
-import { getDailyDigestByDate, getDailyDigestData, getDigestArchiveDates } from "@/lib/db/queries";
+import { getDailyDigestByDate, getDailyDigestData, getDigestArchiveDates, getSiteLastUpdatedAt } from "@/lib/db/queries";
 import { categories, companiesBySlug } from "@/lib/seed/data";
 
 import { CompanyBadge } from "@/components/company-badge";
 import { DailyDigestBlock } from "@/components/daily-digest-block";
 import { DigestArchiveNav } from "@/components/digest-archive-nav";
+import { ModuleStatusStrip } from "@/components/module-status-strip";
 import { SectionHeader } from "@/components/section-header";
 import { ShareButton } from "@/components/share-button";
 import { BRAND_DIGEST_NAME, BRAND_NAME } from "@/lib/brand";
-import { formatLastUpdatedLabel, formatLongDate, toCompleteSentence } from "@/lib/utils";
+import { formatLastUpdatedLabel, formatLongDate, formatUpdateTimestamp, toCompleteSentence } from "@/lib/utils";
 
 export async function generateMetadata({ searchParams }: DailyDigestPageProps): Promise<Metadata> {
   try {
@@ -46,9 +47,10 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
   const resolvedParams = await searchParams;
   const dateParam = typeof resolvedParams.date === "string" ? resolvedParams.date : undefined;
 
-  const [digestResult, availableDates] = await Promise.all([
+  const [digestResult, availableDates, siteLastUpdatedAt] = await Promise.all([
     dateParam ? getDailyDigestByDate(dateParam) : getDailyDigestData(),
     getDigestArchiveDates(),
+    getSiteLastUpdatedAt(),
   ]);
 
   const { digest, leadStory, topStories, biggestWinnerMomentum, biggestLoserMomentum, mostImportantStory } = digestResult;
@@ -60,6 +62,10 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
   const leadStoryCategories = leadStory.categorySlugs
     .map((slug) => categories.find((category) => category.slug === slug)?.name ?? slug.replace(/-/g, " "))
     .slice(0, 3);
+  const staleWarning =
+    siteLastUpdatedAt && digestResult.lastUpdatedAt && new Date(siteLastUpdatedAt).getTime() - new Date(digestResult.lastUpdatedAt).getTime() > 36 * 36e5
+      ? `The digest is older than the main news stream. Newer stories may already be visible elsewhere on the site.`
+      : null;
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -89,6 +95,15 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
             </span>
           ))}
         </div>
+        <ModuleStatusStrip
+          items={[
+            { label: "Generated", value: digestResult.lastUpdatedAt ? formatUpdateTimestamp(digestResult.lastUpdatedAt) : "" },
+            { label: "Stories", value: topStories.length.toString() },
+            { label: "Lead source", value: leadStory.sourceName },
+            { label: "Window", value: digest.date },
+          ]}
+          warning={staleWarning}
+        />
         {lastUpdatedLabel ? (
           <p className="text-xs text-[var(--text-tertiary)]">{lastUpdatedLabel}</p>
         ) : null}

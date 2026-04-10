@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addDays, differenceInDays, differenceInHours, endOfWeek, format, startOfDay, startOfWeek, subDays } from "date-fns";
 import { Filter, RefreshCcw, Search, X } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 
 import { useToast } from "@/components/toast-provider";
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
@@ -13,7 +13,7 @@ import { fetchJsonWithRetry } from "@/lib/network/fetch";
 import type { NewsItem, NewsCategory } from "@/lib/seed/data";
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { matchesSearchQuery } from "@/lib/search/syntax";
-import { cn, formatTimestamp } from "@/lib/utils";
+import { cn, formatUpdateTimestamp } from "@/lib/utils";
 
 import { EmptyState } from "@/components/empty-state";
 import { NewsCard } from "@/components/news-card";
@@ -26,21 +26,41 @@ type NewsPageClientProps = {
   newsItems: NewsItem[];
   companies: CompanyCardRecord[];
   categories: NewsCategory[];
-  initialTagFilter?: string;
+  initialFilters: {
+    query: string;
+    company: string;
+    category: string;
+    timeframe: string;
+    importance: string;
+    tag: string | null;
+    day: string | null;
+  };
+  initialFreshness: Pick<
+    SourceHealthSnapshot,
+    | "configured"
+    | "currentStatus"
+    | "currentStatusReason"
+    | "quietFeed"
+    | "lastIngestionAt"
+    | "lastSucceededAt"
+    | "latestPublishedAt"
+    | "staleData"
+    | "delayed"
+    | "degraded"
+    | "sourceSummary"
+  >;
 };
 
-export function NewsPageClient({ newsItems, companies, categories, initialTagFilter }: NewsPageClientProps) {
+export function NewsPageClient({ newsItems, companies, categories, initialFilters, initialFreshness }: NewsPageClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const initialQuery = searchParams.get("q") ?? "";
-  const [query, setQuery] = useState(initialQuery);
+  const [query, setQuery] = useState(initialFilters.query);
   const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
-  const [companyFilter, setCompanyFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
-  const [timeframe, setTimeframe] = useState("7d");
-  const [importance, setImportance] = useState("all");
-  const [tagFilter, setTagFilter] = useState<string | null>(initialTagFilter ?? null);
-  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [companyFilter, setCompanyFilter] = useState(initialFilters.company);
+  const [categoryFilter, setCategoryFilter] = useState(initialFilters.category);
+  const [timeframe, setTimeframe] = useState(initialFilters.timeframe);
+  const [importance, setImportance] = useState(initialFilters.importance);
+  const [tagFilter, setTagFilter] = useState<string | null>(initialFilters.tag);
+  const [selectedDay, setSelectedDay] = useState<string | null>(initialFilters.day);
   const [pendingRealtimeCount, setPendingRealtimeCount] = useState(0);
   const [isRefreshing, startRefreshTransition] = useTransition();
   const [now, setNow] = useState(new Date());
@@ -59,24 +79,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
       | "degraded"
       | "sourceSummary"
     >
-  >({
-    configured: true,
-    currentStatus: "LIVE",
-    currentStatusReason: "Initial page load",
-    quietFeed: false,
-    lastIngestionAt: newsItems[0]?.publishedAt ?? new Date().toISOString(),
-    lastSucceededAt: newsItems[0]?.publishedAt ?? new Date().toISOString(),
-    latestPublishedAt: newsItems[0]?.publishedAt ?? new Date().toISOString(),
-    staleData: false,
-    delayed: false,
-    degraded: false,
-    sourceSummary: {
-      total: 0,
-      healthy: 0,
-      degraded: 0,
-      stale: 0,
-    },
-  });
+  >(initialFreshness);
   const pendingRealtimeSlugs = useRef(new Set<string>());
   const healthToastShownRef = useRef(false);
   const deferredQuery = useDeferredValue(query);
@@ -130,8 +133,18 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
   }, [newsItems]);
 
   useEffect(() => {
-    setQuery(searchParams.get("q") ?? "");
-  }, [searchParams]);
+    setQuery(initialFilters.query);
+    setCompanyFilter(initialFilters.company);
+    setCategoryFilter(initialFilters.category);
+    setTimeframe(initialFilters.timeframe);
+    setImportance(initialFilters.importance);
+    setTagFilter(initialFilters.tag);
+    setSelectedDay(initialFilters.day);
+  }, [initialFilters]);
+
+  useEffect(() => {
+    setFreshness(initialFreshness);
+  }, [initialFreshness]);
 
   useEffect(() => {
     if (!isOnline) {
@@ -359,7 +372,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
         : freshness.currentStatus === "DEGRADED"
           ? "Some sources degraded"
           : "Feed stale";
-  const lastRefreshLabel = freshnessReference ? formatTimestamp(freshnessReference).toLowerCase() : "recently";
+  const lastRefreshLabel = freshnessReference ? formatUpdateTimestamp(freshnessReference).toLowerCase() : "recently";
   const statusBody =
     !freshness.configured
       ? "Live pipeline is not configured in this environment. Showing the editorial seed dataset."
@@ -373,8 +386,20 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
           ? `${freshness.sourceSummary.degraded} of ${freshness.sourceSummary.total} sources need attention, but healthy sources are still updating the feed.`
           : `Last successful refresh was ${lastRefreshLabel}. Pipeline attention is required.`;
 
+  if (newsItems.length === 0) {
+    return (
+      <EmptyState
+        title="News stream unavailable"
+        description="The editorial stream is temporarily empty. Try again shortly while the ingest pipeline catches up."
+        actionHref="/leaderboard"
+        actionLabel="Open leaderboard"
+      />
+    );
+  }
+
   return (
     <>
+
       {pendingRealtimeCount > 0 ? (
         <button
           type="button"
@@ -398,7 +423,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
         <div className="flex flex-wrap items-center justify-between gap-3">
           <span>{statusEyebrow}</span>
           <span className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
-            {!isOnline ? "Offline" : latestStoryHoursAgo <= 0 ? "Latest story just now" : `Latest story ${formatTimestamp(freshness.latestPublishedAt).toLowerCase()}`}
+            {!isOnline ? "Offline" : latestStoryHoursAgo <= 0 ? "Latest story <1h ago" : `Latest story ${formatUpdateTimestamp(freshness.latestPublishedAt).toLowerCase()}`}
           </span>
         </div>
         <p className="mt-2 text-sm text-[var(--text-secondary)]">
@@ -543,7 +568,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
         <span>Supabase-backed stream</span>
       </div>
 
-      {filteredNews.length > 0 ? (
+      {newsItems.length > 0 && filteredNews.length > 0 ? (
         <div className="grid gap-5">
           {filteredNews.map((item) => (
             <NewsCard
@@ -554,14 +579,14 @@ export function NewsPageClient({ newsItems, companies, categories, initialTagFil
             />
           ))}
         </div>
-      ) : (
+      ) : newsItems.length > 0 ? (
         <EmptyState
           title="No updates matched the current filters"
           description="Try widening the timeframe, clearing a filter, or using a broader search with quotes and OR operators."
           actionHref="/news"
           actionLabel="Reset filters"
         />
-      )}
+      ) : null}
     </>
   );
 }
