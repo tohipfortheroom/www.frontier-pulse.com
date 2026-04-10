@@ -20,6 +20,29 @@ import { TopMoverCard } from "@/components/top-mover-card";
 import { TrendSignals } from "@/components/trend-signals";
 import { buttonVariants } from "@/components/ui/button";
 import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
+import { formatDateLabel, formatTimestamp } from "@/lib/utils";
+
+function getSectionFreshnessCopy({
+  stale,
+  newestContentAt,
+  emptyCopy,
+  freshPrefix,
+  stalePrefix,
+}: {
+  stale: boolean;
+  newestContentAt: string | null;
+  emptyCopy: string;
+  freshPrefix: string;
+  stalePrefix: string;
+}) {
+  if (!newestContentAt) {
+    return emptyCopy;
+  }
+
+  return stale
+    ? `${stalePrefix} ${formatDateLabel(newestContentAt)}.`
+    : `${freshPrefix} ${formatTimestamp(newestContentAt)}.`;
+}
 
 export async function generateMetadata(): Promise<Metadata> {
   const { stats } = await getHomePageData();
@@ -48,7 +71,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const { todayStories, breakingStories, leaderboard, launches, timeline, topMovers, trendingTopics, tickerItems, stats } =
+  const { todayStories, breakingStories, leaderboard, launches, timeline, topMovers, trendingTopics, tickerItems, stats, sectionFreshness, leaderboardRefreshState } =
     await getHomePageData();
   const websiteSchema = {
     "@context": "https://schema.org",
@@ -99,7 +122,16 @@ export default async function HomePage() {
               subtitle="The most important moves, launches, and shifts across the companies shaping the next era of technology."
               tone="amber"
             />
-            {todayStories.length > 0 ? (
+            <p className="mt-4 text-xs text-[var(--text-tertiary)]">
+              {getSectionFreshnessCopy({
+                stale: sectionFreshness.todayInAi.stale,
+                newestContentAt: sectionFreshness.todayInAi.newestContentAt,
+                emptyCopy: "Current story bucket unavailable right now.",
+                freshPrefix: "Current through",
+                stalePrefix: "Stale snapshot from",
+              })}
+            </p>
+            {todayStories.length > 0 && !sectionFreshness.todayInAi.stale ? (
               <HorizontalScroller viewportClassName="-mx-5 mt-8 px-5">
                 <>
                   {todayStories.map((story) => (
@@ -110,9 +142,16 @@ export default async function HomePage() {
                 </>
               </HorizontalScroller>
             ) : (
-              <p className="mt-8 text-center text-sm text-[var(--text-tertiary)]">
-                No stories tracked yet today. Check back soon.
-              </p>
+              <div className="mt-8 space-y-3 text-center">
+                <p className="text-sm text-[var(--text-tertiary)]">
+                  {sectionFreshness.todayInAi.stale && sectionFreshness.todayInAi.newestContentAt
+                    ? `Today in AI is behind. The latest visible snapshot is from ${formatDateLabel(sectionFreshness.todayInAi.newestContentAt)}.`
+                    : "No stories tracked yet today. Check back soon."}
+                </p>
+                <Link href="/news" className={buttonVariants({ variant: "ghost" })}>
+                  Open the full news stream
+                </Link>
+              </div>
             )}
           </section>
         </ScrollReveal>
@@ -126,6 +165,15 @@ export default async function HomePage() {
               subtitle="The biggest headlines worth reading first, stripped down to what changed and why it matters."
               tone="amber"
             />
+            <p className="text-xs text-[var(--text-tertiary)]">
+              {getSectionFreshnessCopy({
+                stale: sectionFreshness.breakingMoves.stale,
+                newestContentAt: sectionFreshness.breakingMoves.newestContentAt,
+                emptyCopy: "Breaking queue unavailable right now.",
+                freshPrefix: "Current through",
+                stalePrefix: "Snapshot from",
+              })}
+            </p>
             {breakingStories.length > 0 ? (
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                 {breakingStories.map((story) => (
@@ -149,6 +197,17 @@ export default async function HomePage() {
               subtitle="The companies whose momentum scores are climbing — and what&apos;s driving it."
               tone="blue"
             />
+            <p className="text-xs text-[var(--text-tertiary)]">
+              {leaderboardRefreshState.status === "running"
+                ? leaderboardRefreshState.reason
+                : getSectionFreshnessCopy({
+                    stale: sectionFreshness.leaderboard.stale,
+                    newestContentAt: sectionFreshness.leaderboard.newestContentAt,
+                    emptyCopy: "Ranking snapshot unavailable right now.",
+                    freshPrefix: "Ranking snapshot current through",
+                    stalePrefix: "Ranking snapshot from",
+                  })}
+            </p>
             <LeaderboardTable
               rows={leaderboard}
               mode="preview"

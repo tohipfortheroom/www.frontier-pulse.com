@@ -894,10 +894,6 @@
     grid-template-columns: 1fr;
   }
 
-  .podiumGrid .podiumCard:nth-child(2) {
-    order: -1;
-  }
-
   .tableHead {
     display: none;
   }

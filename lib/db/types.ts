@@ -21,6 +21,27 @@ export type CompanyCardRecord = {
   momentum?: MomentumSnapshot;
 };
 
+export type SectionFreshness = {
+  cacheKey: string;
+  generatedAt: string;
+  fetchedAt: string;
+  newestContentAt: string | null;
+  newestContentDateKey: string | null;
+  expectedDateKey?: string | null;
+  contentCount: number;
+  stale: boolean;
+  status: "fresh" | "stale" | "empty";
+};
+
+export type LeaderboardRefreshState = {
+  cacheKey: string;
+  fetchedAt: string;
+  lastUpdatedAt: string | null;
+  isRunning: boolean;
+  status: "fresh" | "stale" | "running";
+  reason: string;
+};
+
 export type CompanyDetailRecord = {
   company: CompanyProfile;
   momentum?: MomentumSnapshot;
@@ -44,6 +65,7 @@ export type CompanyDetailRecord = {
 };
 
 export type HomePageData = {
+  generatedAt: string;
   todayStories: NewsItem[];
   breakingStories: NewsItem[];
   leaderboard: MomentumSnapshot[];
@@ -53,6 +75,12 @@ export type HomePageData = {
   trendingTopics: TrendingTopic[];
   digest: DailyDigest;
   tickerItems: HomeTickerItem[];
+  sectionFreshness: {
+    todayInAi: SectionFreshness;
+    breakingMoves: SectionFreshness;
+    leaderboard: SectionFreshness;
+  };
+  leaderboardRefreshState: LeaderboardRefreshState;
   stats: {
     totalStories: number;
     totalCompanies: number;
@@ -63,7 +91,9 @@ export type HomePageData = {
 };
 
 export type DailyDigestRecord = {
+  generatedAt: string;
   digest: DailyDigest;
+  leadStory: NewsItem;
   topStories: NewsItem[];
   biggestWinnerMomentum?: MomentumSnapshot;
   biggestLoserMomentum?: MomentumSnapshot;

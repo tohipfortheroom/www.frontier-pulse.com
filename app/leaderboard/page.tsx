@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Outfit } from "next/font/google";
 
-import { getCompaniesIndexData, getLeaderboardLastUpdatedAt, getRecentMomentumEventsData } from "@/lib/db/queries";
+import { getCompaniesIndexData, getLeaderboardRefreshState, getRecentMomentumEventsData } from "@/lib/db/queries";
 import { companiesBySlug } from "@/lib/seed/data";
+import { getCanonicalLeaderboardRecords } from "@/lib/surface-data";
 import { formatScore } from "@/lib/utils";
 
 import { LeaderboardCommandCenter } from "@/components/leaderboard-command-center";
@@ -44,15 +45,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export const revalidate = 300;
 
 export default async function LeaderboardPage() {
-  const [records, recentEvents, lastUpdatedAt] = await Promise.all([
+  const [records, recentEvents, refreshState] = await Promise.all([
     getCompaniesIndexData(),
     getRecentMomentumEventsData(),
-    getLeaderboardLastUpdatedAt(),
+    getLeaderboardRefreshState(),
   ]);
+  const canonicalRecords = getCanonicalLeaderboardRecords(records);
 
   return (
     <div className={`${displayFont.variable} ${monoFont.variable} relative z-10 mx-auto max-w-7xl px-4 py-12 sm:px-5 lg:py-16`}>
-      <LeaderboardCommandCenter records={records} recentEvents={recentEvents} renderedAt={lastUpdatedAt ?? ""} />
+      <LeaderboardCommandCenter records={canonicalRecords} recentEvents={recentEvents} refreshState={refreshState} />
     </div>
   );
 }

@@ -6,8 +6,9 @@ import { useRouter } from "next/navigation";
 import type { TooltipContentProps } from "recharts";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-import type { CompanyCardRecord } from "@/lib/db/types";
+import type { CompanyCardRecord, LeaderboardRefreshState } from "@/lib/db/types";
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
+import { getLeaderboardRangeLabel } from "@/lib/surface-data";
 import { cn, formatLastUpdatedLabel, formatScore, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { CompanyLogo } from "@/components/company-logo";
@@ -24,7 +25,7 @@ type RecentEvent = {
 type LeaderboardCommandCenterProps = {
   records: CompanyCardRecord[];
   recentEvents: RecentEvent[];
-  renderedAt: string;
+  refreshState: LeaderboardRefreshState;
 };
 
 type FilterId = "7d" | "30d" | "90d" | "all" | "momentum";
@@ -209,11 +210,10 @@ function HistoryTooltip({ active, label, payload }: TooltipContentProps) {
   );
 }
 
-export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: LeaderboardCommandCenterProps) {
+export function LeaderboardCommandCenter({ records, recentEvents, refreshState }: LeaderboardCommandCenterProps) {
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState<FilterId>("7d");
+  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [chartWindow, setChartWindow] = useState<ChartWindow>(30);
-  const [liveTime, setLiveTime] = useState(renderedAt);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -256,9 +256,10 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
       sparkline: extendSparkline(record.momentum.sparkline),
     }));
 
-  const sortedEntries = [...allEntries]
-    .sort((left, right) => getLensScore(right, activeFilter) - getLensScore(left, activeFilter))
-    .slice(0, 12);
+  const sortedEntries =
+    activeFilter === "all"
+      ? allEntries.slice(0, 10)
+      : [...allEntries].sort((left, right) => getLensScore(right, activeFilter) - getLensScore(left, activeFilter)).slice(0, 10);
 
   const rankedEntries = sortedEntries.map((entry, index) => ({
     ...entry,
@@ -266,8 +267,8 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
     sevenDayPercent: computeSevenDayPercent(entry),
   }));
 
-  const podiumEntries = [rankedEntries[1], rankedEntries[0], rankedEntries[2]].filter(Boolean);
-  const remainingEntries = rankedEntries.slice(3, 12);
+  const podiumEntries = rankedEntries.slice(0, 3);
+  const remainingEntries = rankedEntries.slice(3, 10);
   const comparisonEntries = rankedEntries.slice(0, 10).map((entry, index) => ({
     ...entry,
     lineColor: entry.company.color || CHART_FALLBACK_COLORS[index % CHART_FALLBACK_COLORS.length],
@@ -302,7 +303,14 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
       : positiveEvents >= Math.ceil(recentEvents.length * 0.7)
         ? "More companies are gaining than slipping right now, which usually means the next ranking update rewards execution depth rather than one-off hype."
         : "Recent events are spread across partnerships, infrastructure, and leadership, so competitive advantage is being won through operational follow-through.";
-  const lastUpdatedLabel = formatLastUpdatedLabel(liveTime);
+  const lastUpdatedLabel = formatLastUpdatedLabel(refreshState.lastUpdatedAt);
+  const timestampCopy =
+    refreshState.status === "running"
+      ? refreshState.reason
+      : lastUpdatedLabel
+        ? lastUpdatedLabel
+        : refreshState.reason;
+  const rankingsLabel = getLeaderboardRangeLabel(remainingEntries.length);
   const notableMoverSpecs: Array<{
     id: string;
     label: string;
@@ -408,7 +416,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
 
         <div className={styles.timestampRow}>
           <span className={styles.clockDot} />
-          <span>{lastUpdatedLabel ? `Last updated: ${lastUpdatedLabel}` : "Leaderboard data is updating."}</span>
+          <span>{timestampCopy}</span>
           <span className={styles.timestampDivider}>/</span>
           <span>{FILTERS.find((filter) => filter.id === activeFilter)?.description}</span>
         </div>
@@ -517,7 +525,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
 
         <div className={styles.podiumGrid}>
           {podiumEntries.map((entry, index) => {
-            const tone = podiumTone(index === 1 ? 0 : index === 0 ? 1 : 2);
+            const tone = podiumTone(index);
             const TrendIcon = getTrendIcon(entry.sevenDayPercent);
             const sparkline = sparklinePath(entry.sparkline, 140, 50);
 
@@ -587,7 +595,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, renderedAt }: 
 
       <section className={styles.rankingsSection}>
         <div className={styles.sectionHeading}>
-          <p className={styles.kicker}>Full Rankings · 4–12</p>
+          <p className={styles.kicker}>{rankingsLabel}</p>
           <h2 className={styles.sectionTitle}>Depth chart across the frontier field</h2>
         </div>
 

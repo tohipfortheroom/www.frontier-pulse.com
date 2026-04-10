@@ -13,6 +13,7 @@ import type {
   HeatmapCell,
   HeatmapData,
   HomePageData,
+  LeaderboardRefreshState,
   MomentumScoreRow,
   NewsDetailRecord,
   NewsItemRow,
@@ -56,6 +57,9 @@ import {
   type TopMover,
   type TrendDirection,
 } from "@/lib/seed/data";
+import { getPipelineStateRow } from "@/lib/ingestion/run-state";
+import { logger } from "@/lib/monitoring/logger";
+import { buildSectionFreshness, getCanonicalLeaderboardRecords, getContentDateKey, getLatestPublishedAt, resolveDigestLeadStory } from "@/lib/surface-data";
 import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 
@@ -299,9 +303,9 @@ function hasValidEnrichmentData(value: CompanyEnrichment | null | undefined): va
   return Boolean(value && typeof value === "object" && Object.keys(value).length > 0);
 }
 
-function getLatestSiteTimestampFromNewsRows(newsRows: NewsItemRow[]) {
+function getLatestPublishedTimestampFromNewsRows(newsRows: NewsItemRow[]) {
   return newsRows.reduce<string | null>((latest, row) => {
-    const candidate = row.updated_at ?? row.published_at;
+    const candidate = row.published_at;
 
     if (!candidate) {
       return latest;
@@ -480,26 +484,37 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
 }
 
 function fallbackDailyDigest(): DailyDigestRecord {
+  const generatedAt = seedNow.toISOString();
+  const leadStory = newsItemsBySlug[dailyDigest.mostImportantNewsSlug];
+
   return {
+    generatedAt,
     digest: {
       ...dailyDigest,
       summary: toCompleteSentence(dailyDigest.summary),
       narrative: cleanNarrativeText(dailyDigest.narrative),
       watchNext: dailyDigest.watchNext.map((item) => toCompleteSentence(item)).filter(Boolean),
     },
+    leadStory,
     topStories: dailyDigest.topStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean),
     biggestWinnerMomentum: withMeaningfulMomentum(getCompanyMomentum(dailyDigest.biggestWinnerCompanySlug)),
     biggestLoserMomentum: withMeaningfulMomentum(getCompanyMomentum(dailyDigest.biggestLoserCompanySlug)),
-    mostImportantStory: newsItemsBySlug[dailyDigest.mostImportantNewsSlug],
+    mostImportantStory: leadStory,
+    lastUpdatedAt: generatedAt,
   };
 }
 
 function fallbackHomePage(): HomePageData {
+  const generatedAt = seedNow.toISOString();
   const latestPublishedAt = sortedNewsItems[0]?.publishedAt ?? seedNow.toISOString();
+  const latestDateKey = getContentDateKey(latestPublishedAt);
+  const todayStories = sortedNewsItems.filter((item) => getContentDateKey(item.publishedAt) === latestDateKey).slice(0, 5);
+  const breakingStories = sortedNewsItems.filter((item) => item.importanceLevel === "Critical").slice(0, 3);
 
   return {
-    todayStories: sortedNewsItems.filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === dailyDigest.date).slice(0, 5),
-    breakingStories: sortedNewsItems.filter((item) => item.importanceLevel === "Critical").slice(0, 3),
+    generatedAt,
+    todayStories,
+    breakingStories,
     leaderboard: momentumSnapshots,
     launches,
     timeline: timelineEntries,
@@ -507,6 +522,39 @@ function fallbackHomePage(): HomePageData {
     trendingTopics,
     digest: dailyDigest,
     tickerItems: homeTickerItems,
+    sectionFreshness: {
+      todayInAi: buildSectionFreshness({
+        cacheKey: "home:today-in-ai:fallback",
+        generatedAt,
+        newestContentAt: getLatestPublishedAt(todayStories),
+        contentCount: todayStories.length,
+        expectedDateKey: latestDateKey,
+        now: generatedAt,
+      }),
+      breakingMoves: buildSectionFreshness({
+        cacheKey: "home:breaking-moves:fallback",
+        generatedAt,
+        newestContentAt: getLatestPublishedAt(breakingStories),
+        contentCount: breakingStories.length,
+        now: generatedAt,
+      }),
+      leaderboard: buildSectionFreshness({
+        cacheKey: "home:leaderboard:fallback",
+        generatedAt,
+        newestContentAt: latestPublishedAt,
+        contentCount: momentumSnapshots.filter((row) => hasMeaningfulMetric(row.score)).length,
+        staleAfterHours: 168,
+        now: generatedAt,
+      }),
+    },
+    leaderboardRefreshState: {
+      cacheKey: "leaderboard:refresh:fallback",
+      fetchedAt: generatedAt,
+      lastUpdatedAt: latestPublishedAt,
+      isRunning: false,
+      status: "fresh",
+      reason: "Preview seed snapshot",
+    },
     stats: {
       totalStories: sortedNewsItems.length,
       totalCompanies: companies.length,
@@ -1082,6 +1130,7 @@ export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyD
 export const getDailyDigestData = async (
   targetDate = format(new Date(), "yyyy-MM-dd"),
 ): Promise<DailyDigestRecord> => {
+  const generatedAt = new Date().toISOString();
   const [digestRows, companyRows, news, leaderboard, newsRows] = await Promise.all([
     getDailyDigestRows(),
     getCompanyRows(),
@@ -1105,7 +1154,7 @@ export const getDailyDigestData = async (
   const companyById = Object.fromEntries(companyRows.map((row) => [row.id, row]));
   const newsSlugById = Object.fromEntries(newsRows.map((row) => [row.id, row.slug]));
   const inferredTopStories = news
-    .filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === digestRow.digest_date)
+    .filter((item) => getContentDateKey(item.publishedAt) === digestRow.digest_date)
     .sort((left, right) => right.importanceScore - left.importanceScore || new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
     .slice(0, 10);
 
@@ -1129,32 +1178,46 @@ export const getDailyDigestData = async (
 
   const resolvedTopStories =
     topStories.length > 0 ? topStories : inferredTopStories.length > 0 ? inferredTopStories : fallbackDigest.topStories;
-  const resolvedTopStorySlugs = digestTopStorySlugs.length > 0 ? digestTopStorySlugs : fallbackDigest.digest.topStorySlugs;
+  const { leadStory, orderedStories } = resolveDigestLeadStory(resolvedTopStories, mostImportantStory);
+  const resolvedTopStorySlugs =
+    orderedStories.length > 0 ? orderedStories.map((story) => story.slug) : digestTopStorySlugs.length > 0 ? digestTopStorySlugs : fallbackDigest.digest.topStorySlugs;
   const useFallbackCopy = shouldUseDigestFallback(digestRow.summary, digestRow.narrative);
-  const fallbackSummary = buildDigestSummaryFromStories(resolvedTopStories);
-  const fallbackNarrative = buildDigestNarrativeFromStories(resolvedTopStories);
+  const fallbackSummary = leadStory ? toCompleteSentence(leadStory.shortSummary || leadStory.summary || leadStory.whyItMatters || leadStory.headline) : buildDigestSummaryFromStories(orderedStories);
+  const fallbackNarrative = buildDigestNarrativeFromStories(orderedStories);
+
+  logger.info("ui", "daily_digest_story_cohesion", {
+    cacheKey: `daily-digest:${digestRow.digest_date}`,
+    generatedAt,
+    useFallbackCopy,
+    digestHeadline: digestRow.headline_of_the_day,
+    leadStorySlug: leadStory?.slug ?? null,
+    topStorySlug: orderedStories[0]?.slug ?? null,
+    mostImportantSlug,
+  });
 
   return {
+    generatedAt,
     digest: {
       date: digestRow.digest_date,
       title: digestRow.title,
       summary: useFallbackCopy ? fallbackSummary : toCompleteSentence(digestRow.summary),
       narrative: useFallbackCopy ? fallbackNarrative : cleanNarrativeText(digestRow.narrative ?? dailyDigest.narrative),
-      headlineOfTheDay: digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay,
+      headlineOfTheDay: useFallbackCopy ? (leadStory?.headline ?? digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay) : digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay,
       themes: digestRow.themes?.length ? digestRow.themes : dailyDigest.themes,
       biggestWinnerCompanySlug: winnerSlug,
       biggestLoserCompanySlug: loserSlug,
-      mostImportantNewsSlug: mostImportantStory.slug,
+      mostImportantNewsSlug: leadStory?.slug ?? mostImportantStory.slug,
       topStorySlugs: resolvedTopStorySlugs,
       watchNext: (digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext)
         .map((item) => toCompleteSentence(item))
         .filter(Boolean),
     },
-    topStories: resolvedTopStories,
+    leadStory: leadStory ?? mostImportantStory,
+    topStories: orderedStories,
     biggestWinnerMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === winnerSlug)),
     biggestLoserMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === loserSlug)),
-    mostImportantStory,
-    lastUpdatedAt: useFallbackCopy ? getLatestSiteTimestampFromNewsRows(newsRows) ?? digestRow.created_at : digestRow.created_at,
+    mostImportantStory: leadStory ?? mostImportantStory,
+    lastUpdatedAt: digestRow.created_at,
   };
 };
 
@@ -1175,16 +1238,19 @@ export const getDailyDigestByDate = async (date: string): Promise<DailyDigestRec
   const digestSource = pastMatch ?? { ...dailyDigest, date };
 
   return {
+    generatedAt: seedNow.toISOString(),
     digest: {
       ...digestSource,
       summary: toCompleteSentence(digestSource.summary),
       narrative: cleanNarrativeText(digestSource.narrative),
       watchNext: digestSource.watchNext.map((item) => toCompleteSentence(item)).filter(Boolean),
     },
+    leadStory: newsItemsBySlug[digestSource.mostImportantNewsSlug],
     topStories: digestSource.topStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean),
     biggestWinnerMomentum: withMeaningfulMomentum(getCompanyMomentum(digestSource.biggestWinnerCompanySlug)),
     biggestLoserMomentum: withMeaningfulMomentum(getCompanyMomentum(digestSource.biggestLoserCompanySlug)),
     mostImportantStory: newsItemsBySlug[digestSource.mostImportantNewsSlug],
+    lastUpdatedAt: seedNow.toISOString(),
   };
 };
 
@@ -1241,35 +1307,76 @@ export const getSiteLastUpdatedAt = cache(async (): Promise<string | null> => {
     return null;
   }
 
-  return getLatestSiteTimestampFromNewsRows(newsRows);
+  return getLatestPublishedTimestampFromNewsRows(newsRows);
 });
 
 export const getLeaderboardLastUpdatedAt = cache(async (): Promise<string | null> => {
-  const [momentumRows, siteLastUpdatedAt] = await Promise.all([getMomentumRows(), getSiteLastUpdatedAt()]);
+  const momentumRows = await getMomentumRows();
 
   if (momentumRows && momentumRows.length > 0) {
-    const latestCalculatedAt = momentumRows.at(-1)?.calculated_at ?? null;
-
-    if (!latestCalculatedAt) {
-      return null;
-    }
-
-    if (siteLastUpdatedAt) {
-      const lagHours = Math.abs(new Date(siteLastUpdatedAt).getTime() - new Date(latestCalculatedAt).getTime()) / 36e5;
-
-      if (lagHours > 36) {
-        return null;
-      }
-    }
-
-    return latestCalculatedAt;
+    return momentumRows.at(-1)?.calculated_at ?? null;
   }
 
   return null;
 });
 
+export const getLeaderboardRefreshState = cache(async (): Promise<LeaderboardRefreshState> => {
+  const fetchedAt = new Date().toISOString();
+  const [lastUpdatedAt, siteLastUpdatedAt, pipelineState] = await Promise.all([
+    getLeaderboardLastUpdatedAt(),
+    getSiteLastUpdatedAt(),
+    getPipelineStateRow().catch(() => null),
+  ]);
+  const isRunning = pipelineState?.current_status === "running" && Boolean(pipelineState.active_run_id);
+
+  if (isRunning) {
+    const state = {
+      cacheKey: "leaderboard:refresh-state",
+      fetchedAt,
+      lastUpdatedAt,
+      isRunning: true,
+      status: "running",
+      reason: pipelineState?.current_status_reason ?? "Leaderboard refresh is in progress.",
+    } satisfies LeaderboardRefreshState;
+    logger.info("ui", "leaderboard_refresh_state", state);
+    return state;
+  }
+
+  if (lastUpdatedAt) {
+    const lagHours =
+      siteLastUpdatedAt
+        ? Math.abs(new Date(siteLastUpdatedAt).getTime() - new Date(lastUpdatedAt).getTime()) / 36e5
+        : 0;
+    const isFresh = !siteLastUpdatedAt || lagHours <= 36;
+    const state = {
+      cacheKey: "leaderboard:refresh-state",
+      fetchedAt,
+      lastUpdatedAt,
+      isRunning: false,
+      status: isFresh ? "fresh" : "stale",
+      reason: isFresh
+        ? "Leaderboard snapshot is current."
+        : "Leaderboard snapshot is behind the news feed.",
+    } satisfies LeaderboardRefreshState;
+    logger.info("ui", "leaderboard_refresh_state", state);
+    return state;
+  }
+
+  const state = {
+    cacheKey: "leaderboard:refresh-state",
+    fetchedAt,
+    lastUpdatedAt: null,
+    isRunning: false,
+    status: "stale",
+    reason: "Leaderboard snapshot is behind the news feed.",
+  } satisfies LeaderboardRefreshState;
+  logger.info("ui", "leaderboard_refresh_state", state);
+  return state;
+});
+
 export const getHomePageData = cache(async (): Promise<HomePageData> => {
-  const [news, leaderboard, launchData, timeline, movers, companyCards, siteLastUpdatedAt] = await Promise.all([
+  const generatedAt = new Date().toISOString();
+  const [news, rawLeaderboard, launchData, timeline, movers, companyCards, siteLastUpdatedAt, leaderboardRefreshState] = await Promise.all([
     getNewsItemsData(),
     getLeaderboardData(),
     getLaunchesData(),
@@ -1277,15 +1384,20 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     getTopMoversData(),
     getCompaniesIndexData(),
     getSiteLastUpdatedAt(),
+    getLeaderboardRefreshState(),
   ]);
+  const canonicalLeaderboardRecords = getCanonicalLeaderboardRecords(companyCards);
+  const leaderboard = canonicalLeaderboardRecords.map((record) => record.momentum);
 
-  if (news === sortedNewsItems && leaderboard === momentumSnapshots && launchData === launches) {
+  if (news === sortedNewsItems && rawLeaderboard === momentumSnapshots && launchData === launches) {
     return fallbackHomePage();
   }
 
-  const todayStories = news
-    .filter((item) => format(new Date(item.publishedAt), "yyyy-MM-dd") === dailyDigest.date)
-    .slice(0, 5);
+  const latestPublishedAt = getLatestPublishedAt(news) ?? siteLastUpdatedAt ?? seedNow.toISOString();
+  const currentDateKey = getContentDateKey(generatedAt);
+  const latestNewsDateKey = getContentDateKey(latestPublishedAt);
+  const todayStories = news.filter((item) => getContentDateKey(item.publishedAt) === latestNewsDateKey).slice(0, 5);
+  const breakingStories = news.filter((item) => item.importanceLevel === "Critical").slice(0, 3);
   const seenCompanies = new Map<string, number>();
   const dynamicTickerItems: HomeTickerItem[] = [];
 
@@ -1316,9 +1428,48 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
 
   const tickerItems = dynamicTickerItems.length >= 6 ? dynamicTickerItems : homeTickerItems;
 
+  const sectionFreshness = {
+    todayInAi: buildSectionFreshness({
+      cacheKey: "home:today-in-ai",
+      generatedAt,
+      newestContentAt: getLatestPublishedAt(todayStories),
+      contentCount: todayStories.length,
+      expectedDateKey: currentDateKey,
+      now: generatedAt,
+    }),
+    breakingMoves: buildSectionFreshness({
+      cacheKey: "home:breaking-moves",
+      generatedAt,
+      newestContentAt: getLatestPublishedAt(breakingStories),
+      contentCount: breakingStories.length,
+      now: generatedAt,
+    }),
+    leaderboard: buildSectionFreshness({
+      cacheKey: "home:leaderboard",
+      generatedAt,
+      newestContentAt: leaderboardRefreshState.lastUpdatedAt,
+      contentCount: leaderboard.length,
+      staleAfterHours: 36,
+      now: generatedAt,
+    }),
+  } as const;
+
+  logger.info("ui", "homepage_section_freshness", {
+    cacheKey: "home-page-data",
+    generatedAt,
+    newestStoryTimestamp: latestPublishedAt,
+    latestNewsDateKey,
+    currentDateKey,
+    todayInAi: sectionFreshness.todayInAi,
+    breakingMoves: sectionFreshness.breakingMoves,
+    leaderboard: sectionFreshness.leaderboard,
+    leaderboardRefreshStatus: leaderboardRefreshState.status,
+  });
+
   return {
-    todayStories: todayStories.length > 0 ? todayStories : news.slice(0, 5),
-    breakingStories: news.filter((item) => item.importanceLevel === "Critical").slice(0, 3),
+    generatedAt,
+    todayStories,
+    breakingStories,
     leaderboard,
     launches: launchData,
     timeline,
@@ -1326,11 +1477,13 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     trendingTopics,
     digest: (await getDailyDigestData()).digest,
     tickerItems,
+    sectionFreshness,
+    leaderboardRefreshState,
     stats: {
       totalStories: news.length,
       totalCompanies: companyCards.length,
       totalLaunches: launchData.length,
-      lastUpdatedAt: siteLastUpdatedAt ?? news[0]?.publishedAt ?? seedNow.toISOString(),
+      lastUpdatedAt: siteLastUpdatedAt ?? latestPublishedAt,
       seedMode: false,
     },
   };

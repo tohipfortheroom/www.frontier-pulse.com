@@ -32,17 +32,18 @@ export function LeaderboardTable({
     () => [...rows].filter((row) => hasMeaningfulMetric(row.score)).sort((left, right) => left.rank - right.rank),
     [rows],
   );
+  const visibleRows = useMemo(() => (mode === "preview" ? sortedRows.slice(0, 10) : sortedRows), [mode, sortedRows]);
   const previousScores = useRef<Record<string, number>>({});
   const [flashingRows, setFlashingRows] = useState<string[]>([]);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const refreshTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
-    const changed = sortedRows
+    const changed = visibleRows
       .filter((row) => previousScores.current[row.companySlug] !== undefined && previousScores.current[row.companySlug] !== row.score)
       .map((row) => row.companySlug);
 
-    previousScores.current = Object.fromEntries(sortedRows.map((row) => [row.companySlug, row.score]));
+    previousScores.current = Object.fromEntries(visibleRows.map((row) => [row.companySlug, row.score]));
 
     if (changed.length > 0) {
       setFlashingRows(changed);
@@ -51,7 +52,7 @@ export function LeaderboardTable({
     }
 
     return undefined;
-  }, [sortedRows]);
+  }, [visibleRows]);
 
   useEffect(() => {
     if (!realtime) {
@@ -86,7 +87,7 @@ export function LeaderboardTable({
     };
   }, [realtime, router]);
 
-  if (sortedRows.length === 0) {
+  if (visibleRows.length === 0) {
     return (
       <div className="surface-card rounded-2xl border border-[var(--border)] p-5 text-sm text-[var(--text-secondary)] backdrop-blur-sm">
         Leaderboard data is updating.
@@ -110,7 +111,7 @@ export function LeaderboardTable({
             </tr>
           </thead>
           <tbody>
-            {sortedRows.map((row, index) => {
+            {visibleRows.map((row, index) => {
               const company = companiesBySlug[row.companySlug];
               const sparklineColor = row.scoreChange7d >= 0 ? "var(--accent-green)" : "var(--accent-red)";
 
@@ -204,7 +205,7 @@ export function LeaderboardTable({
       </div>
 
       <div className="space-y-4 p-4 lg:hidden">
-        {sortedRows.map((row) => {
+        {visibleRows.map((row) => {
           const company = companiesBySlug[row.companySlug];
           const sparklineColor = row.scoreChange7d >= 0 ? "var(--accent-green)" : "var(--accent-red)";
 

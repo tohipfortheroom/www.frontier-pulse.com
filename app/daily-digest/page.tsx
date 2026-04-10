@@ -2,8 +2,9 @@ import { format } from "date-fns";
 import type { Metadata } from "next";
 
 import { getDailyDigestByDate, getDailyDigestData, getDigestArchiveDates } from "@/lib/db/queries";
-import { companiesBySlug } from "@/lib/seed/data";
+import { categories, companiesBySlug } from "@/lib/seed/data";
 
+import { CompanyBadge } from "@/components/company-badge";
 import { DailyDigestBlock } from "@/components/daily-digest-block";
 import { DigestArchiveNav } from "@/components/digest-archive-nav";
 import { SectionHeader } from "@/components/section-header";
@@ -17,8 +18,9 @@ export async function generateMetadata({ searchParams }: DailyDigestPageProps): 
     const dateParam = typeof resolvedParams.date === "string" ? resolvedParams.date : undefined;
     const digestResult = dateParam ? await getDailyDigestByDate(dateParam) : await getDailyDigestData();
     const digestDate = digestResult.digest.date;
+    const leadStory = digestResult.leadStory;
     const title = `Daily Digest — ${digestDate}`;
-    const description = digestResult.digest.summary
+    const description = toCompleteSentence(leadStory.shortSummary || leadStory.summary || leadStory.whyItMatters || digestResult.digest.summary)
       || `Read the ${BRAND_NAME} daily digest for ${digestDate}: the stories that mattered most and what to watch next.`;
 
     return {
@@ -49,11 +51,15 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
     getDigestArchiveDates(),
   ]);
 
-  const { digest, topStories, biggestWinnerMomentum, biggestLoserMomentum, mostImportantStory } = digestResult;
+  const { digest, leadStory, topStories, biggestWinnerMomentum, biggestLoserMomentum, mostImportantStory } = digestResult;
   const winner = companiesBySlug[digest.biggestWinnerCompanySlug];
   const loser = companiesBySlug[digest.biggestLoserCompanySlug];
   const narrativeParagraphs = (digest.narrative ?? "").split("\n\n").filter(Boolean);
   const lastUpdatedLabel = formatLastUpdatedLabel(digestResult.lastUpdatedAt);
+  const leadStorySummary = toCompleteSentence(leadStory.shortSummary || leadStory.summary || leadStory.whyItMatters || digest.summary);
+  const leadStoryCategories = leadStory.categorySlugs
+    .map((slug) => categories.find((category) => category.slug === slug)?.name ?? slug.replace(/-/g, " "))
+    .slice(0, 3);
 
   return (
     <div className="relative z-10 mx-auto max-w-6xl px-5 py-16 lg:py-20">
@@ -63,11 +69,25 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
         <div className="flex flex-wrap items-start justify-between gap-4">
           <SectionHeader
             label="DAILY DIGEST"
-            title={digest.headlineOfTheDay ?? formatLongDate(digest.date)}
-            subtitle={toCompleteSentence(digest.summary)}
+            title={leadStory.headline}
+            subtitle={leadStorySummary}
             tone="blue"
           />
-          <ShareButton path="/daily-digest" title={BRAND_DIGEST_NAME} text={digest.summary} />
+          <ShareButton path="/daily-digest" title={BRAND_DIGEST_NAME} text={leadStorySummary} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--text-tertiary)]">
+          <span className="rounded-full border border-[var(--border)] px-3 py-1">{leadStory.sourceName}</span>
+          {leadStory.companySlugs.map((companySlug) => (
+            <CompanyBadge key={`lead-${leadStory.slug}-${companySlug}`} companySlug={companySlug} />
+          ))}
+          {leadStoryCategories.map((category) => (
+            <span
+              key={`lead-category-${category}`}
+              className="rounded-full border border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] px-3 py-1 text-[var(--accent-blue)]"
+            >
+              {category}
+            </span>
+          ))}
         </div>
         {lastUpdatedLabel ? (
           <p className="text-xs text-[var(--text-tertiary)]">{lastUpdatedLabel}</p>
@@ -77,14 +97,14 @@ export default async function DailyDigestPage({ searchParams }: DailyDigestPageP
           <p className="font-[family-name:var(--font-mono)] text-[12px] uppercase tracking-[0.16em] text-[var(--text-tertiary)]">
             {formatLongDate(digest.date)}
           </p>
-          {digest.themes?.length ? (
+          {leadStoryCategories.length > 0 ? (
             <div className="mt-4 flex flex-wrap gap-2">
-              {digest.themes.map((theme) => (
+              {leadStoryCategories.map((category) => (
                 <span
-                  key={theme}
+                  key={category}
                   className="rounded-full border border-[var(--accent-blue-border)] bg-[var(--accent-blue-soft)] px-3 py-1 text-xs text-[var(--accent-blue)]"
                 >
-                  {theme}
+                  {category}
                 </span>
               ))}
             </div>
