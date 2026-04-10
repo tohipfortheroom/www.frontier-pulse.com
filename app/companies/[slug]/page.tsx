@@ -311,7 +311,7 @@ export default async function CompanyDetailPage({
           />
           <div className="grid gap-5 xl:grid-cols-2">
             {recentNews.map((item) => (
-              <NewsCard key={item.slug} news={item} />
+              <NewsCard key={item.slug} news={item} defaultExpanded />
             ))}
           </div>
         </section>

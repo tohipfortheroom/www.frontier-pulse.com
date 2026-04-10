@@ -47,7 +47,7 @@ import {
   type TopMover,
   type TrendDirection,
 } from "@/lib/seed/data";
-import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
+import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
 
 type CompanyNewsRow = {
@@ -78,6 +78,17 @@ type TagRow = {
 };
 
 type LaunchTypeMap = "MODEL" | "PRODUCT" | "PLATFORM" | "API";
+
+const GENERIC_COMPANY_COPY_PATTERNS = [
+  /\ba leading (?:technology|ai) compan/i,
+  /\bleading technolog/i,
+  /\bpositions? (?:it|them|the company) well for the future/i,
+  /\bwell-positioned for the future/i,
+  /\bcould change things/i,
+  /\bremains to be seen/i,
+  /\btransformative impact/i,
+  /\bcutting-edge ai/i,
+];
 
 function impactToScore(impact: NewsItem["impactDirection"]) {
   if (impact === "positive") {
@@ -214,8 +225,37 @@ function launchAccentFromType(type: LaunchTypeMap): LaunchCardData["accent"] {
   }
 }
 
+function isGenericCompanyCopy(value: string) {
+  return GENERIC_COMPANY_COPY_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function pickSpecificCompanyCopy(...candidates: Array<string | null | undefined>) {
+  let fallback = "";
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string" || !hasDisplayText(candidate)) {
+      continue;
+    }
+
+    const trimmed = candidate.trim();
+
+    if (!fallback) {
+      fallback = trimmed;
+    }
+
+    if (!isGenericCompanyCopy(trimmed)) {
+      return trimmed;
+    }
+  }
+
+  return fallback;
+}
+
 function mergeCompanyRow(companyRow: CompanyRow): CompanyProfile {
   const presentation = companiesBySlug[companyRow.slug];
+  const description = pickSpecificCompanyCopy(companyRow.description, presentation?.description, companyRow.overview, presentation?.overview);
+  const overview = pickSpecificCompanyCopy(companyRow.overview, presentation?.overview, companyRow.description, presentation?.description);
+  const whyItMatters = pickSpecificCompanyCopy(companyRow.why_it_matters, presentation?.whyItMatters);
 
   return {
     slug: companyRow.slug,
@@ -230,11 +270,11 @@ function mergeCompanyRow(companyRow: CompanyRow): CompanyProfile {
         logoUrl: presentation?.logoUrl ?? undefined,
       }) ??
       undefined,
-    description: companyRow.description,
-    overview: companyRow.overview,
+    description,
+    overview,
     strengths: companyRow.strengths ?? presentation?.strengths ?? [],
     weaknesses: companyRow.weaknesses ?? presentation?.weaknesses ?? [],
-    whyItMatters: companyRow.why_it_matters,
+    whyItMatters,
     valuationText: companyRow.valuation_text ?? presentation?.valuationText,
     websiteUrl: companyRow.website_url,
     tags: presentation?.tags ?? [],
