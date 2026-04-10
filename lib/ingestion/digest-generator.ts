@@ -69,6 +69,21 @@ type DigestStory = NewsRow & {
   leadEligible: boolean;
 };
 
+export function normalizeDigestCategorySlugs(
+  categorySlugs: string[],
+  sourceTier: ReturnType<typeof inferSourceTierFromStory>,
+) {
+  const deduped = uniqueValues(categorySlugs);
+
+  if (sourceTier !== "research-repository") {
+    return deduped;
+  }
+
+  const researchCategories = deduped.filter((slug) => slug === "research" || slug === "benchmark");
+
+  return researchCategories.length > 0 ? uniqueValues(["research", ...researchCategories]) : ["research"];
+}
+
 function clampStorySlugs(candidates: string[], availableSlugs: string[]) {
   const available = new Set(availableSlugs);
   const deduped = Array.from(new Set(candidates.filter((slug) => available.has(slug))));
@@ -173,8 +188,8 @@ function buildDigestStories(
 ) {
   return news
     .map<DigestStory>((story) => {
-      const categorySlugs = categorySlugsByNewsId.get(story.id) ?? [];
       const sourceTier = inferSourceTierFromStory(story.source_name, story.source_url);
+      const categorySlugs = normalizeDigestCategorySlugs(categorySlugsByNewsId.get(story.id) ?? [], sourceTier);
       const digestStory: DigestStory = {
         ...story,
         categorySlugs,
@@ -224,10 +239,13 @@ function fallbackDigest(news: DigestStory[], winnerSlug: string, loserSlug: stri
   const topStories = (leadStories.length > 0 ? leadStories : news.filter((story) => story.sourceTier !== "community")).slice(0, 6);
   const leadStory = topStories[0];
   const weakPool = leadStories.length < 3;
+  const sparseSummary = "The signal pool was light today, so the digest stays intentionally sparse and limited to verified competitive developments.";
 
   return {
     summary:
-      weakPool && topStories.length > 0
+      topStories.length === 0
+        ? sparseSummary
+        : weakPool && topStories.length > 0
         ? `The story pool was thin, so the digest is prioritizing only the clearest competitive moves. ${topStories
             .slice(0, 2)
             .map((story) => story.short_summary || story.summary || story.headline)
@@ -442,17 +460,6 @@ export async function generateDailyDigest(referenceDate = new Date()) {
   const momentumRows = (momentumResult.data ?? []) as MomentumScoreRow[];
   const categoryRows = (categoryResult.data ?? []) as CategoryRow[];
   const newsCategoryRows = (newsCategoryResult.data ?? []) as NewsCategoryRow[];
-
-  if (newsRows.length < 5) {
-    return {
-      generated: false,
-      stored: false,
-      digestDate,
-      storyCount: newsRows.length,
-      usedLlm: false,
-      reason: "insufficient-stories",
-    };
-  }
 
   const companyIdsByNewsId = companyNewsRows.reduce<Record<string, string[]>>((accumulator, row) => {
     accumulator[row.news_item_id] = [...(accumulator[row.news_item_id] ?? []), row.company_id];

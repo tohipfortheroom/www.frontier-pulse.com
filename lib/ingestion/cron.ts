@@ -1,23 +1,87 @@
+import { logger } from "../monitoring/logger.ts";
 import { generateDailyDigest } from "./digest-generator.ts";
+import { recomputeLeaderboardFromNews } from "./leaderboard.ts";
 import { runIngestionPipeline, runPriorityIngestion } from "./pipeline.ts";
 import type { PipelineTriggerKind } from "./types.ts";
+
+type DownstreamTaskResult<T> = {
+  task: "leaderboard" | "digest";
+  status: "success" | "error" | "skipped";
+  ran: boolean;
+  finishedAt: string;
+  error?: string;
+  result?: T;
+};
+
+function skippedTask<T>(task: DownstreamTaskResult<T>["task"], reason: string): DownstreamTaskResult<T> {
+  return {
+    task,
+    status: "skipped",
+    ran: false,
+    finishedAt: new Date().toISOString(),
+    error: reason,
+  };
+}
+
+async function runDownstreamTask<T>(
+  task: DownstreamTaskResult<T>["task"],
+  action: () => Promise<T>,
+): Promise<DownstreamTaskResult<T>> {
+  try {
+    const result = await action();
+    const payload = {
+      task,
+      status: "success",
+      ran: true,
+      finishedAt: new Date().toISOString(),
+      result,
+    } satisfies DownstreamTaskResult<T>;
+    logger.info("ingestion", `${task}_completed`, {
+      task,
+      finishedAt: payload.finishedAt,
+    });
+    return payload;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    logger.error("ingestion", `${task}_failed`, {
+      task,
+      error: message,
+    });
+    return {
+      task,
+      status: "error",
+      ran: true,
+      finishedAt: new Date().toISOString(),
+      error: message,
+    };
+  }
+}
 
 export async function runCronIngestion(triggerKind: PipelineTriggerKind = "cron") {
   const ingestion = await runIngestionPipeline({
     triggerKind,
     targetScope: "all",
   });
-  const digest =
-    !ingestion.dryRun && (ingestion.status === "success" || ingestion.status === "partial_success")
-      ? await generateDailyDigest()
-      : {
-          generated: false,
-          stored: false,
-          digestDate: new Date().toISOString().slice(0, 10),
-          storyCount: 0,
-          usedLlm: false,
-          reason: "ingestion-not-successful",
-        };
+  const shouldRunDownstream = !ingestion.dryRun && (ingestion.status === "success" || ingestion.status === "partial_success");
+  const leaderboard = shouldRunDownstream
+    ? await runDownstreamTask("leaderboard", () => recomputeLeaderboardFromNews())
+    : skippedTask("leaderboard", "ingestion-not-successful");
+  const digest = shouldRunDownstream
+    ? await runDownstreamTask("digest", () => generateDailyDigest())
+    : skippedTask("digest", "ingestion-not-successful");
+  const downstreamErrors = [leaderboard, digest]
+    .filter((task) => task.status === "error")
+    .map((task) => `${task.task}: ${task.error ?? "unknown error"}`);
+  const status =
+    ingestion.status === "error" || ingestion.status === "skipped"
+      ? ingestion.status
+      : downstreamErrors.length > 0
+        ? "partial_success"
+        : ingestion.status;
+  const statusReason =
+    downstreamErrors.length > 0
+      ? `${ingestion.statusReason} Downstream follow-up failed: ${downstreamErrors.join("; ")}`
+      : ingestion.statusReason;
 
   if (ingestion.staleSourceIds.length > 0) {
     console.warn(`Stale sources detected: ${ingestion.staleSourceIds.join(", ")}`);
@@ -25,7 +89,11 @@ export async function runCronIngestion(triggerKind: PipelineTriggerKind = "cron"
 
   return {
     ...ingestion,
+    status,
+    statusReason,
+    leaderboard,
     digest,
+    downstreamErrors,
   };
 }
 

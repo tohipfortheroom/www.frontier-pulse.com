@@ -12,10 +12,41 @@ export async function GET() {
   const snapshot = await getSourceHealthSnapshot(sourceRegistry);
   const client = getSupabaseServerClient();
   let databaseConnected = false;
+  let operationalStatus: {
+    scoring: { lastCalculatedAt: string | null; rowCount: number | null };
+    digest: { latestDigestDate: string | null; generatedAt: string | null; rowCount: number | null };
+    events: { latestEventDate: string | null; rowCount: number | null };
+    news: { latestPublishedAt: string | null; rowCount: number | null };
+  } | null = null;
 
   if (client) {
-    const { error } = await client.from("companies").select("id").limit(1);
-    databaseConnected = !error;
+    const [databaseCheck, newsRows, momentumRows, digestRows, eventRows] = await Promise.all([
+      client.from("companies").select("id").limit(1),
+      client.from("news_items").select("published_at", { count: "exact" }).order("published_at", { ascending: false }).limit(1),
+      client.from("momentum_scores").select("calculated_at", { count: "exact" }).order("calculated_at", { ascending: false }).limit(1),
+      client.from("daily_digests").select("digest_date, created_at", { count: "exact" }).order("digest_date", { ascending: false }).limit(1),
+      client.from("events").select("event_date", { count: "exact" }).order("event_date", { ascending: false }).limit(1),
+    ]);
+    databaseConnected = !databaseCheck.error;
+    operationalStatus = {
+      scoring: {
+        lastCalculatedAt: momentumRows.data?.[0]?.calculated_at ?? null,
+        rowCount: momentumRows.count ?? null,
+      },
+      digest: {
+        latestDigestDate: digestRows.data?.[0]?.digest_date ?? null,
+        generatedAt: digestRows.data?.[0]?.created_at ?? null,
+        rowCount: digestRows.count ?? null,
+      },
+      events: {
+        latestEventDate: eventRows.data?.[0]?.event_date ?? null,
+        rowCount: eventRows.count ?? null,
+      },
+      news: {
+        latestPublishedAt: newsRows.data?.[0]?.published_at ?? null,
+        rowCount: newsRows.count ?? null,
+      },
+    };
   }
 
   const latestRun = snapshot.recentRuns[0] ?? null;
@@ -41,12 +72,13 @@ export async function GET() {
       sourceHealthSummary,
       databaseConnected,
       llmAvailable: isLlmConfigured(),
+      operationalStatus,
     },
     {
       status: httpStatus,
-    headers: {
-      "Cache-Control": "no-store, max-age=0",
-    },
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+      },
     },
   );
 }

@@ -107,9 +107,9 @@ export function Navbar() {
         seconds: format(clock, "ss"),
       }
     : {
-        hours: "--",
-        minutes: "--",
-        seconds: "--",
+        hours: "00",
+        minutes: "00",
+        seconds: "00",
       };
 
   return (
@@ -133,7 +133,13 @@ export function Navbar() {
             <BrandLogo variant="full" className="text-[12px] sm:text-[15px]" />
           </Link>
 
-          <div className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 items-center font-[family-name:var(--font-mono)] text-[12px] text-[var(--text-tertiary)] md:flex">
+          <div
+            className={cn(
+              "pointer-events-none absolute left-1/2 hidden -translate-x-1/2 items-center font-[family-name:var(--font-mono)] text-[12px] text-[var(--text-tertiary)] md:flex",
+              !clock && "invisible",
+            )}
+            aria-hidden={!clock}
+          >
             <span>{clockParts.hours}</span>
             <span className="px-0.5 animate-[clockBlink_1s_steps(1,end)_infinite]">:</span>
             <span>{clockParts.minutes}</span>

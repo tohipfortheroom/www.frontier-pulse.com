@@ -11,9 +11,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await recomputeLeaderboardFromNews();
+  try {
+    const result = await recomputeLeaderboardFromNews();
 
-  return NextResponse.json(result);
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[cron][recompute-leaderboard] Failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -21,7 +27,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await recomputeLeaderboardFromNews();
+  try {
+    const result = await recomputeLeaderboardFromNews();
 
-  return NextResponse.json(result);
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[cron][recompute-leaderboard] Failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

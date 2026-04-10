@@ -1,6 +1,9 @@
+import { format } from "date-fns";
+
 import { getSupabaseServiceClient } from "@/lib/db/client";
 import { getDailyDigestData } from "@/lib/db/queries";
 import { buildDigestEmailHtml } from "@/lib/email/templates/daily-digest";
+import { generateDailyDigest } from "@/lib/ingestion/digest-generator";
 import type { MomentumSnapshot } from "@/lib/seed/data";
 
 type Subscriber = {
@@ -13,6 +16,10 @@ type SendResult = {
   sent: number;
   failed: number;
   skipped: number;
+  digestDate: string;
+  digestStored: boolean;
+  digestGenerated: boolean;
+  digestReason: string | null;
 };
 
 const BATCH_SIZE = 50;
@@ -159,25 +166,57 @@ async function sendBatch(
   return { sent, failed };
 }
 
-export async function sendDailyDigest(): Promise<SendResult> {
+export async function sendDailyDigest(referenceDate = new Date()): Promise<SendResult> {
+  const digestGeneration = await generateDailyDigest(referenceDate);
+  const digestDate = digestGeneration.digestDate;
+
   if (!isEmailConfigured()) {
     console.log("[digest-sender] RESEND_API_KEY not set, skipping email digest.");
-    return { sent: 0, failed: 0, skipped: 0 };
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      digestDate,
+      digestStored: digestGeneration.stored,
+      digestGenerated: digestGeneration.generated,
+      digestReason: digestGeneration.reason ?? null,
+    };
   }
 
   const [digestData, subscribers, leaderboard] = await Promise.all([
-    getDailyDigestData(),
+    getDailyDigestData(digestDate),
     getSubscribers(),
     getLeaderboard(),
   ]);
 
+  if (digestData.digest.date !== digestDate) {
+    console.log(`[digest-sender] No current digest stored for ${digestDate}, skipping send.`);
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: subscribers.length,
+      digestDate,
+      digestStored: false,
+      digestGenerated: digestGeneration.generated,
+      digestReason: digestGeneration.reason ?? "digest-date-mismatch",
+    };
+  }
+
   if (subscribers.length === 0) {
     console.log("[digest-sender] No subscribers found, skipping.");
-    return { sent: 0, failed: 0, skipped: 0 };
+    return {
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      digestDate,
+      digestStored: digestGeneration.stored,
+      digestGenerated: digestGeneration.generated,
+      digestReason: digestGeneration.reason ?? null,
+    };
   }
 
   const siteUrl = getSiteUrl();
-  const subject = `Frontier Pulse: ${digestData.digest.title} - ${digestData.digest.date}`;
+  const subject = `Frontier Pulse: ${digestData.digest.title} - ${format(referenceDate, "yyyy-MM-dd")}`;
 
   let totalSent = 0;
   let totalFailed = 0;
@@ -198,5 +237,9 @@ export async function sendDailyDigest(): Promise<SendResult> {
     sent: totalSent,
     failed: totalFailed,
     skipped: 0,
+    digestDate,
+    digestStored: digestGeneration.stored,
+    digestGenerated: digestGeneration.generated,
+    digestReason: digestGeneration.reason ?? null,
   };
 }
