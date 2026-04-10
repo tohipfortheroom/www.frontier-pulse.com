@@ -1,8 +1,8 @@
 export const BRAND_NAME = "Frontier Pulse";
 export const BRAND_NAME_UPPER = "FRONTIER PULSE";
-export const BRAND_TAGLINE = "Track the AI race in real time.";
+export const BRAND_TAGLINE = "The AI race, scored and explained.";
 export const BRAND_DESCRIPTION =
-  "Frontier Pulse tracks the AI race in real time with a live editorial scoreboard covering launches, funding, partnerships, regulation, and momentum shifts.";
+  "Frontier Pulse scores and explains momentum across the companies shaping the AI race.";
 export const BRAND_DIGEST_NAME = "Frontier Pulse Daily Digest";
 export const BRAND_UTM_SOURCE = "frontier-pulse";
 

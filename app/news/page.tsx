@@ -8,7 +8,7 @@ import { SectionHeader } from "@/components/section-header";
 
 export const metadata: Metadata = {
   title: "News",
-  description: "Filter the AI news stream by company, category, timeframe, and importance to find the signal that matters.",
+  description: "Filter the AI competitive intelligence stream by company, category, timeframe, and importance to find the signal that matters.",
 };
 
 export const dynamic = "force-dynamic";

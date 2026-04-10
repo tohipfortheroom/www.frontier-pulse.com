@@ -306,7 +306,7 @@ export default async function CompanyDetailPage({
         <section className="fade-slide-up mt-16 space-y-8" style={{ animationDelay: "0.2s" }}>
           <SectionHeader
             label="RECENT NEWS"
-            title="What just moved around this company"
+            title="What changed and why it matters"
             tone="amber"
           />
           <div className="grid gap-5 xl:grid-cols-2">

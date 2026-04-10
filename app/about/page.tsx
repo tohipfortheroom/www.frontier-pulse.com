@@ -47,7 +47,7 @@ const decayPolyline = decaySeries
 
 export const metadata: Metadata = {
   title: "About",
-  description: `Learn what ${BRAND_NAME} covers, how momentum scoring works, where the data comes from, and why the tracker exists.`,
+  description: `Learn how ${BRAND_NAME} approaches AI competitive intelligence, momentum scoring, source selection, and update cadence.`,
 };
 
 export default function AboutPage() {
@@ -56,7 +56,7 @@ export default function AboutPage() {
       <section className="fade-slide-up space-y-10">
         <SectionHeader
           label="ABOUT"
-          title={`${BRAND_NAME} turns a noisy AI news cycle into a readable competitive brief.`}
+          title={`${BRAND_NAME} turns the AI race into a readable competitive brief.`}
           subtitle={BRAND_DESCRIPTION}
           tone="purple"
           align="center"

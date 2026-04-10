@@ -23,8 +23,8 @@ import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { stats } = await getHomePageData();
-  const title = `${BRAND_NAME} — AI Intelligence`;
-  const description = `Tracking ${stats.totalCompanies} companies and ${stats.totalStories} stories shaping the AI era.`;
+  const title = `${BRAND_NAME} — AI Momentum Tracker`;
+  const description = `${BRAND_NAME} scores and explains AI momentum across ${stats.totalCompanies} companies and ${stats.totalStories} recent stories shaping the race.`;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   return {
@@ -322,8 +322,8 @@ export default async function HomePage() {
                 WHY THIS EXISTS
               </p>
               <p className="text-lg leading-8 text-[var(--text-secondary)]">
-                AI news is everywhere, but most people still have to piece the story together themselves. {BRAND_NAME}
-                brings the major companies, launches, and momentum shifts into one simple daily view.
+                Most AI coverage still leaves readers to connect the dots themselves. {BRAND_NAME} pulls the major
+                companies, launches, and momentum shifts into a readable competitive brief.
               </p>
               <div className="flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
                 <Link href="/about" className={buttonVariants({ variant: "ghost", className: "text-[var(--accent-blue)]" })}>

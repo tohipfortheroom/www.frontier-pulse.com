@@ -18,8 +18,8 @@ export async function Footer() {
           <div className="space-y-3">
             <BrandLogo variant="full" alt="" className="text-[18px] sm:text-[20px]" />
             <p className="max-w-xl text-sm leading-7 text-[var(--text-secondary)]">
-              {BRAND_NAME} follows the companies shaping the AI era with live editorial coverage, explainable momentum
-              scoring, and daily signal across launches, infrastructure, regulation, and partnerships.
+              {BRAND_NAME} tracks the companies shaping the AI race with explainable momentum scoring and editorial
+              context around launches, infrastructure, regulation, and partnerships.
             </p>
           </div>
           <div className="space-y-1 text-right">
