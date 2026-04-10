@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
+import { inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
 
 describe("rankCompanySlugsByStoryContext", () => {
   it("prioritizes the company that dominates the headline and body", () => {
@@ -33,5 +33,25 @@ describe("rankCompanySlugsByStoryContext", () => {
         sourceName: "Reuters",
       }),
     ).toEqual(["amazon-aws-ai", "openai", "nvidia"]);
+  });
+
+  it("infers a missing tracked company when the headline makes it obvious", () => {
+    expect(
+      inferPrimaryCompanySlug({
+        headline: "Meta pauses work with Mercor after data breach review",
+        body: "Meta halted the Mercor engagement while it investigates how candidate data was exposed.",
+        sourceName: "The Information",
+      }),
+    ).toBe("meta-ai");
+  });
+
+  it("does not force a tracked company onto unrelated industry stories", () => {
+    expect(
+      inferPrimaryCompanySlug({
+        headline: "OpenClaw gives users yet another reason to be freaked out about security",
+        body: "The Ars Technica piece covers an open-source project and a new security risk.",
+        sourceName: "Ars Technica",
+      }),
+    ).toBeNull();
   });
 });

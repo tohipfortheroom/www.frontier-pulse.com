@@ -11,6 +11,17 @@ const DIGEST_GLITCH_PATTERNS = [
   /\bLaunch HN:/i,
   /\bcross Abstract:/i,
 ];
+const GENERIC_WHY_IT_MATTERS_PATTERNS = [
+  /policy stories matter because compliance friction can slow adoption even when model quality keeps improving/i,
+  /commercial partnerships matter because they convert technical progress into distribution, customers, and revenue signal/i,
+  /this matters because it changes how the market reads current momentum, execution quality, or adoption potential/i,
+  /this matters because it changes how the market reads/i,
+  /changes how the market reads current momentum/i,
+  /execution quality/i,
+  /adoption potential/i,
+  /compliance friction can slow adoption/i,
+  /distribution, customers, and revenue signal/i,
+];
 const SENTENCE_ABBREVIATIONS = new Set(["no", "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc"]);
 
 function toCodePoint(value: string, radix: 10 | 16) {
@@ -99,6 +110,13 @@ function extractSentences(value: string) {
   return sentences;
 }
 
+function normalizeComparableText(value: string | null | undefined) {
+  return sanitizeEditorialText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 export function decodeHtmlEntities(value: string) {
   return value
     .replace(/&#(\d+);/g, (match, decimal) => {
@@ -151,6 +169,27 @@ export function sanitizeEditorialText(value: string | null | undefined) {
   }
 
   return normalizeEditorialWhitespace(decodeHtmlEntities(input).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ""));
+}
+
+export function isHeadlineRestatement(headline: string | null | undefined, text: string | null | undefined) {
+  const normalizedHeadline = normalizeComparableText(headline);
+  const normalizedText = normalizeComparableText(text);
+
+  if (!normalizedHeadline || !normalizedText) {
+    return false;
+  }
+
+  return normalizedText === normalizedHeadline || (normalizedText.startsWith(normalizedHeadline) && normalizedText.length - normalizedHeadline.length < 24);
+}
+
+export function isGenericWhyItMatters(value: string | null | undefined) {
+  const cleaned = sanitizeEditorialText(value);
+
+  if (!cleaned) {
+    return false;
+  }
+
+  return GENERIC_WHY_IT_MATTERS_PATTERNS.some((pattern) => pattern.test(cleaned));
 }
 
 export function buildSentenceExcerpt(
@@ -275,4 +314,64 @@ export function selectBestShortSummary({
     ? summaryFallback || shortSummary || headline
     : shortSummary || summaryFallback || headline;
   return buildSentenceExcerpt(preferred, { maxChars: 160, maxSentences: 1 });
+}
+
+export function selectBestWhyItMatters({
+  whyItMatters,
+  headline,
+  summary,
+  shortSummary,
+}: {
+  whyItMatters?: string | null;
+  headline: string;
+  summary?: string | null;
+  shortSummary?: string | null;
+}) {
+  const cleaned = buildSentenceExcerpt(whyItMatters, { maxChars: 220, maxSentences: 1 });
+
+  if (!cleaned || isGenericWhyItMatters(cleaned) || isHeadlineRestatement(headline, cleaned)) {
+    return "";
+  }
+
+  const normalized = normalizeComparableText(cleaned);
+
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized === normalizeComparableText(summary) || normalized === normalizeComparableText(shortSummary)) {
+    return "";
+  }
+
+  return cleaned;
+}
+
+export function hasUsableExpandedSummary({
+  summary,
+  shortSummary,
+  headline,
+  minimumChars = 80,
+}: {
+  summary?: string | null;
+  shortSummary?: string | null;
+  headline: string;
+  minimumChars?: number;
+}) {
+  const cleaned = sanitizeEditorialText(summary);
+
+  if (!cleaned || cleaned.length < minimumChars || looksLikeTruncatedText(cleaned)) {
+    return false;
+  }
+
+  const normalized = normalizeComparableText(cleaned);
+
+  if (!normalized) {
+    return false;
+  }
+
+  return (
+    normalized !== normalizeComparableText(shortSummary) &&
+    normalized !== normalizeComparableText(headline) &&
+    !isHeadlineRestatement(headline, cleaned)
+  );
 }

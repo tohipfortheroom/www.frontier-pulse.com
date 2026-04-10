@@ -24,6 +24,7 @@ import {
   looksLikeCorruptedDigestText,
   selectBestShortSummary,
   selectBestSummary,
+  selectBestWhyItMatters,
   sanitizeEditorialText,
 } from "@/lib/content";
 import {
@@ -62,7 +63,7 @@ import { logger } from "@/lib/monitoring/logger";
 import { buildSectionFreshness, getCanonicalLeaderboardRecords, getContentDateKey, getLatestPublishedAt, resolveDigestLeadStory } from "@/lib/surface-data";
 import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
-import { rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
+import { inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
 
 type CompanyNewsRow = {
   company_id: string;
@@ -325,7 +326,7 @@ function getStorySummary(row: NewsItemRow) {
     selectBestSummary({
       summary: row.summary,
       fallbackText: row.cleaned_text ?? row.raw_text,
-      headline: row.headline,
+      headline: sanitizeEditorialText(row.headline),
     }),
   );
 }
@@ -336,13 +337,32 @@ function getStoryShortSummary(row: NewsItemRow) {
       shortSummary: row.short_summary,
       summary: row.summary,
       fallbackText: row.cleaned_text ?? row.raw_text,
-      headline: row.headline,
+      headline: sanitizeEditorialText(row.headline),
     }),
   );
 }
 
+function getStoryHeadline(row: Pick<NewsItemRow, "headline">) {
+  return sanitizeEditorialText(row.headline);
+}
+
+function getStorySourceName(row: Pick<NewsItemRow, "source_name">) {
+  return sanitizeEditorialText(row.source_name);
+}
+
 function getStoryWhyItMatters(row: NewsItemRow) {
-  return toCompleteSentence(buildSentenceExcerpt(row.why_it_matters, { maxChars: 220, maxSentences: 1 }));
+  return toCompleteSentence(
+    selectBestWhyItMatters({
+      whyItMatters: row.why_it_matters,
+      headline: getStoryHeadline(row),
+      summary: getStorySummary(row),
+      shortSummary: getStoryShortSummary(row),
+    }),
+  );
+}
+
+function isHomepageStoryEligible(item: NewsItem) {
+  return item.companySlugs.length > 0;
 }
 
 function getDigestStoryEvidence(story: NewsItem) {
@@ -509,8 +529,8 @@ function fallbackHomePage(): HomePageData {
   const generatedAt = seedNow.toISOString();
   const latestPublishedAt = sortedNewsItems[0]?.publishedAt ?? seedNow.toISOString();
   const latestDateKey = getContentDateKey(latestPublishedAt);
-  const todayStories = sortedNewsItems.filter((item) => getContentDateKey(item.publishedAt) === latestDateKey).slice(0, 5);
-  const breakingStories = sortedNewsItems.filter((item) => item.importanceLevel === "Critical").slice(0, 3);
+  const todayStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && getContentDateKey(item.publishedAt) === latestDateKey).slice(0, 5);
+  const breakingStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
 
   return {
     generatedAt,
@@ -773,17 +793,24 @@ function buildNewsFromDatabase(
   });
 
   return newsRows.map<NewsItem>((row) => {
-    const companySlugs = rankCompanySlugsByStoryContext(companySlugsByNewsId.get(row.id) ?? [], {
-      headline: row.headline,
+    const headline = getStoryHeadline(row);
+    const sourceName = getStorySourceName(row);
+    const context = {
+      headline,
       body: [row.short_summary, row.summary, row.why_it_matters, row.cleaned_text, row.raw_text].filter(Boolean).join(" "),
-      sourceName: row.source_name,
+      sourceName,
       sourceUrl: row.canonical_url ?? row.source_url,
-    });
+    };
+    const inferredPrimaryCompany = inferPrimaryCompanySlug(context);
+    const companySlugs = rankCompanySlugsByStoryContext(
+      inferredPrimaryCompany ? [...(companySlugsByNewsId.get(row.id) ?? []), inferredPrimaryCompany] : (companySlugsByNewsId.get(row.id) ?? []),
+      context,
+    );
 
     return {
       slug: row.slug,
-      headline: row.headline,
-      sourceName: row.source_name,
+      headline,
+      sourceName,
       sourceUrl: row.canonical_url ?? row.source_url,
       publishedAt: row.published_at,
       summary: getStorySummary(row),
@@ -1423,8 +1450,8 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
   const latestPublishedAt = getLatestPublishedAt(news) ?? siteLastUpdatedAt ?? seedNow.toISOString();
   const currentDateKey = getContentDateKey(generatedAt);
   const latestNewsDateKey = getContentDateKey(latestPublishedAt);
-  const todayStories = news.filter((item) => getContentDateKey(item.publishedAt) === latestNewsDateKey).slice(0, 5);
-  const breakingStories = news.filter((item) => item.importanceLevel === "Critical").slice(0, 3);
+  const todayStories = news.filter((item) => isHomepageStoryEligible(item) && getContentDateKey(item.publishedAt) === latestNewsDateKey).slice(0, 5);
+  const breakingStories = news.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
   const seenCompanies = new Map<string, number>();
   const dynamicTickerItems: HomeTickerItem[] = [];
 
@@ -1756,12 +1783,13 @@ export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
 
     cell.eventCount += 1;
     cell.netScore += Number(event.score_delta ?? 0);
+    const eventNewsRow = event.news_item_id ? newsById.get(event.news_item_id) : undefined;
     cell.events.push({
       eventType: event.event_type,
       scoreDelta: event.score_delta,
       explanation: event.explanation,
-      headline: event.news_item_id ? newsById.get(event.news_item_id)?.headline : undefined,
-      newsSlug: event.news_item_id ? newsById.get(event.news_item_id)?.slug : undefined,
+      headline: eventNewsRow ? getStoryHeadline(eventNewsRow) : undefined,
+      newsSlug: eventNewsRow?.slug,
     });
   }
 
@@ -1841,8 +1869,8 @@ export const getFullTimelineData = cache(async (days: number): Promise<FullTimel
       }
 
       const newsRow = row.news_item_id ? newsById.get(row.news_item_id) : undefined;
-      const headline = newsRow?.headline ?? row.event_type;
-      const detail = newsRow?.short_summary ?? newsRow?.summary ?? row.explanation;
+      const headline = newsRow ? getStoryHeadline(newsRow) : row.event_type;
+      const detail = newsRow ? getStoryShortSummary(newsRow) || getStorySummary(newsRow) : toCompleteSentence(row.explanation);
       const timestamp = row.event_date ?? newsRow?.published_at ?? new Date().toISOString();
 
       return {

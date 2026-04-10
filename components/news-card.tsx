@@ -5,7 +5,8 @@ import Link from "next/link";
 import { ChevronDown, ExternalLink } from "lucide-react";
 import { useId, useRef, useState } from "react";
 
-import { categoriesBySlug, seedNow, type NewsItem } from "@/lib/seed/data";
+import { categoriesBySlug, type NewsItem } from "@/lib/seed/data";
+import { hasUsableExpandedSummary } from "@/lib/content";
 import { cn, formatSmartTime, formatTimestamp, toCompleteSentence } from "@/lib/utils";
 
 import { BookmarkButton } from "@/components/bookmark-button";
@@ -121,6 +122,17 @@ export function NewsCard({
     mode === "default"
       ? toCompleteSentence(news.summary)
       : toCompleteSentence(news.shortSummary || news.summary);
+  const fullSummary = toCompleteSentence(news.summary);
+  const showExpandedSummary =
+    mode === "default"
+      ? Boolean(fullSummary)
+      : hasUsableExpandedSummary({
+          summary: news.summary,
+          shortSummary: news.shortSummary || previewCopy,
+          headline: news.headline,
+        });
+  const whyItMattersCopy = toCompleteSentence(news.whyItMatters);
+  const showWhyItMatters = Boolean(whyItMattersCopy && whyItMattersCopy !== fullSummary && whyItMattersCopy !== previewCopy);
 
   return (
     <article
@@ -218,7 +230,7 @@ export function NewsCard({
             </div>
             <div className="hidden items-center gap-2 font-[family-name:var(--font-mono)] uppercase tracking-[0.12em] text-[var(--text-tertiary)] sm:flex">
               <span className="transition-colors duration-200 group-hover:text-[var(--text-secondary)]">
-                {isExpanded ? "Collapse" : "Click to expand"}
+                {isExpanded ? "Collapse" : "Expand"}
               </span>
               <ChevronDown
                 className={cn("h-4 w-4 transition-transform duration-300", isExpanded && "rotate-180")}
@@ -228,7 +240,7 @@ export function NewsCard({
 
           <div className="flex items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--surface-subtle)] px-3 py-2 sm:hidden">
             <span className="font-[family-name:var(--font-mono)] text-[10px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-              {isExpanded ? "Tap to collapse" : "Tap to expand"}
+              {isExpanded ? "Collapse" : "Expand"}
             </span>
             <ChevronDown className={cn("h-4 w-4 text-[var(--text-tertiary)] transition-transform duration-300", isExpanded && "rotate-180")} />
           </div>
@@ -255,10 +267,23 @@ export function NewsCard({
                 <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
                   Full Summary
                 </p>
-                <p className="text-sm leading-7 text-[var(--text-secondary)]">{toCompleteSentence(news.summary)}</p>
+                {showExpandedSummary ? (
+                  <p className="text-sm leading-7 text-[var(--text-secondary)]">{fullSummary}</p>
+                ) : (
+                  <a
+                    href={news.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    className="inline-flex items-center gap-2 text-sm text-[var(--accent-blue)] transition-colors duration-200 hover:text-[var(--text-primary)]"
+                  >
+                    <span>Read the full story</span>
+                    <span aria-hidden="true">→</span>
+                  </a>
+                )}
               </div>
 
-              {news.whyItMatters ? (
+              {showWhyItMatters ? (
                 <div
                   className="surface-subtle rounded-2xl border border-[var(--border)] p-4"
                   style={{ boxShadow: `inset 3px 0 0 ${accentBorderColor}` }}
@@ -266,7 +291,7 @@ export function NewsCard({
                   <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
                     Why It Matters
                   </p>
-                  <p className="mt-2 text-sm italic leading-7 text-[var(--text-secondary)]">{toCompleteSentence(news.whyItMatters)}</p>
+                  <p className="mt-2 text-sm italic leading-7 text-[var(--text-secondary)]">{whyItMattersCopy}</p>
                 </div>
               ) : null}
 

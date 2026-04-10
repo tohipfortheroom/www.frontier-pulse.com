@@ -40,11 +40,12 @@ function scoreCompany(slug: string, context: StoryAttributionContext) {
   const companyNames = [company?.name, company?.shortName, slug]
     .filter((value): value is string => Boolean(value))
     .map((value) => value.toLowerCase());
+  const textKeywords = Array.from(new Set([...keywords, ...companyNames]));
 
   let score = 0;
-  score += countKeywordMatches(headline, keywords) * 6;
-  score += countKeywordMatches(body, keywords) * 3;
-  score += countKeywordMatches(sourceName, keywords) * 4;
+  score += countKeywordMatches(headline, textKeywords) * 6;
+  score += countKeywordMatches(body, textKeywords) * 3;
+  score += countKeywordMatches(sourceName, textKeywords) * 4;
 
   if (companyNames.some((value) => sourceHost.includes(value.replace(/\s+/g, "")) || sourceHost.includes(value.replace(/\s+/g, "-")))) {
     score += 5;
@@ -55,6 +56,36 @@ function scoreCompany(slug: string, context: StoryAttributionContext) {
   }
 
   return score;
+}
+
+export function inferPrimaryCompanySlug(
+  context: StoryAttributionContext,
+  options?: {
+    minScore?: number;
+    minimumLead?: number;
+  },
+) {
+  const minScore = options?.minScore ?? 6;
+  const minimumLead = options?.minimumLead ?? 3;
+  const scored = Object.keys(companiesBySlug)
+    .map((slug) => ({
+      slug,
+      score: scoreCompany(slug, context),
+    }))
+    .sort((left, right) => right.score - left.score);
+
+  const best = scored[0];
+  const runnerUp = scored[1];
+
+  if (!best || best.score < minScore) {
+    return null;
+  }
+
+  if (runnerUp && best.score - runnerUp.score < minimumLead) {
+    return null;
+  }
+
+  return best.slug;
 }
 
 export function rankCompanySlugsByStoryContext(companySlugs: string[], context: StoryAttributionContext) {

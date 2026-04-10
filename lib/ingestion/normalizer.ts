@@ -1,9 +1,10 @@
 import { createHash } from "node:crypto";
 
 import { companiesBySlug } from "../seed/data.ts";
+import { sanitizeEditorialText } from "../content.ts";
 import { companyKeywordMap, matchesAnyKeyword, tagKeywordMap } from "./keywords.ts";
 import { buildTitleFingerprint, canonicalizeUrl } from "./quality.ts";
-import { rankCompanySlugsByStoryContext } from "../company-attribution.ts";
+import { inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "../company-attribution.ts";
 
 import type { NormalizedCandidate, RawIngestedItem } from "./types.ts";
 
@@ -16,7 +17,7 @@ function slugify(value: string) {
 }
 
 function cleanText(input?: string) {
-  return input?.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() ?? "";
+  return sanitizeEditorialText(input);
 }
 
 function detectCompanies(text: string, companyHint?: string) {
@@ -102,32 +103,52 @@ function detectImpactDirection(text: string) {
 }
 
 export function normalizeIngestedItem(item: RawIngestedItem): NormalizedCandidate | null {
-  const text = `${item.title} ${item.excerpt ?? ""}`.trim();
-  const cleanedText = cleanText(item.excerpt ?? item.rawText);
+  const title = sanitizeEditorialText(item.title);
+  const excerpt = sanitizeEditorialText(item.excerpt);
+  const rawText = sanitizeEditorialText(item.rawText);
+  const text = `${title} ${excerpt}`.trim();
+  const cleanedText = cleanText(excerpt || rawText);
   const companySlugs = detectCompanies(text, item.companyHint);
   const categorySlugs = detectCategories(text);
   const tagSlugs = detectTags(text);
   const canonicalUrl = canonicalizeUrl(item.url);
-  const titleFingerprint = buildTitleFingerprint(item.title);
-  const slugSuffix = createHash("sha1").update(canonicalUrl || `${item.sourceId}:${item.title}`).digest("hex").slice(0, 8);
+  const titleFingerprint = buildTitleFingerprint(title);
+  const slugSuffix = createHash("sha1").update(canonicalUrl || `${item.sourceId}:${title}`).digest("hex").slice(0, 8);
+  const inferredPrimaryCompany = inferPrimaryCompanySlug({
+    headline: title,
+    body: `${excerpt} ${rawText}`.trim(),
+    sourceName: item.sourceName,
+    sourceUrl: canonicalUrl || item.url,
+    companyHint: item.companyHint,
+  });
+  const resolvedCompanySlugs = rankCompanySlugsByStoryContext(
+    inferredPrimaryCompany ? [...companySlugs, inferredPrimaryCompany] : companySlugs,
+    {
+      headline: title,
+      body: `${excerpt} ${rawText}`.trim(),
+      sourceName: item.sourceName,
+      sourceUrl: canonicalUrl || item.url,
+      companyHint: item.companyHint,
+    },
+  );
 
-  if (!item.title) {
+  if (!title) {
     return null;
   }
 
   return {
-    headline: item.title,
-    slug: `${slugify(item.title)}-${slugSuffix}`,
-    sourceName: item.sourceName,
+    headline: title,
+    slug: `${slugify(title)}-${slugSuffix}`,
+    sourceName: sanitizeEditorialText(item.sourceName),
     sourceUrl: canonicalUrl || item.url,
     sourceId: item.sourceId,
     canonicalUrl: canonicalUrl || item.url,
     titleFingerprint,
     publishedAt: item.publishedAt ?? item.fetchedAt,
-    rawText: item.rawText ?? null,
+    rawText: rawText || null,
     cleanedText: cleanedText || null,
     impactDirection: detectImpactDirection(text),
-    companySlugs,
+    companySlugs: resolvedCompanySlugs,
     categorySlugs,
     tagSlugs,
     significanceSignals: [...categorySlugs, ...tagSlugs].slice(0, 6),

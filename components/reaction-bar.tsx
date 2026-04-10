@@ -186,8 +186,8 @@ export function ReactionBar({ newsItemSlug, initialCounts }: ReactionBarProps) {
             onClick={() => void toggleReaction(reaction.type)}
             disabled={isLoading || isMutating}
             className={cn(
-              "rounded-full px-2 py-1 text-sm transition-all duration-200 hover:bg-[var(--surface-card)]",
-              selected && "bg-[var(--surface-card)] ring-1 ring-[var(--accent-blue-border)]",
+              "rounded-full px-2 py-1 text-sm transition-all duration-200 hover:scale-[1.04] hover:bg-[var(--surface-card)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60",
+              selected && "bg-[var(--surface-card)] ring-1 ring-[var(--accent-blue-border)] shadow-[0_0_0_1px_var(--accent-blue-border)]",
             )}
             aria-label={`${reaction.label} reaction`}
             aria-pressed={selected}

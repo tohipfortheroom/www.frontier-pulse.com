@@ -2,16 +2,19 @@ import { passesSourceFilters } from "../keywords.ts";
 import { mapWithConcurrency } from "../async.ts";
 import { PIPELINE_RUNTIME_CONFIG } from "../config.ts";
 import { fetchSourceText } from "../server-fetch.ts";
+import { decodeHtmlEntities } from "../../content.ts";
 import type { RawIngestedItem, SourceDefinition } from "../types.ts";
 
 function decodeXmlEntities(input: string) {
-  return input
+  return decodeHtmlEntities(
+    input
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+    .replace(/&#39;/g, "'"),
+  );
 }
 
 function stripTags(input: string) {
@@ -21,6 +24,17 @@ function stripTags(input: string) {
 function extractTag(block: string, tagName: string) {
   const match = block.match(new RegExp(`<${tagName}[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i"));
   return match?.[1] ? stripTags(match[1]) : undefined;
+}
+
+function selectBestExcerpt(block: string) {
+  return [
+    extractTag(block, "content:encoded"),
+    extractTag(block, "content"),
+    extractTag(block, "description"),
+    extractTag(block, "summary"),
+  ]
+    .filter((value): value is string => Boolean(value && value.trim()))
+    .sort((left, right) => right.length - left.length)[0];
 }
 
 function extractAtomLink(block: string) {
@@ -82,11 +96,7 @@ function parseFeedItems(xml: string, source: SourceDefinition) {
     .map((block, index) => {
       const title = extractTag(block, "title") ?? `Untitled item ${index + 1}`;
       const link = extractTag(block, "link") ?? extractAtomLink(block) ?? source.url ?? "";
-      const excerpt =
-        extractTag(block, "description") ??
-        extractTag(block, "summary") ??
-        extractTag(block, "content") ??
-        extractTag(block, "content:encoded");
+      const excerpt = selectBestExcerpt(block);
       const publishedAt = extractTag(block, "pubDate") ?? extractTag(block, "published") ?? extractTag(block, "updated");
 
       return buildRawItem(source, {
