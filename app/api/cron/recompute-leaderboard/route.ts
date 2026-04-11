@@ -15,9 +15,11 @@ function getReferenceDate(request: Request) {
     return undefined;
   }
 
+  const todayKey = new Date().toISOString().slice(0, 10);
+
   const parsed =
     /^\d{4}-\d{2}-\d{2}$/.test(referenceDate)
-      ? new Date(`${referenceDate}T23:59:59.999Z`)
+      ? new Date(referenceDate === todayKey ? new Date().toISOString() : `${referenceDate}T23:59:59.999Z`)
       : new Date(referenceDate);
 
   if (Number.isNaN(parsed.getTime())) {
