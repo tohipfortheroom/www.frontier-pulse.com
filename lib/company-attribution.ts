@@ -25,7 +25,7 @@ function hostnameFromUrl(value?: string | null) {
   }
 }
 
-function scoreCompany(slug: string, context: StoryAttributionContext) {
+export function scoreCompanySlugForStoryContext(slug: string, context: StoryAttributionContext) {
   const keywords = companyKeywordMap[slug] ?? [];
 
   if (keywords.length === 0) {
@@ -58,6 +58,11 @@ function scoreCompany(slug: string, context: StoryAttributionContext) {
   return score;
 }
 
+function doesHeadlineMentionCompany(slug: string, headline: string) {
+  const keywords = companyKeywordMap[slug] ?? [];
+  return keywords.some((keyword) => matchesKeyword(headline, keyword));
+}
+
 export function inferPrimaryCompanySlug(
   context: StoryAttributionContext,
   options?: {
@@ -70,7 +75,7 @@ export function inferPrimaryCompanySlug(
   const scored = Object.keys(companiesBySlug)
     .map((slug) => ({
       slug,
-      score: scoreCompany(slug, context),
+      score: scoreCompanySlugForStoryContext(slug, context),
     }))
     .sort((left, right) => right.score - left.score);
 
@@ -98,7 +103,7 @@ export function rankCompanySlugsByStoryContext(companySlugs: string[], context: 
   const scored = uniqueSlugs.map((slug, index) => ({
     slug,
     index,
-    score: scoreCompany(slug, context),
+    score: scoreCompanySlugForStoryContext(slug, context),
   }));
 
   const hasSignal = scored.some((entry) => entry.score > 0);
@@ -110,4 +115,52 @@ export function rankCompanySlugsByStoryContext(companySlugs: string[], context: 
   return scored
     .sort((left, right) => right.score - left.score || left.index - right.index)
     .map((entry) => entry.slug);
+}
+
+export function filterCompanySlugsByStoryContext(
+  companySlugs: string[],
+  context: StoryAttributionContext,
+  options?: {
+    minScore?: number;
+    headlineMentionScore?: number;
+    fallbackMinScore?: number;
+    minimumLead?: number;
+    maxCompanies?: number;
+  },
+) {
+  const uniqueSlugs = Array.from(new Set(companySlugs.filter(Boolean)));
+
+  const minScore = options?.minScore ?? 6;
+  const headlineMentionScore = options?.headlineMentionScore ?? 4;
+  const fallbackMinScore = options?.fallbackMinScore ?? 8;
+  const minimumLead = options?.minimumLead ?? 2;
+  const maxCompanies = options?.maxCompanies ?? 2;
+
+  const scored = uniqueSlugs
+    .map((slug, index) => ({
+      slug,
+      index,
+      score: scoreCompanySlugForStoryContext(slug, context),
+      headlineMention: doesHeadlineMentionCompany(slug, context.headline),
+      hinted: context.companyHint === slug,
+    }))
+    .sort((left, right) => right.score - left.score || Number(right.headlineMention) - Number(left.headlineMention) || left.index - right.index);
+
+  const filtered = scored.filter((entry) => entry.hinted || entry.score >= minScore || (entry.headlineMention && entry.score >= headlineMentionScore));
+
+  if (filtered.length > 0) {
+    return filtered.slice(0, maxCompanies).map((entry) => entry.slug);
+  }
+
+  const [best, runnerUp] = scored;
+
+  if (!best) {
+    return [];
+  }
+
+  if (best.hinted || best.score >= fallbackMinScore || (best.headlineMention && best.score >= headlineMentionScore && (!runnerUp || best.score - runnerUp.score >= minimumLead))) {
+    return [best.slug];
+  }
+
+  return [];
 }

@@ -7,6 +7,7 @@ import { Check, Copy } from "lucide-react";
 
 import type { CompanyCardRecord } from "@/lib/db/types";
 import { categories, type NewsItem } from "@/lib/seed/data";
+import { isCompanyRelevantStory, isSharedCompareStory } from "@/lib/story-quality";
 import { cn, formatScore, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { EmptyState } from "@/components/empty-state";
@@ -168,13 +169,25 @@ export function ComparePageClient({
     });
   }, [newsItems, selectedRecords]);
 
-  const sharedNews = newsItems.filter((item) => item.companySlugs.filter((slug) => selectedSlugs.includes(slug)).length >= 2).slice(0, 6);
+  const sharedNews = newsItems
+    .filter((item) => isSharedCompareStory(item, selectedSlugs))
+    .sort(
+      (left, right) =>
+        right.importanceScore - left.importanceScore ||
+        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
+    )
+    .slice(0, 6);
   const catalystsByCompany = useMemo(() => {
     return Object.fromEntries(
       selectedRecords.map((record) => [
         record.company.slug,
         newsItems
-          .filter((item) => item.companySlugs.includes(record.company.slug))
+          .filter((item) => isCompanyRelevantStory(item, record.company.slug))
+          .sort(
+            (left, right) =>
+              right.importanceScore - left.importanceScore ||
+              new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
+          )
           .slice(0, 2),
       ]),
     ) as Record<string, NewsItem[]>;

@@ -27,10 +27,19 @@ type DayGroup = {
 };
 
 function findMatchingNews(entry: TimelineEntry, newsItems: NewsItem[]): NewsItem | undefined {
+  const directSlug = entry.slug.startsWith("timeline-") ? entry.slug.slice("timeline-".length) : "";
+  const directMatch = directSlug
+    ? newsItems.find((item) => item.slug === directSlug && item.companySlugs[0] === entry.companySlug)
+    : undefined;
+
+  if (directMatch) {
+    return directMatch;
+  }
+
   const headlineLower = entry.headline.toLowerCase();
 
   return newsItems.find((item) => {
-    if (!item.companySlugs.includes(entry.companySlug)) {
+    if (item.companySlugs[0] !== entry.companySlug) {
       return false;
     }
 

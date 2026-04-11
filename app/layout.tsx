@@ -7,6 +7,7 @@ import { Footer } from "@/components/footer";
 import { KeyboardShortcuts } from "@/components/keyboard-shortcuts";
 import { Navbar } from "@/components/navbar";
 import { BRAND_ASSETS, BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
+import { getSiteUrl } from "@/lib/site";
 
 import "./globals.css";
 
@@ -27,7 +28,7 @@ const monoFont = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(getSiteUrl()),
   title: {
     default: BRAND_NAME,
     template: `%s | ${BRAND_NAME}`,

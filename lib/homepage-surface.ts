@@ -1,11 +1,12 @@
 import type { LaunchCardData, NewsItem } from "@/lib/seed/data";
 
 import { getContentDateKey } from "@/lib/surface-data";
+import { isLaunchSurfaceStory, isPrestigeSurfaceStory } from "@/lib/story-quality";
 import { toCompleteSentence } from "@/lib/utils";
 
 export function selectTodayInAiStories(news: NewsItem[], now = new Date(), limit = 5) {
   const nowMs = now.getTime();
-  const eligibleStories = news.filter((item) => item.companySlugs.length > 0);
+  const eligibleStories = news.filter((item) => isPrestigeSurfaceStory(item));
   const rankedStories = eligibleStories
     .slice()
     .sort(
@@ -69,11 +70,7 @@ function accentForLaunchType(type: LaunchCardData["type"]): LaunchCardData["acce
 
 export function buildNewsLaunchCards(news: NewsItem[], limit = 6): LaunchCardData[] {
   const relevantStories = news
-    .filter(
-      (item) =>
-        item.companySlugs[0] &&
-        item.categorySlugs.some((categorySlug) => categorySlug === "model-release" || categorySlug === "product-launch"),
-    )
+    .filter((item) => Boolean(item.companySlugs[0]) && isLaunchSurfaceStory(item))
     .sort(
       (left, right) =>
         new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime() ||

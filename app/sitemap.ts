@@ -1,11 +1,11 @@
 import type { MetadataRoute } from "next";
 
-import { getCompaniesIndexData } from "@/lib/db/queries";
+import { getCompaniesIndexData, getNewsItemsData } from "@/lib/db/queries";
 import { getSiteUrl } from "@/lib/site";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = getSiteUrl();
-  const companies = await getCompaniesIndexData();
+  const [companies, newsItems] = await Promise.all([getCompaniesIndexData(), getNewsItemsData()]);
   const now = new Date();
 
   const staticRoutes = [
@@ -14,8 +14,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     "/companies",
     "/compare",
     "/daily-digest",
+    "/heatmap",
     "/leaderboard",
     "/news",
+    "/timeline",
+    "/trending",
   ];
 
   return [
@@ -34,6 +37,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: now,
       changeFrequency: "daily" as const,
       priority: 0.8,
+    })),
+    ...newsItems.slice(0, 250).map((item) => ({
+      url: `${siteUrl}/news/${item.slug}`,
+      lastModified: new Date(item.publishedAt),
+      changeFrequency: "daily" as const,
+      priority: 0.6,
     })),
   ];
 }

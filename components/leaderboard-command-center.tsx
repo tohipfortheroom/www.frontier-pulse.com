@@ -199,7 +199,11 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [chartWindow, setChartWindow] = useState<ChartWindow>(30);
-  const [selectedComparisonSlugs, setSelectedComparisonSlugs] = useState<string[]>([]);
+  const initialComparisonSlugs = records
+    .filter((record) => Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score)))
+    .slice(0, 5)
+    .map((record) => record.company.slug);
+  const [selectedComparisonSlugs, setSelectedComparisonSlugs] = useState<string[]>(initialComparisonSlugs);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {

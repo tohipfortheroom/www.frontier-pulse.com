@@ -5,6 +5,7 @@ import Script from "next/script";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import { getNewsItemDetailData } from "@/lib/db/queries";
+import { getSiteUrl } from "@/lib/site";
 import { accentClasses, cn, formatTimestamp, toCompleteSentence } from "@/lib/utils";
 
 import { BookmarkButton } from "@/components/bookmark-button";
@@ -88,7 +89,7 @@ export default async function NewsDetailPage({
       "@type": "Organization",
       name: "Frontier Pulse",
     },
-    mainEntityOfPage: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/news/${news.slug}`,
+    mainEntityOfPage: `${getSiteUrl()}/news/${news.slug}`,
   };
 
   return (
@@ -197,19 +198,21 @@ export default async function NewsDetailPage({
               </div>
             </div>
 
-            <div className="mt-8 space-y-4">
-              <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-                Categories & Tags
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {news.categorySlugs.map((categorySlug) => (
-                  <CategoryPill key={`${news.slug}-${categorySlug}`} categorySlug={categorySlug} />
-                ))}
-                {news.tagSlugs.map((tagSlug) => (
-                  <TagPill key={`${news.slug}-${tagSlug}`} tagSlug={tagSlug} />
-                ))}
+            {news.categorySlugs.length > 0 || news.tagSlugs.length > 0 ? (
+              <div className="mt-8 space-y-4">
+                <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                  Categories & Tags
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {news.categorySlugs.map((categorySlug) => (
+                    <CategoryPill key={`${news.slug}-${categorySlug}`} categorySlug={categorySlug} />
+                  ))}
+                  {news.tagSlugs.map((tagSlug) => (
+                    <TagPill key={`${news.slug}-${tagSlug}`} tagSlug={tagSlug} />
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
 
             <div className="mt-8">
               <ReactionBar newsItemSlug={news.slug} />

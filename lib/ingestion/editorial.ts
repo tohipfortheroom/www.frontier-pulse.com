@@ -45,6 +45,9 @@ const COMMERCIAL_ROLLOUT_PATTERN =
   /\b(now available|general availability|ga\b|for customers|for developers|enterprise customers?|pricing|priced|subscription|api|rolls out|rolled out|launches|launched|announces|announced|releases|released|ships|shipping|available in)\b/i;
 const PRODUCT_SIGNAL_PATTERN = /\b(api|assistant|app|feature|platform|agent|workspace|studio|service|product)\b/i;
 const NEGATIVE_SIGNAL_PATTERN = /\b(setback|delay|delays|risk|probe|complaint|cuts|reduction|lawsuit|fine|ban|pressure)\b/i;
+const CULTURE_COMMENTARY_PATTERN = /\b(ai art|opinion|essay|column|profile|roundtable|out-shitposted|shitposted)\b/i;
+const PERSONAL_DRAMA_PATTERN = /\b(molotov cocktail|arrested|allegedly|house\b|home\b|police\b|charged\b)\b/i;
+const COMMUNITY_DISCUSSION_PATTERN = /\b(with .* ceo|with .* founder|fireside chat|conversation with|podcast|interview)\b/i;
 const GITHUB_HOST_PATTERN = /(^|\.)github\.com$/i;
 const ARXIV_HOST_PATTERN = /(^|\.)arxiv\.org$/i;
 const HN_HOST_PATTERN = /(^|\.)news\.ycombinator\.com$/i;
@@ -172,6 +175,16 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
     !policySignal &&
     !leadershipSignal &&
     !infrastructureSignal;
+  const strategicSignalPresent =
+    fundingSignal ||
+    partnershipSignal ||
+    leadershipSignal ||
+    policySignal ||
+    infrastructureSignal ||
+    (commercialRolloutSignal && (modelSignal || productSignal || officialSource));
+  const cultureCommentaryOnly = CULTURE_COMMENTARY_PATTERN.test(combinedText) && !strategicSignalPresent;
+  const personalDramaOnly = PERSONAL_DRAMA_PATTERN.test(combinedText) && !policySignal && !leadershipSignal && !partnershipSignal && !fundingSignal && !infrastructureSignal;
+  const lowSignalCommunityDiscussion = sourceTier === "community" && COMMUNITY_DISCUSSION_PATTERN.test(combinedText) && !strategicSignalPresent;
 
   const reviewFlags: string[] = [];
   const categories = new Set<string>();
@@ -278,6 +291,27 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
   if (researchOnly) {
     importanceCap = Math.min(importanceCap, 4);
     reviewFlags.push("research-only");
+  }
+
+  if (cultureCommentaryOnly) {
+    suppressionReason = suppressionReason ?? "culture-commentary";
+    importanceCap = Math.min(importanceCap, 2);
+    classificationConfidence = Math.min(classificationConfidence, 4);
+    reviewFlags.push("culture-commentary");
+  }
+
+  if (personalDramaOnly) {
+    suppressionReason = suppressionReason ?? "personal-drama";
+    importanceCap = Math.min(importanceCap, 2);
+    classificationConfidence = Math.min(classificationConfidence, 4);
+    reviewFlags.push("personal-drama");
+  }
+
+  if (lowSignalCommunityDiscussion) {
+    suppressionReason = suppressionReason ?? "community-discussion";
+    importanceCap = Math.min(importanceCap, 2);
+    classificationConfidence = Math.min(classificationConfidence, 4);
+    reviewFlags.push("community-discussion");
   }
 
   if (benchmarkSignal && !commercialRolloutSignal) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
+import { filterCompanySlugsByStoryContext, inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
 
 describe("rankCompanySlugsByStoryContext", () => {
   it("prioritizes the company that dominates the headline and body", () => {
@@ -53,5 +53,34 @@ describe("rankCompanySlugsByStoryContext", () => {
         sourceName: "Ars Technica",
       }),
     ).toBeNull();
+  });
+
+  it("drops weak seeded company associations when the story text does not support them", () => {
+    expect(
+      filterCompanySlugsByStoryContext(
+        ["openai", "meta-ai"],
+        {
+          headline: "Your article about AI doesn’t need AI art",
+          body: "The piece argues that publications should stop pairing every AI story with synthetic illustrations.",
+          sourceName: "The New Yorker",
+        },
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps strategic shared-company stories capped to the most relevant companies", () => {
+    expect(
+      filterCompanySlugsByStoryContext(
+        ["anthropic", "amazon-aws-ai", "openai"],
+        {
+          headline: "Anthropic expands Claude deployment controls on Amazon Bedrock",
+          body: "Anthropic said the update gives Bedrock customers more deployment controls for Claude in regulated environments.",
+          sourceName: "Anthropic News",
+          sourceUrl: "https://www.anthropic.com/news/claude-bedrock-controls",
+          companyHint: "anthropic",
+        },
+        { maxCompanies: 2 },
+      ),
+    ).toEqual(["anthropic", "amazon-aws-ai"]);
   });
 });

@@ -21,13 +21,14 @@ import { TopMoverCard } from "@/components/top-mover-card";
 import { TrendSignals } from "@/components/trend-signals";
 import { buttonVariants } from "@/components/ui/button";
 import { BRAND_DESCRIPTION, BRAND_NAME } from "@/lib/brand";
+import { getSiteUrl } from "@/lib/site";
 import { formatDateLabel, formatUpdateTimestamp } from "@/lib/utils";
 
 export async function generateMetadata(): Promise<Metadata> {
   const { stats } = await getHomePageData();
   const title = `${BRAND_NAME} — AI Momentum Tracker`;
   const description = `${BRAND_NAME} scores and explains AI momentum across ${stats.totalCompanies} companies and ${stats.totalStories} recent stories shaping the race.`;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = getSiteUrl();
 
   return {
     title,
@@ -52,6 +53,7 @@ export const revalidate = 300;
 export default async function HomePage() {
   const { todayStories, breakingStories, leaderboard, launches, timeline, topMovers, trendingTopics, tickerItems, stats, sectionFreshness, leaderboardRefreshState } =
     await getHomePageData();
+  const siteUrl = getSiteUrl();
   const todayInAiWarning =
     todayStories.length > 0 && sectionFreshness.todayInAi.stale && sectionFreshness.todayInAi.newestContentAt
       ? `Showing the latest available stories from ${formatDateLabel(sectionFreshness.todayInAi.newestContentAt)} because nothing newer landed in the last 24 hours.`
@@ -61,10 +63,10 @@ export default async function HomePage() {
     "@type": "WebSite",
     name: BRAND_NAME,
     description: BRAND_DESCRIPTION,
-    url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+    url: siteUrl,
     potentialAction: {
       "@type": "SearchAction",
-      target: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/news?q={search_term_string}`,
+      target: `${siteUrl}/news?q={search_term_string}`,
       "query-input": "required name=search_term_string",
     },
   };

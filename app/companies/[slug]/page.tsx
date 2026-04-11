@@ -7,6 +7,7 @@ import Script from "next/script";
 import { getCompanyDetailData, getLeaderboardRefreshState } from "@/lib/db/queries";
 import { formatTrendPercent, getTrendPercentTone } from "@/lib/score-history";
 import { companies } from "@/lib/seed/data";
+import { getSiteUrl } from "@/lib/site";
 import { formatDateLabel, formatScore, formatUpdateTimestamp, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { ModuleStatusStrip } from "@/components/module-status-strip";
@@ -67,7 +68,7 @@ export async function generateMetadata({
     };
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+  const siteUrl = getSiteUrl();
 
   return {
     title: record.company.name,
@@ -166,7 +167,7 @@ export default async function CompanyDetailPage({
     "@type": "Organization",
     name: company.name,
     description: company.description,
-    url: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/companies/${company.slug}`,
+    url: `${getSiteUrl()}/companies/${company.slug}`,
   };
 
   return (

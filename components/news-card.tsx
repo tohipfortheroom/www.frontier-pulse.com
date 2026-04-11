@@ -288,19 +288,21 @@ export function NewsCard({
                 </div>
               ) : null}
 
-              <div className="space-y-3">
-                <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
-                  Coverage Tags
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {news.categorySlugs.map((categorySlug) => (
-                    <CategoryPill key={`${news.slug}-expanded-${categorySlug}`} categorySlug={categorySlug} />
-                  ))}
-                  {news.tagSlugs.map((tagSlug) => (
-                    <TagPill key={`${news.slug}-expanded-${tagSlug}`} tagSlug={tagSlug} />
-                  ))}
+              {news.categorySlugs.length > 0 || news.tagSlugs.length > 0 ? (
+                <div className="space-y-3">
+                  <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.14em] text-[var(--text-tertiary)]">
+                    Coverage Tags
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {news.categorySlugs.map((categorySlug) => (
+                      <CategoryPill key={`${news.slug}-expanded-${categorySlug}`} categorySlug={categorySlug} />
+                    ))}
+                    {news.tagSlugs.map((tagSlug) => (
+                      <TagPill key={`${news.slug}-expanded-${tagSlug}`} tagSlug={tagSlug} />
+                    ))}
+                  </div>
                 </div>
-              </div>
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="surface-soft rounded-full border border-[var(--border)] px-3 py-1 text-[var(--text-primary)]">

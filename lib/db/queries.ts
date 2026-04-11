@@ -81,7 +81,17 @@ import {
 import { buildSectionFreshness, getCanonicalLeaderboardRecords, getContentDateKey, getLatestPublishedAt, resolveDigestLeadStory } from "@/lib/surface-data";
 import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
-import { inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
+import { filterCompanySlugsByStoryContext, inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
+import {
+  buildStoryDriverCopy,
+  filterDigestWatchNext,
+  isBreakingSurfaceStory,
+  isCompanyRelevantStory,
+  isDigestSurfaceStory,
+  isLaunchSurfaceStory,
+  isPrestigeSurfaceStory,
+  isSharedCompareStory,
+} from "@/lib/story-quality";
 
 type CompanyNewsRow = {
   company_id: string;
@@ -316,6 +326,7 @@ function auditStoredStory(
     return {
       publishable: false,
       candidate: null,
+      whyItMattersEligible: false,
     };
   }
 
@@ -338,6 +349,7 @@ function auditStoredStory(
   return {
     publishable: editorial.publishable,
     candidate: editorial.candidate,
+    whyItMattersEligible: editorial.whyItMattersEligible,
   };
 }
 
@@ -717,7 +729,7 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
     return null;
   }
 
-  const companyNews = sortedNewsItems.filter((item) => item.companySlugs.includes(slug));
+  const companyNews = sortedNewsItems.filter((item) => isCompanyRelevantStory(item, slug));
   const categoryBreakdown = categories
     .map((category) => ({
       slug: category.slug,
@@ -1178,12 +1190,23 @@ function buildNewsFromDatabase(
     }
 
     const inferredPrimaryCompany = inferPrimaryCompanySlug(context);
-    const companySlugs = rankCompanySlugsByStoryContext(
+    const rankedCompanySlugs = rankCompanySlugsByStoryContext(
       inferredPrimaryCompany
         ? uniqueValues([...editorialAudit.candidate.companySlugs, inferredPrimaryCompany])
         : editorialAudit.candidate.companySlugs,
       context,
     );
+    const allowsSharedAssociation = editorialAudit.candidate.categorySlugs.some((slug) =>
+      slug === "partnership" ||
+      slug === "funding" ||
+      slug === "policy-regulation" ||
+      slug === "leadership" ||
+      slug === "infrastructure",
+    );
+    const companySlugs = filterCompanySlugsByStoryContext(rankedCompanySlugs, context, {
+      maxCompanies: allowsSharedAssociation ? 2 : 1,
+    });
+    const whyItMatters = editorialAudit.whyItMattersEligible ? getStoryWhyItMatters(row) : "";
 
     return [{
       slug: row.slug,
@@ -1193,7 +1216,7 @@ function buildNewsFromDatabase(
       publishedAt: row.published_at,
       summary: getStorySummary(row),
       shortSummary: getStoryShortSummary(row),
-      whyItMatters: getStoryWhyItMatters(row),
+      whyItMatters,
       summarizerModel: row.summarizer_model ?? undefined,
       importanceScore: row.importance_score,
       importanceLevel: getImportanceLabel(row.importance_score) as NewsItem["importanceLevel"],
@@ -1213,11 +1236,13 @@ function buildMomentumSnapshotsFromDatabase(
   momentumRows: MomentumScoreRow[],
   eventRows: EventRow[],
   newsRows: NewsItemRow[],
+  newsItems: NewsItem[],
   momentumHistoryRows: MomentumScoreHistoryRow[] | null,
 ) {
   const historyByCompanyId = new Map<string, MomentumScoreRow[]>();
   const eventsByCompanyId = new Map<string, EventRow[]>();
   const newsById = Object.fromEntries(newsRows.map((row) => [row.id, row]));
+  const newsItemBySlug = new Map(newsItems.map((item) => [item.slug, item]));
   const dailyHistoryEntries = mergeDailyScoreEntries(
     fallbackScoreHistoryEntries,
     buildDailyHistoryEntriesFromMomentumRows(companyRows, momentumRows),
@@ -1242,8 +1267,6 @@ function buildMomentumSnapshotsFromDatabase(
     const history = historyByCompanyId.get(companyRow.id) ?? [];
     const dailyHistory = dailyHistoryByCompanySlug.get(companyRow.slug) ?? fallback?.history ?? [];
     const latest = history.at(-1);
-    const leadingEvent = (eventsByCompanyId.get(companyRow.id) ?? [])[0];
-    const leadingNewsSlug = leadingEvent?.news_item_id ? newsById[leadingEvent.news_item_id]?.slug : undefined;
     const score = Number((latest?.score ?? dailyHistory.at(-1)?.score ?? fallback?.score ?? 0).toFixed(2));
     const scoreChange24h = Number(
       (
@@ -1259,6 +1282,42 @@ function buildMomentumSnapshotsFromDatabase(
       ).toFixed(2),
     );
     const trendPercent7d = dailyHistory.length > 0 ? calculateTrendPercent(dailyHistory, 7) : fallback?.trendPercent7d;
+    const preferredDirection = Math.sign(scoreChange24h || scoreChange7d);
+    const candidateEvents = (eventsByCompanyId.get(companyRow.id) ?? []).filter((event) => {
+      if (!event.news_item_id) {
+        return true;
+      }
+
+      const newsSlug = newsById[event.news_item_id]?.slug;
+      const story = newsSlug ? newsItemBySlug.get(newsSlug) : undefined;
+
+      if (!story) {
+        return true;
+      }
+
+      return isCompanyRelevantStory(story, companyRow.slug);
+    });
+    const leadingEvent =
+      candidateEvents.find((event) => preferredDirection !== 0 && Math.sign(event.score_delta ?? 0) === preferredDirection) ??
+      candidateEvents[0];
+    const leadingNewsRow = leadingEvent?.news_item_id ? newsById[leadingEvent.news_item_id] : undefined;
+    const leadingNewsSlug = leadingEvent?.news_item_id ? newsById[leadingEvent.news_item_id]?.slug : undefined;
+    const leadingStory = leadingNewsSlug ? newsItemBySlug.get(leadingNewsSlug) : undefined;
+    const keyDriver =
+      buildStoryDriverCopy(leadingStory, companyRow.slug) ||
+      toCompleteSentence(leadingEvent?.explanation) ||
+      buildStoryDriverCopy(
+        leadingNewsRow
+          ? {
+              headline: getStoryHeadline(leadingNewsRow),
+              summary: getStorySummary(leadingNewsRow),
+              shortSummary: getStoryShortSummary(leadingNewsRow),
+              whyItMatters: getStoryWhyItMatters(leadingNewsRow),
+            }
+          : null,
+        companyRow.slug,
+      ) ||
+      toCompleteSentence(fallback?.keyDriver ?? "Recent activity");
 
     return {
       companySlug: companyRow.slug,
@@ -1267,7 +1326,7 @@ function buildMomentumSnapshotsFromDatabase(
       scoreChange24h,
       scoreChange7d,
       trend: toTrendDirection(scoreChange7d, score),
-      keyDriver: toCompleteSentence(leadingEvent?.explanation ?? fallback?.keyDriver ?? "Recent activity"),
+      keyDriver,
       sparkline:
         dailyHistory.length > 0
           ? buildSparklineFromHistory(dailyHistory, 7)
@@ -1338,9 +1397,13 @@ export const getNewsItemDetailData = createInstrumentedCache(
       return null;
     }
 
-    const sameCompanyStories = news.filter(
-      (item) => item.slug !== slug && item.companySlugs.some((companySlug) => newsItem.companySlugs.includes(companySlug)),
-    );
+    const sameCompanyStories = news.filter((item) => {
+      if (item.slug === slug) {
+        return false;
+      }
+
+      return newsItem.companySlugs.some((companySlug) => isCompanyRelevantStory(item, companySlug));
+    });
     const relatedStories = sameCompanyStories
       .slice()
       .sort(
@@ -1371,11 +1434,12 @@ export const getNewsItemDetailData = createInstrumentedCache(
 export const getLeaderboardData = createInstrumentedCache(
   "leaderboard_data",
   async (): Promise<MomentumSnapshot[]> => {
-    const [companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows] = await Promise.all([
+    const [companyRows, momentumRows, eventRows, newsRows, newsItems, momentumHistoryRows] = await Promise.all([
       getCompanyRows(),
       getMomentumRows(),
       getEventRows(),
       getNewsRows(),
+      getNewsItemsData(),
       getMomentumHistoryRows(),
     ]);
 
@@ -1383,7 +1447,7 @@ export const getLeaderboardData = createInstrumentedCache(
       return buildFallbackMomentumSnapshots();
     }
 
-    return buildMomentumSnapshotsFromDatabase(companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows);
+    return buildMomentumSnapshotsFromDatabase(companyRows, momentumRows, eventRows, newsRows, newsItems, momentumHistoryRows);
   },
   {
     key: "surface:leaderboard",
@@ -1446,7 +1510,7 @@ export const getLaunchesData = createInstrumentedCache(
   "launches_data",
   async (): Promise<LaunchCardData[]> => {
   const [companyRows, productRows, news] = await Promise.all([getCompanyRows(), getProductRows(), getNewsItemsData()]);
-  const newsLaunches = buildNewsLaunchCards(news);
+  const newsLaunches = buildNewsLaunchCards(news.filter((item) => isLaunchSurfaceStory(item)));
 
   if (!companyRows || !productRows) {
     return newsLaunches.length > 0 ? newsLaunches : launches;
@@ -1507,7 +1571,7 @@ export const getTimelineData = createInstrumentedCache(
   const news = await getNewsItemsData();
 
   const generatedTimeline = news
-    .filter((item) => item.importanceScore >= 6 && item.companySlugs.length > 0)
+    .filter((item) => isPrestigeSurfaceStory(item) && item.importanceScore >= 6 && Boolean(item.companySlugs[0]))
     .slice(0, 10)
     .map<TimelineEntry>((item, index) => ({
       slug: `timeline-${item.slug}`,
@@ -1585,15 +1649,16 @@ export const getTopMoversData = createInstrumentedCache(
 export const getCompanyDetailData = createInstrumentedCache(
   "company_detail_data",
   async (slug: string): Promise<CompanyDetailRecord | null> => {
-    const [companyRows, productRows, news, leaderboard, eventRows] = await Promise.all([
+    const [companyRows, productRows, news, leaderboard, eventRows, newsRows] = await Promise.all([
       getCompanyRows(),
       getProductRows(),
       getNewsItemsData(),
       getLeaderboardData(),
       getEventRows(),
+      getNewsRows(),
     ]);
 
-    if (!companyRows || !productRows || !eventRows) {
+    if (!companyRows || !productRows || !eventRows || !newsRows) {
       return fallbackCompanyDetail(slug);
     }
 
@@ -1614,8 +1679,10 @@ export const getCompanyDetailData = createInstrumentedCache(
           launchDate: row.launch_date ?? undefined,
         }));
 
-      const companyNews = news.filter((item) => item.companySlugs.includes(slug));
+      const companyNews = news.filter((item) => isCompanyRelevantStory(item, slug));
       const recentNews = companyNews.slice(0, 5);
+      const newsSlugById = new Map(newsRows.map((row) => [row.id, row.slug]));
+      const newsItemBySlug = new Map(news.map((item) => [item.slug, item]));
       const categoryCounts = new Map<string, number>();
 
       for (const item of companyNews) {
@@ -1638,7 +1705,20 @@ export const getCompanyDetailData = createInstrumentedCache(
           name: item.headline,
           detail: toCompleteSentence(item.summary),
         }));
-      const companyEvents = eventRows.filter((row) => row.company_id === companyRow.id);
+      const companyEvents = eventRows.filter((row) => {
+        if (row.company_id !== companyRow.id) {
+          return false;
+        }
+
+        if (!row.news_item_id) {
+          return true;
+        }
+
+        const storySlug = newsSlugById.get(row.news_item_id);
+        const story = storySlug ? newsItemBySlug.get(storySlug) : undefined;
+
+        return !story || isCompanyRelevantStory(story, slug);
+      });
       const milestones = companyEvents
         .slice(0, 4)
         .map<Milestone>((row) => ({
@@ -1709,7 +1789,7 @@ const getDailyDigestDataCached = createInstrumentedCache(
     const companyById = Object.fromEntries(companyRows.map((row) => [row.id, row]));
     const newsSlugById = Object.fromEntries(newsRows.map((row) => [row.id, row.slug]));
     const inferredTopStories = news
-      .filter((item) => getContentDateKey(item.publishedAt) === digestRow.digest_date)
+      .filter((item) => getContentDateKey(item.publishedAt) === digestRow.digest_date && isDigestSurfaceStory(item))
       .sort((left, right) => right.importanceScore - left.importanceScore || new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
       .slice(0, 10);
 
@@ -1719,9 +1799,12 @@ const getDailyDigestDataCached = createInstrumentedCache(
       ? newsSlugById[digestRow.most_important_news_item_id]
       : undefined;
     const digestTopStorySlugs = digestRow.top_story_slugs?.length ? digestRow.top_story_slugs : inferredTopStories.map((item) => item.slug);
-    const topStories = digestTopStorySlugs.map((slug) => news.find((item) => item.slug === slug)).filter(Boolean) as typeof news;
+    const topStories = digestTopStorySlugs
+      .map((storySlug) => news.find((item) => item.slug === storySlug))
+      .filter((item): item is NewsItem => Boolean(item))
+      .filter((item) => isDigestSurfaceStory(item));
     const mostImportantStory =
-      news.find((item) => item.slug === mostImportantSlug) ??
+      news.find((item) => item.slug === mostImportantSlug && isDigestSurfaceStory(item)) ??
       topStories[0] ??
       inferredTopStories[0] ??
       newsItemsBySlug[dailyDigest.mostImportantNewsSlug];
@@ -1736,7 +1819,9 @@ const getDailyDigestDataCached = createInstrumentedCache(
     const { leadStory, orderedStories } = resolveDigestLeadStory(resolvedTopStories, mostImportantStory);
     const resolvedTopStorySlugs =
       orderedStories.length > 0 ? orderedStories.map((story) => story.slug) : digestTopStorySlugs.length > 0 ? digestTopStorySlugs : fallbackDigest.digest.topStorySlugs;
-    const useFallbackCopy = shouldUseDigestFallback(digestRow.summary, digestRow.narrative);
+    const useFallbackCopy =
+      shouldUseDigestFallback(digestRow.summary, digestRow.narrative) ||
+      orderedStories.length < Math.min(3, resolvedTopStories.length);
     const fallbackSummary = leadStory ? toCompleteSentence(leadStory.shortSummary || leadStory.summary || leadStory.whyItMatters || leadStory.headline) : buildDigestSummaryFromStories(orderedStories);
     const fallbackNarrative = buildDigestNarrativeFromStories(orderedStories);
 
@@ -1764,9 +1849,7 @@ const getDailyDigestDataCached = createInstrumentedCache(
         biggestLoserCompanySlug: loserSlug,
         mostImportantNewsSlug: leadStory?.slug ?? mostImportantStory.slug,
         topStorySlugs: resolvedTopStorySlugs,
-        watchNext: (digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext)
-          .map((item) => toCompleteSentence(item))
-          .filter(Boolean),
+        watchNext: filterDigestWatchNext(digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext),
       },
       leadStory: leadStory ?? mostImportantStory,
       topStories: orderedStories,
@@ -1853,7 +1936,7 @@ export const getDigestArchiveDates = createInstrumentedCache(
 export const getRecentMomentumEventsData = createInstrumentedCache(
   "recent_momentum_events_data",
   async () => {
-  const [companyRows, eventRows, newsRows] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows()]);
+  const [companyRows, eventRows, newsRows, newsItems] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows(), getNewsItemsData()]);
 
   if (!companyRows || !eventRows || !newsRows) {
     return momentumEvents.slice(0, 10).map((event) => ({
@@ -1867,14 +1950,33 @@ export const getRecentMomentumEventsData = createInstrumentedCache(
 
   const companyById = Object.fromEntries(companyRows.map((row) => [row.id, row]));
   const newsById = Object.fromEntries(newsRows.map((row) => [row.id, row]));
+  const newsItemBySlug = new Map(newsItems.map((item) => [item.slug, item]));
 
-  return eventRows.slice(0, 10).map((row) => ({
-    companySlug: companyById[row.company_id]?.slug ?? "openai",
-    eventType: row.event_type,
-    scoreDelta: row.score_delta,
-    explanation: toCompleteSentence(row.explanation),
-    headline: row.news_item_id ? newsById[row.news_item_id]?.headline ?? row.event_type : row.event_type,
-  }));
+  return eventRows
+    .filter((row) => {
+      const companySlug = companyById[row.company_id]?.slug;
+
+      if (!companySlug) {
+        return false;
+      }
+
+      if (!row.news_item_id) {
+        return true;
+      }
+
+      const storySlug = newsById[row.news_item_id]?.slug;
+      const story = storySlug ? newsItemBySlug.get(storySlug) : undefined;
+
+      return !story || isCompanyRelevantStory(story, companySlug);
+    })
+    .slice(0, 10)
+    .map((row) => ({
+      companySlug: companyById[row.company_id]?.slug ?? "openai",
+      eventType: row.event_type,
+      scoreDelta: row.score_delta,
+      explanation: toCompleteSentence(row.explanation),
+      headline: row.news_item_id ? newsById[row.news_item_id]?.headline ?? row.event_type : row.event_type,
+    }));
   },
   {
     key: "surface:recent-momentum-events",
@@ -2005,14 +2107,14 @@ export const getHomePageData = createInstrumentedCache(
   const latestPublishedAt = getLatestPublishedAt(news) ?? siteLastUpdatedAt ?? seedNow.toISOString();
   const todayStories = selectTodayInAiStories(news, new Date(generatedAt));
   const breakingStories = news
-    .filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical")
+    .filter((item) => isHomepageStoryEligible(item) && isBreakingSurfaceStory(item))
     .sort(
       (left, right) =>
         right.importanceScore - left.importanceScore ||
         new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
     )
     .slice(0, 3);
-  const dynamicTickerItems = buildTickerItems(news);
+  const dynamicTickerItems = buildTickerItems(news.filter((item) => isPrestigeSurfaceStory(item)));
   const tickerItems = dynamicTickerItems.length >= 8 ? dynamicTickerItems : homeTickerItems;
 
   const sectionFreshness = {
@@ -2224,7 +2326,7 @@ export const getTrendingTopicsData = createInstrumentedCache(
 export const getHeatmapData = createInstrumentedCache(
   "heatmap_data",
   async (): Promise<HeatmapData> => {
-  const [companyRows, eventRows, newsRows] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows()]);
+  const [companyRows, eventRows, newsRows, newsItems] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows(), getNewsItemsData()]);
 
   if (!companyRows || !eventRows || !newsRows) {
     const dates = eachDayOfInterval({
@@ -2290,6 +2392,7 @@ export const getHeatmapData = createInstrumentedCache(
 
   const companyById = new Map(companyRows.map((row) => [row.id, row]));
   const newsById = new Map(newsRows.map((row) => [row.id, row]));
+  const newsItemBySlug = new Map(newsItems.map((item) => [item.slug, item]));
   const cells: HeatmapCell[] = [];
   const cellLookup = new Map<string, HeatmapCell>();
 
@@ -2318,6 +2421,13 @@ export const getHeatmapData = createInstrumentedCache(
       continue;
     }
 
+    const eventNewsRow = event.news_item_id ? newsById.get(event.news_item_id) : undefined;
+    const story = eventNewsRow ? newsItemBySlug.get(eventNewsRow.slug) : undefined;
+
+    if (story && !isCompanyRelevantStory(story, companyRow.slug)) {
+      continue;
+    }
+
     const dateKey = format(new Date(event.event_date), "yyyy-MM-dd");
     if (!dateSet.has(dateKey)) {
       continue;
@@ -2330,7 +2440,6 @@ export const getHeatmapData = createInstrumentedCache(
 
     cell.eventCount += 1;
     cell.netScore += Number(event.score_delta ?? 0);
-    const eventNewsRow = event.news_item_id ? newsById.get(event.news_item_id) : undefined;
     cell.events.push({
       eventType: event.event_type,
       scoreDelta: event.score_delta,
@@ -2409,6 +2518,7 @@ export const getFullTimelineData = createInstrumentedCache(
   const cutoff = subDays(new Date(), days);
   const companyById = new Map(companyRows.map((row) => [row.id, row]));
   const newsById = new Map(newsRows.map((row) => [row.id, row]));
+  const newsItemBySlug = new Map(newsItems.map((item) => [item.slug, item]));
 
   const timelineCompanies = companyRows.map((row) => {
     const company = mergeCompanyRow(row);
@@ -2424,6 +2534,12 @@ export const getFullTimelineData = createInstrumentedCache(
       }
 
       const newsRow = row.news_item_id ? newsById.get(row.news_item_id) : undefined;
+      const story = newsRow ? newsItemBySlug.get(newsRow.slug) : undefined;
+
+      if (story && !isCompanyRelevantStory(story, companyRow.slug)) {
+        return null;
+      }
+
       const headline = newsRow ? getStoryHeadline(newsRow) : row.event_type;
       const detail = newsRow ? getStoryShortSummary(newsRow) || getStorySummary(newsRow) : toCompleteSentence(row.explanation);
       const timestamp = row.event_date ?? newsRow?.published_at ?? new Date().toISOString();
@@ -2445,7 +2561,7 @@ export const getFullTimelineData = createInstrumentedCache(
 
   if (!hasToday) {
     const fallbackNews = newsItems
-      .filter((item) => item.importanceScore >= 6 && new Date(item.publishedAt) >= cutoff)
+      .filter((item) => isPrestigeSurfaceStory(item) && item.importanceScore >= 6 && new Date(item.publishedAt) >= cutoff && Boolean(item.companySlugs[0]))
       .slice(0, 8)
       .map<TimelineEntry>((item) => ({
         slug: `timeline-${item.slug}`,

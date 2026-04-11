@@ -21,6 +21,11 @@ const GENERIC_WHY_IT_MATTERS_PATTERNS = [
   /adoption potential/i,
   /compliance friction can slow adoption/i,
   /distribution, customers, and revenue signal/i,
+  /this affects how quickly .* can train, serve, or scale ai products/i,
+  /this can change launch timing, compliance costs, or regional distribution/i,
+  /watch for broader availability, pricing, and independent validation/i,
+  /converts fresh capital into hiring, compute, or distribution gains/i,
+  /this affects how quickly .* can .* scale/i,
 ];
 const SENTENCE_ABBREVIATIONS = new Set(["no", "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc"]);
 
