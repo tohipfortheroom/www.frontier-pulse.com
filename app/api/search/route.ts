@@ -27,12 +27,23 @@ export async function GET(request: Request) {
   const query = searchParams.get("q")?.trim() ?? "";
 
   if (!query) {
-    return Response.json({
-      companies: [],
-      news: [],
-    });
+    return Response.json(
+      {
+        companies: [],
+        news: [],
+      },
+      {
+        headers: {
+          "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+        },
+      },
+    );
   }
 
   const results = await searchSite(query);
-  return Response.json(results);
+  return Response.json(results, {
+    headers: {
+      "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+    },
+  });
 }

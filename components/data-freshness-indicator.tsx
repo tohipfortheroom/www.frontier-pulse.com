@@ -65,7 +65,7 @@ export function DataFreshnessIndicator() {
     void loadFreshness();
     const fetchInterval = window.setInterval(() => {
       void loadFreshness();
-    }, 60_000);
+    }, 300_000);
     const clockInterval = window.setInterval(() => {
       setNow(new Date());
     }, 60_000);

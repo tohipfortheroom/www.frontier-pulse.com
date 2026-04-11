@@ -1,8 +1,10 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { getErrorMessage } from "@/lib/error-utils";
 import { runPriorityCronIngestion } from "@/lib/ingestion/cron";
 import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
+import { CACHE_TAGS } from "@/lib/server-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +16,8 @@ export async function GET(request: Request) {
 
   try {
     const result = await runPriorityCronIngestion();
+    revalidateTag(CACHE_TAGS.siteContent, "max");
+    revalidateTag(CACHE_TAGS.health, "max");
     return NextResponse.json(result);
   } catch (error) {
     const message = getErrorMessage(error);
@@ -29,6 +33,8 @@ export async function POST(request: Request) {
 
   try {
     const result = await runPriorityCronIngestion();
+    revalidateTag(CACHE_TAGS.siteContent, "max");
+    revalidateTag(CACHE_TAGS.health, "max");
     return NextResponse.json(result);
   } catch (error) {
     const message = getErrorMessage(error);

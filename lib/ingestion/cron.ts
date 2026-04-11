@@ -58,6 +58,30 @@ async function runDownstreamTask<T>(
   }
 }
 
+async function runTimedCronTask<T>(task: string, action: () => Promise<T>) {
+  const startedAt = Date.now();
+  logger.info("ingestion", `${task}_started`, {
+    task,
+    startedAt: new Date(startedAt).toISOString(),
+  });
+
+  try {
+    const result = await action();
+    logger.info("ingestion", `${task}_completed`, {
+      task,
+      durationMs: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    logger.error("ingestion", `${task}_failed`, {
+      task,
+      durationMs: Date.now() - startedAt,
+      error: getErrorMessage(error),
+    });
+    throw error;
+  }
+}
+
 async function appendDownstreamTasks(ingestion: Awaited<ReturnType<typeof runIngestionPipeline>>) {
   const shouldRunDownstream = !ingestion.dryRun && (ingestion.status === "success" || ingestion.status === "partial_success");
   const leaderboard = shouldRunDownstream
@@ -95,12 +119,14 @@ async function appendDownstreamTasks(ingestion: Awaited<ReturnType<typeof runIng
 }
 
 export async function runCronIngestion(triggerKind: PipelineTriggerKind = "cron") {
-  const ingestion = await runIngestionPipeline({
-    triggerKind,
-    targetScope: "all",
-  });
+  return runTimedCronTask("cron_ingestion", async () => {
+    const ingestion = await runIngestionPipeline({
+      triggerKind,
+      targetScope: "all",
+    });
 
-  return appendDownstreamTasks(ingestion);
+    return appendDownstreamTasks(ingestion);
+  });
 }
 
 export async function runBackfillIngestion({
@@ -112,24 +138,28 @@ export async function runBackfillIngestion({
   selectedSourceIds?: string[];
   maxAgeOverrideHours?: number;
 } = {}) {
-  const ingestion = await runIngestionPipeline({
-    triggerKind,
-    targetScope: selectedSourceIds?.length ? "selected" : "all",
-    selectedSourceIds,
-    maxAgeOverrideHours,
-  });
+  return runTimedCronTask("backfill_ingestion", async () => {
+    const ingestion = await runIngestionPipeline({
+      triggerKind,
+      targetScope: selectedSourceIds?.length ? "selected" : "all",
+      selectedSourceIds,
+      maxAgeOverrideHours,
+    });
 
-  return appendDownstreamTasks(ingestion);
+    return appendDownstreamTasks(ingestion);
+  });
 }
 
 export async function runPriorityCronIngestion(triggerKind: PipelineTriggerKind = "priority-cron") {
-  const ingestion = await runPriorityIngestion(triggerKind);
+  return runTimedCronTask("priority_cron_ingestion", async () => {
+    const ingestion = await runPriorityIngestion(triggerKind);
 
-  if (ingestion.staleSourceIds.length > 0) {
-    console.warn(`Stale sources detected: ${ingestion.staleSourceIds.join(", ")}`);
-  }
+    if (ingestion.staleSourceIds.length > 0) {
+      console.warn(`Stale sources detected: ${ingestion.staleSourceIds.join(", ")}`);
+    }
 
-  return ingestion;
+    return ingestion;
+  });
 }
 
 if (process.argv[1]?.endsWith("cron.ts")) {

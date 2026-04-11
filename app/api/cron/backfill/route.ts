@@ -1,8 +1,10 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { getErrorMessage } from "@/lib/error-utils";
 import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
 import { runBackfillIngestion } from "@/lib/ingestion/cron";
+import { CACHE_TAGS } from "@/lib/server-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,6 +28,8 @@ export async function POST(request: Request) {
       selectedSourceIds: payload?.sources,
       maxAgeOverrideHours: maxAgeDays * 24,
     });
+    revalidateTag(CACHE_TAGS.siteContent, "max");
+    revalidateTag(CACHE_TAGS.health, "max");
 
     return NextResponse.json({
       status: result.status,

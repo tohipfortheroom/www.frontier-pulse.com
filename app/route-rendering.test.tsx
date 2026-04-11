@@ -64,9 +64,9 @@ vi.mock("@/components/news-page-client", () => ({
 
 vi.mock("@/components/compare-page-client", () => ({
   ComparePageClient: ({
-    initialSelectedSlugs,
+    initialSelectedSlugs = [],
   }: {
-    initialSelectedSlugs: string[];
+    initialSelectedSlugs?: string[];
   }) => <div>{initialSelectedSlugs.join(",")}</div>,
 }));
 
@@ -81,7 +81,7 @@ describe("route rendering regressions", () => {
     mockGetSourceHealthSnapshot.mockReset();
   });
 
-  it("renders the news page with honest stale messaging and server-parsed filters", async () => {
+  it("renders the news page with honest stale messaging and static default filters", async () => {
     mockGetNewsItemsData.mockResolvedValue([
       {
         id: "story-1",
@@ -96,26 +96,17 @@ describe("route rendering regressions", () => {
       sourceSummary: { total: 12 },
     });
 
-    const html = renderToStaticMarkup(
-      await NewsPage({
-        searchParams: Promise.resolve({
-          q: "agents",
-          company: "openai",
-          category: "launches",
-          timeframe: "24h",
-        }),
-      }),
-    );
+    const html = renderToStaticMarkup(await NewsPage());
 
     expect(html).toContain("A clean, filterable stream of AI moves");
     expect(html).toContain("The live ingest is behind.");
-    expect(html).toContain("&quot;query&quot;:&quot;agents&quot;");
-    expect(html).toContain("&quot;company&quot;:&quot;openai&quot;");
-    expect(html).toContain("&quot;category&quot;:&quot;launches&quot;");
-    expect(html).toContain("&quot;timeframe&quot;:&quot;24h&quot;");
+    expect(html).toContain("&quot;query&quot;:&quot;&quot;");
+    expect(html).toContain("&quot;company&quot;:&quot;all&quot;");
+    expect(html).toContain("&quot;category&quot;:&quot;all&quot;");
+    expect(html).toContain("&quot;timeframe&quot;:&quot;7d&quot;");
   });
 
-  it("renders the compare page with selected companies and truthful ranking freshness", async () => {
+  it("renders the compare page with truthful ranking freshness and a static shell", async () => {
     mockGetCompaniesIndexData.mockResolvedValue([
       { company: { slug: "openai" }, momentum: { score: 82 } },
       { company: { slug: "anthropic" }, momentum: { score: 79 } },
@@ -133,18 +124,12 @@ describe("route rendering regressions", () => {
       isRunning: false,
     });
 
-    const html = renderToStaticMarkup(
-      await ComparePage({
-        searchParams: Promise.resolve({
-          companies: "openai,anthropic",
-        }),
-      }),
-    );
+    const html = renderToStaticMarkup(await ComparePage());
 
     expect(html).toContain("Stack the contenders side by side");
     expect(html).toContain("Leaderboard snapshot is behind the news feed.");
     expect(html).toContain("Tracked:2");
     expect(html).toContain("Ranked:2");
-    expect(html).toContain("openai,anthropic");
+    expect(html).toContain("<div></div>");
   });
 });

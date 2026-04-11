@@ -3,7 +3,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { addDays, differenceInDays, differenceInHours, endOfWeek, format, startOfDay, startOfWeek, subDays } from "date-fns";
 import { Filter, RefreshCcw, Search, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { useToast } from "@/components/toast-provider";
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
@@ -53,6 +53,7 @@ type NewsPageClientProps = {
 
 export function NewsPageClient({ newsItems, companies, categories, initialFilters, initialFreshness }: NewsPageClientProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState(initialFilters.query);
   const [expandedSlug, setExpandedSlug] = useState<string | null>(null);
   const [companyFilter, setCompanyFilter] = useState(initialFilters.company);
@@ -133,14 +134,24 @@ export function NewsPageClient({ newsItems, companies, categories, initialFilter
   }, [newsItems]);
 
   useEffect(() => {
-    setQuery(initialFilters.query);
-    setCompanyFilter(initialFilters.company);
-    setCategoryFilter(initialFilters.category);
-    setTimeframe(initialFilters.timeframe);
-    setImportance(initialFilters.importance);
-    setTagFilter(initialFilters.tag);
-    setSelectedDay(initialFilters.day);
-  }, [initialFilters]);
+    const nextFilters = {
+      query: searchParams.get("q")?.trim() ?? initialFilters.query,
+      company: searchParams.get("company") ?? initialFilters.company,
+      category: searchParams.get("category") ?? initialFilters.category,
+      timeframe: searchParams.get("timeframe") ?? initialFilters.timeframe,
+      importance: searchParams.get("importance") ?? initialFilters.importance,
+      tag: searchParams.get("tag") ?? initialFilters.tag,
+      day: searchParams.get("day") ?? initialFilters.day,
+    } as const;
+
+    setQuery(nextFilters.query);
+    setCompanyFilter(nextFilters.company);
+    setCategoryFilter(nextFilters.category);
+    setTimeframe(nextFilters.timeframe);
+    setImportance(nextFilters.importance);
+    setTagFilter(nextFilters.tag);
+    setSelectedDay(nextFilters.day);
+  }, [initialFilters, searchParams]);
 
   useEffect(() => {
     setFreshness(initialFreshness);
@@ -193,7 +204,7 @@ export function NewsPageClient({ newsItems, companies, categories, initialFilter
     void loadHealth();
     const refreshInterval = window.setInterval(() => {
       void loadHealth();
-    }, 60_000);
+    }, 300_000);
     const nowInterval = window.setInterval(() => {
       setNow(new Date());
     }, 60_000);

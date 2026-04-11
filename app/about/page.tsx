@@ -16,7 +16,7 @@ const audienceItems = [
 const faqItems = [
   {
     question: "How often is data updated?",
-    answer: "Priority checks run every 15 minutes and the broader ingestion pass runs every 30 minutes, so the tracker stays current without pretending every rumor matters.",
+    answer: "Priority checks run every hour and the broader ingestion pass runs every two hours, so the tracker stays current without pretending every rumor matters.",
   },
   {
     question: "How is importance scored?",
@@ -215,8 +215,8 @@ export default function AboutPage() {
               Health and cadence
             </h2>
             <ul className="mt-6 space-y-3 text-sm leading-7 text-[var(--text-secondary)]">
-              <li>Main ingestion runs every 30 minutes.</li>
-              <li>Priority checks run every 15 minutes for faster critical coverage.</li>
+              <li>Main ingestion runs every two hours.</li>
+              <li>Priority checks run every hour for faster critical coverage.</li>
               <li>Health status is available through the public endpoint for live operational visibility.</li>
             </ul>
             <Link

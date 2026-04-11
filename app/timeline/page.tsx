@@ -35,7 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-export const dynamic = "force-dynamic";
+export const revalidate = 600;
 
 export default async function TimelinePage() {
   const [data, siteLastUpdatedAt] = await Promise.all([getFullTimelineData(14), getSiteLastUpdatedAt()]);

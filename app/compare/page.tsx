@@ -12,26 +12,14 @@ export const metadata: Metadata = {
   description: "Compare up to four AI companies side by side across momentum, radar profiles, product breadth, recent coverage, and shared competitive pressure.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
-type ComparePageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default async function ComparePage({ searchParams }: ComparePageProps) {
-  const [records, newsItems, refreshState, params] = await Promise.all([
+export default async function ComparePage() {
+  const [records, newsItems, refreshState] = await Promise.all([
     getCompaniesIndexData(),
     getNewsItemsData(),
     getLeaderboardRefreshState(),
-    searchParams,
   ]);
-  const initialSelectedSlugs =
-    typeof params.companies === "string"
-      ? params.companies
-          .split(",")
-          .map((value) => value.trim())
-          .filter(Boolean)
-      : [];
   const trackingSummary = getTrackedCompanySummary(records);
   const latestCoverageAt = newsItems[0]?.publishedAt ?? null;
   const staleWarning = refreshState.status === "stale" ? refreshState.reason : null;
@@ -54,7 +42,7 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
           ]}
           warning={staleWarning}
         />
-        <ComparePageClient records={records} newsItems={newsItems} initialSelectedSlugs={initialSelectedSlugs} />
+        <ComparePageClient records={records} newsItems={newsItems} />
       </section>
     </div>
   );

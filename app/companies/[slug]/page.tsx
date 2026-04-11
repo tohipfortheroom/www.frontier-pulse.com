@@ -6,6 +6,7 @@ import Script from "next/script";
 
 import { getCompanyDetailData, getLeaderboardRefreshState } from "@/lib/db/queries";
 import { formatTrendPercent, getTrendPercentTone } from "@/lib/score-history";
+import { companies } from "@/lib/seed/data";
 import { formatDateLabel, formatScore, formatUpdateTimestamp, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { ModuleStatusStrip } from "@/components/module-status-strip";
@@ -28,7 +29,13 @@ const ScoreBreakdownChart = dynamicImport(
   },
 );
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
+
+export function generateStaticParams() {
+  return companies.map((company) => ({
+    slug: company.slug,
+  }));
+}
 
 function formatMetricValue(value: number | null | undefined, { digits = 0, suffix = "" }: { digits?: number; suffix?: string } = {}) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {

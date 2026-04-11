@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, PolarAngleAxis, PolarGrid, Radar, RadarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Check, Copy } from "lucide-react";
 
@@ -64,6 +64,7 @@ export function ComparePageClient({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
   const [mounted, setMounted] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -71,8 +72,14 @@ export function ComparePageClient({
   const [selectedSlugs, setSelectedSlugs] = useState(() => normalizeSelection(initialSelectedSlugs, records));
 
   useEffect(() => {
-    setSelectedSlugs(normalizeSelection(initialSelectedSlugs, records));
-  }, [initialSelectedSlugs, records]);
+    const selectedFromUrl = searchParams
+      .get("companies")
+      ?.split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+
+    setSelectedSlugs(normalizeSelection(selectedFromUrl ?? initialSelectedSlugs, records));
+  }, [initialSelectedSlugs, records, searchParams]);
 
   useEffect(() => {
     setMounted(true);

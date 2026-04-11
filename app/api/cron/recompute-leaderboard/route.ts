@@ -1,8 +1,10 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { getErrorMessage } from "@/lib/error-utils";
 import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
 import { recomputeLeaderboardFromNews } from "@/lib/ingestion/leaderboard";
+import { CACHE_TAGS } from "@/lib/server-cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,6 +38,8 @@ export async function GET(request: Request) {
 
   try {
     const result = await recomputeLeaderboardFromNews(getReferenceDate(request));
+    revalidateTag(CACHE_TAGS.siteContent, "max");
+    revalidateTag(CACHE_TAGS.health, "max");
 
     return NextResponse.json(result);
   } catch (error) {
@@ -52,6 +56,8 @@ export async function POST(request: Request) {
 
   try {
     const result = await recomputeLeaderboardFromNews(getReferenceDate(request));
+    revalidateTag(CACHE_TAGS.siteContent, "max");
+    revalidateTag(CACHE_TAGS.health, "max");
 
     return NextResponse.json(result);
   } catch (error) {

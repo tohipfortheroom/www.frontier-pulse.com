@@ -15,27 +15,22 @@ export const metadata: Metadata = {
   description: "Filter the AI competitive intelligence stream by company, category, timeframe, and importance to find the signal that matters.",
 };
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
-type NewsPageProps = {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default async function NewsPage({ searchParams }: NewsPageProps) {
-  const [newsItems, companyRecords, freshness, params] = await Promise.all([
+export default async function NewsPage() {
+  const [newsItems, companyRecords, freshness] = await Promise.all([
     getNewsItemsData(),
     getCompaniesIndexData(),
     getSourceHealthSnapshot(sourceRegistry),
-    searchParams,
   ]);
   const initialFilters = {
-    query: typeof params.q === "string" ? params.q : "",
-    company: typeof params.company === "string" ? params.company : "all",
-    category: typeof params.category === "string" ? params.category : "all",
-    timeframe: typeof params.timeframe === "string" ? params.timeframe : "7d",
-    importance: typeof params.importance === "string" ? params.importance : "all",
-    tag: typeof params.tag === "string" ? params.tag : null,
-    day: typeof params.day === "string" ? params.day : null,
+    query: "",
+    company: "all",
+    category: "all",
+    timeframe: "7d",
+    importance: "all",
+    tag: null,
+    day: null,
   } as const;
   const latestPublishedAt = newsItems[0]?.publishedAt ?? freshness.latestPublishedAt;
   const staleWarning =

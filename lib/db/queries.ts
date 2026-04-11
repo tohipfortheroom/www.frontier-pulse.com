@@ -1,4 +1,3 @@
-import { cache } from "react";
 import { eachDayOfInterval, format, startOfDay, subDays } from "date-fns";
 
 import { TRACKED_COMPANY_COUNT } from "@/lib/company-registry";
@@ -68,6 +67,7 @@ import type { RawIngestedItem } from "@/lib/ingestion/types";
 import { getPipelineStateRow } from "@/lib/ingestion/run-state";
 import { isSupabaseMissingTableError } from "@/lib/error-utils";
 import { logger } from "@/lib/monitoring/logger";
+import { CACHE_TAGS, createInstrumentedCache } from "@/lib/server-cache";
 import {
   buildCompanyHistoryMap,
   buildDailyHistoryEntriesFromMomentumRows,
@@ -111,6 +111,11 @@ type TagRow = {
 };
 
 type LaunchTypeMap = "MODEL" | "PRODUCT" | "PLATFORM" | "API";
+
+const SHORT_SURFACE_REVALIDATE_SECONDS = 300;
+const MEDIUM_SURFACE_REVALIDATE_SECONDS = 900;
+const LONG_SURFACE_REVALIDATE_SECONDS = 3600;
+const SITE_CONTENT_CACHE_TAGS = [CACHE_TAGS.siteContent];
 
 const GENERIC_COMPANY_COPY_PATTERNS = [
   /\ba leading (?:technology|ai) compan/i,
@@ -859,7 +864,9 @@ async function runSupabaseQuery<T>(
   }
 }
 
-const getCompanyRows = cache(async () => {
+const getCompanyRows = createInstrumentedCache(
+  "company_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -868,9 +875,17 @@ const getCompanyRows = cache(async () => {
 
   const data = await runSupabaseQuery("companies", () => client.from("companies").select("*").order("name"));
   return data as CompanyRow[] | null;
-});
+  },
+  {
+    key: "db:company-rows",
+    revalidate: MEDIUM_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getProductRows = cache(async () => {
+const getProductRows = createInstrumentedCache(
+  "product_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -881,9 +896,17 @@ const getProductRows = cache(async () => {
     client.from("company_products").select("*").order("launch_date", { ascending: false }),
   );
   return data as CompanyProductRow[] | null;
-});
+  },
+  {
+    key: "db:product-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getNewsRows = cache(async () => {
+const getNewsRows = createInstrumentedCache(
+  "news_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -894,9 +917,17 @@ const getNewsRows = cache(async () => {
     client.from("news_items").select("*").order("published_at", { ascending: false }),
   );
   return data as NewsItemRow[] | null;
-});
+  },
+  {
+    key: "db:news-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getCompanyNewsRows = cache(async () => {
+const getCompanyNewsRows = createInstrumentedCache(
+  "company_news_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -907,9 +938,17 @@ const getCompanyNewsRows = cache(async () => {
     client.from("company_news").select("company_id, news_item_id"),
   );
   return data as CompanyNewsRow[] | null;
-});
+  },
+  {
+    key: "db:company-news-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getCategoryRows = cache(async () => {
+const getCategoryRows = createInstrumentedCache(
+  "category_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -918,9 +957,17 @@ const getCategoryRows = cache(async () => {
 
   const data = await runSupabaseQuery("categories", () => client.from("categories").select("id, slug, name"));
   return data as CategoryRow[] | null;
-});
+  },
+  {
+    key: "db:category-rows",
+    revalidate: LONG_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getTagRows = cache(async () => {
+const getTagRows = createInstrumentedCache(
+  "tag_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -929,9 +976,17 @@ const getTagRows = cache(async () => {
 
   const data = await runSupabaseQuery("tags", () => client.from("tags").select("id, slug, name"));
   return data as TagRow[] | null;
-});
+  },
+  {
+    key: "db:tag-rows",
+    revalidate: LONG_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getNewsCategoryRows = cache(async () => {
+const getNewsCategoryRows = createInstrumentedCache(
+  "news_category_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -942,9 +997,17 @@ const getNewsCategoryRows = cache(async () => {
     client.from("news_item_categories").select("news_item_id, category_id"),
   );
   return data as NewsItemCategoryRow[] | null;
-});
+  },
+  {
+    key: "db:news-category-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getNewsTagRows = cache(async () => {
+const getNewsTagRows = createInstrumentedCache(
+  "news_tag_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -955,9 +1018,17 @@ const getNewsTagRows = cache(async () => {
     client.from("news_item_tags").select("news_item_id, tag_id"),
   );
   return data as NewsItemTagRow[] | null;
-});
+  },
+  {
+    key: "db:news-tag-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getEventRows = cache(async () => {
+const getEventRows = createInstrumentedCache(
+  "event_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -968,9 +1039,17 @@ const getEventRows = cache(async () => {
     client.from("events").select("*").order("event_date", { ascending: false }),
   );
   return data as EventRow[] | null;
-});
+  },
+  {
+    key: "db:event-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getMomentumRows = cache(async () => {
+const getMomentumRows = createInstrumentedCache(
+  "momentum_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -981,9 +1060,17 @@ const getMomentumRows = cache(async () => {
     client.from("momentum_scores").select("*").order("calculated_at", { ascending: true }),
   );
   return data as MomentumScoreRow[] | null;
-});
+  },
+  {
+    key: "db:momentum-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getMomentumHistoryRows = cache(async () => {
+const getMomentumHistoryRows = createInstrumentedCache(
+  "momentum_history_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -996,9 +1083,17 @@ const getMomentumHistoryRows = cache(async () => {
     { ignoreMissingTable: "momentum_score_history" },
   );
   return data as MomentumScoreHistoryRow[] | null;
-});
+  },
+  {
+    key: "db:momentum-history-rows",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-const getDailyDigestRows = async () => {
+const getDailyDigestRows = createInstrumentedCache(
+  "daily_digest_rows",
+  async () => {
   const client = getSupabaseServerClient();
 
   if (!client) {
@@ -1009,7 +1104,13 @@ const getDailyDigestRows = async () => {
     client.from("daily_digests").select("*").order("digest_date", { ascending: false }),
   );
   return data as DailyDigestRow[] | null;
-};
+  },
+  {
+    key: "db:daily-digest-rows",
+    revalidate: MEDIUM_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
 function buildNewsFromDatabase(
   newsRows: NewsItemRow[],
@@ -1185,122 +1286,165 @@ function buildMomentumSnapshotsFromDatabase(
     }));
 }
 
-export const getNewsItemsData = cache(async (): Promise<NewsItem[]> => {
-  const [companyRows, newsRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows] =
-    await Promise.all([
+export const getNewsItemsData = createInstrumentedCache(
+  "news_items_data",
+  async (): Promise<NewsItem[]> => {
+    const [companyRows, newsRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows] =
+      await Promise.all([
+        getCompanyRows(),
+        getNewsRows(),
+        getCompanyNewsRows(),
+        getCategoryRows(),
+        getNewsCategoryRows(),
+        getTagRows(),
+        getNewsTagRows(),
+      ]);
+
+    if (
+      !companyRows ||
+      !newsRows ||
+      !companyNewsRows ||
+      !categoryRows ||
+      !newsCategoryRows ||
+      !tagRows ||
+      !newsTagRows
+    ) {
+      return sortedNewsItems;
+    }
+
+    const items = buildNewsFromDatabase(newsRows, companyRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows);
+    logger.info("ui", "news_stream_status", {
+      cacheKey: "news:stream",
+      latestPublishedAt: items[0]?.publishedAt ?? null,
+      recordCount: items.length,
+      trackedCompanyCount: companyRows.length,
+    });
+    return items;
+  },
+  {
+    key: "surface:news-items",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
+
+export const getNewsItemDetailData = createInstrumentedCache(
+  "news_item_detail_data",
+  async (slug: string): Promise<NewsDetailRecord | null> => {
+    const news = await getNewsItemsData();
+    const newsItem = news.find((item) => item.slug === slug);
+
+    if (!newsItem) {
+      return null;
+    }
+
+    const sameCompanyStories = news.filter(
+      (item) => item.slug !== slug && item.companySlugs.some((companySlug) => newsItem.companySlugs.includes(companySlug)),
+    );
+    const relatedStories = sameCompanyStories
+      .slice()
+      .sort(
+        (left, right) =>
+          right.importanceScore - left.importanceScore ||
+          new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
+      )
+      .slice(0, 3);
+    const moreFromCompany = sameCompanyStories
+      .slice()
+      .sort((left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
+      .slice(0, 3);
+
+    return {
+      news: newsItem,
+      relatedStories,
+      moreFromCompany,
+    };
+  },
+  {
+    key: "surface:news-item-detail",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+    describeArgs: (slug) => ({ slug }),
+  },
+);
+
+export const getLeaderboardData = createInstrumentedCache(
+  "leaderboard_data",
+  async (): Promise<MomentumSnapshot[]> => {
+    const [companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows] = await Promise.all([
       getCompanyRows(),
+      getMomentumRows(),
+      getEventRows(),
       getNewsRows(),
-      getCompanyNewsRows(),
-      getCategoryRows(),
-      getNewsCategoryRows(),
-      getTagRows(),
-      getNewsTagRows(),
+      getMomentumHistoryRows(),
     ]);
 
-  if (
-    !companyRows ||
-    !newsRows ||
-    !companyNewsRows ||
-    !categoryRows ||
-    !newsCategoryRows ||
-    !tagRows ||
-    !newsTagRows
-  ) {
-    return sortedNewsItems;
-  }
+    if (!companyRows || !momentumRows || !eventRows || !newsRows) {
+      return buildFallbackMomentumSnapshots();
+    }
 
-  const items = buildNewsFromDatabase(newsRows, companyRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows);
-  logger.info("ui", "news_stream_status", {
-    cacheKey: "news:stream",
-    latestPublishedAt: items[0]?.publishedAt ?? null,
-    recordCount: items.length,
-    trackedCompanyCount: companyRows.length,
-  });
-  return items;
-});
+    return buildMomentumSnapshotsFromDatabase(companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows);
+  },
+  {
+    key: "surface:leaderboard",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getNewsItemDetailData = cache(async (slug: string): Promise<NewsDetailRecord | null> => {
-  const news = await getNewsItemsData();
-  const newsItem = news.find((item) => item.slug === slug);
+export const getCompaniesIndexData = createInstrumentedCache(
+  "companies_index_data",
+  async (): Promise<CompanyCardRecord[]> => {
+    const [companyRows, newsItems, leaderboard] = await Promise.all([
+      getCompanyRows(),
+      getNewsItemsData(),
+      getLeaderboardData(),
+    ]);
 
-  if (!newsItem) {
-    return null;
-  }
+    if (!companyRows) {
+      return fallbackCompanyCards();
+    }
 
-  const relatedStories = news
-    .filter((item) => item.slug !== slug)
-    .filter((item) => item.companySlugs.some((companySlug) => newsItem.companySlugs.includes(companySlug)))
-    .sort(
-      (left, right) =>
-        right.importanceScore - left.importanceScore ||
-        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
-    )
-    .slice(0, 3);
-  const moreFromCompany = news
-    .filter((item) => item.slug !== slug)
-    .filter((item) => item.companySlugs.some((companySlug) => newsItem.companySlugs.includes(companySlug)))
-    .sort((left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
-    .slice(0, 3);
+    const momentumBySlug = Object.fromEntries(leaderboard.map((row) => [row.companySlug, row]));
+    const activityCounts = new Map<string, number>();
 
-  return {
-    news: newsItem,
-    relatedStories,
-    moreFromCompany,
-  };
-});
+    for (const item of newsItems) {
+      for (const companySlug of item.companySlugs) {
+        activityCounts.set(companySlug, (activityCounts.get(companySlug) ?? 0) + 1);
+      }
+    }
 
-export const getLeaderboardData = cache(async (): Promise<MomentumSnapshot[]> => {
-  const [companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows] = await Promise.all([
-    getCompanyRows(),
-    getMomentumRows(),
-    getEventRows(),
-    getNewsRows(),
-    getMomentumHistoryRows(),
-  ]);
+    const records = companyRows
+      .map((row) => {
+        const company = mergeCompanyRow(row);
 
-  if (!companyRows || !momentumRows || !eventRows || !newsRows) {
-    return buildFallbackMomentumSnapshots();
-  }
+        return {
+          company,
+          activityCount: activityCounts.get(row.slug) ?? 0,
+          momentum: momentumBySlug[row.slug],
+        };
+      })
+      .sort((left, right) => (left.momentum?.rank ?? 999) - (right.momentum?.rank ?? 999));
 
-  return buildMomentumSnapshotsFromDatabase(companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows);
-});
+    logger.info("ui", "companies_index_status", {
+      cacheKey: "companies:index",
+      trackedCount: records.length,
+      rankedCount: records.filter((record) => Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score))).length,
+      latestCoverageAt: newsItems[0]?.publishedAt ?? null,
+    });
 
-export const getCompaniesIndexData = cache(async (): Promise<CompanyCardRecord[]> => {
-  const [companyRows, newsItems, leaderboard] = await Promise.all([
-    getCompanyRows(),
-    getNewsItemsData(),
-    getLeaderboardData(),
-  ]);
+    return records;
+  },
+  {
+    key: "surface:companies-index",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-  if (!companyRows) {
-    return fallbackCompanyCards();
-  }
-
-  const momentumBySlug = Object.fromEntries(leaderboard.map((row) => [row.companySlug, row]));
-
-  const records = companyRows
-    .map((row) => {
-      const company = mergeCompanyRow(row);
-
-      return {
-        company,
-        activityCount: newsItems.filter((item) => item.companySlugs.includes(row.slug)).length,
-        momentum: momentumBySlug[row.slug],
-      };
-    })
-    .sort((left, right) => (left.momentum?.rank ?? 999) - (right.momentum?.rank ?? 999));
-
-  logger.info("ui", "companies_index_status", {
-    cacheKey: "companies:index",
-    trackedCount: records.length,
-    rankedCount: records.filter((record) => Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score))).length,
-    latestCoverageAt: newsItems[0]?.publishedAt ?? null,
-  });
-
-  return records;
-});
-
-export const getLaunchesData = cache(async (): Promise<LaunchCardData[]> => {
+export const getLaunchesData = createInstrumentedCache(
+  "launches_data",
+  async (): Promise<LaunchCardData[]> => {
   const [companyRows, productRows, news] = await Promise.all([getCompanyRows(), getProductRows(), getNewsItemsData()]);
   const newsLaunches = buildNewsLaunchCards(news);
 
@@ -1349,9 +1493,17 @@ export const getLaunchesData = cache(async (): Promise<LaunchCardData[]> => {
   }
 
   return newsLaunches.length > 0 ? newsLaunches : launches;
-});
+  },
+  {
+    key: "surface:launches",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getTimelineData = cache(async (): Promise<TimelineEntry[]> => {
+export const getTimelineData = createInstrumentedCache(
+  "timeline_data",
+  async (): Promise<TimelineEntry[]> => {
   const news = await getNewsItemsData();
 
   const generatedTimeline = news
@@ -1367,9 +1519,17 @@ export const getTimelineData = cache(async (): Promise<TimelineEntry[]> => {
     }));
 
   return generatedTimeline.length > 0 ? generatedTimeline : timelineEntries;
-});
+  },
+  {
+    key: "surface:timeline-preview",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getTopMoversData = cache(async (): Promise<TopMover[]> => {
+export const getTopMoversData = createInstrumentedCache(
+  "top_movers_data",
+  async (): Promise<TopMover[]> => {
   const leaderboard = await getLeaderboardData();
 
   if (leaderboard === momentumSnapshots || leaderboard.length === 0) {
@@ -1414,197 +1574,227 @@ export const getTopMoversData = cache(async (): Promise<TopMover[]> => {
       chart: watchCandidate.sparkline,
     },
   ];
-});
+  },
+  {
+    key: "surface:top-movers",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getCompanyDetailData = cache(async (slug: string): Promise<CompanyDetailRecord | null> => {
-  const [companyRows, productRows, news, leaderboard, eventRows] = await Promise.all([
-    getCompanyRows(),
-    getProductRows(),
-    getNewsItemsData(),
-    getLeaderboardData(),
-    getEventRows(),
-  ]);
+export const getCompanyDetailData = createInstrumentedCache(
+  "company_detail_data",
+  async (slug: string): Promise<CompanyDetailRecord | null> => {
+    const [companyRows, productRows, news, leaderboard, eventRows] = await Promise.all([
+      getCompanyRows(),
+      getProductRows(),
+      getNewsItemsData(),
+      getLeaderboardData(),
+      getEventRows(),
+    ]);
 
-  if (!companyRows || !productRows || !eventRows) {
-    return fallbackCompanyDetail(slug);
-  }
+    if (!companyRows || !productRows || !eventRows) {
+      return fallbackCompanyDetail(slug);
+    }
 
-  const companyRow = companyRows.find((row) => row.slug === slug);
+    const companyRow = companyRows.find((row) => row.slug === slug);
 
-  if (!companyRow) {
-    return fallbackCompanyDetail(slug);
-  }
+    if (!companyRow) {
+      return fallbackCompanyDetail(slug);
+    }
 
-  try {
-    const company = mergeCompanyRow(companyRow);
-    company.products = productRows
-      .filter((row) => row.company_id === companyRow.id)
-      .map((row) => ({
-        name: row.name,
-        type: row.type,
-        description: row.description,
-        launchDate: row.launch_date ?? undefined,
-      }));
+    try {
+      const company = mergeCompanyRow(companyRow);
+      company.products = productRows
+        .filter((row) => row.company_id === companyRow.id)
+        .map((row) => ({
+          name: row.name,
+          type: row.type,
+          description: row.description,
+          launchDate: row.launch_date ?? undefined,
+        }));
 
-    const recentNews = news.filter((item) => item.companySlugs.includes(slug)).slice(0, 5);
-    const companyNews = news.filter((item) => item.companySlugs.includes(slug));
-    const categoryBreakdown = categories
-      .map((category) => ({
-        slug: category.slug,
-        name: category.name,
-        count: companyNews.filter((item) => item.categorySlugs.includes(category.slug)).length,
-      }))
-      .filter((item) => item.count > 0);
-    const partnerships = recentNews
-      .filter((item) => item.categorySlugs.includes("partnership"))
-      .slice(0, 2)
-      .map<Partnership>((item) => ({
-        name: item.headline,
-        detail: toCompleteSentence(item.summary),
-      }));
+      const companyNews = news.filter((item) => item.companySlugs.includes(slug));
+      const recentNews = companyNews.slice(0, 5);
+      const categoryCounts = new Map<string, number>();
 
-    const milestones = eventRows
-      .filter((row) => row.company_id === companyRow.id)
-      .slice(0, 4)
-      .map<Milestone>((row) => ({
-        date: format(new Date(row.event_date), "yyyy-MM-dd"),
-        title: row.event_type,
-        detail: toCompleteSentence(row.explanation),
-      }));
-    const scoreBreakdown = eventRows
-      .filter((row) => row.company_id === companyRow.id)
-      .slice()
-      .sort((left, right) => new Date(left.event_date).getTime() - new Date(right.event_date).getTime())
-      .map((row) => ({
-        date: format(new Date(row.event_date), "yyyy-MM-dd"),
-        label: format(new Date(row.event_date), "MMM d"),
-        total: row.score_delta,
-        eventType: row.event_type,
-        scoreDelta: row.score_delta,
-        explanation: toCompleteSentence(row.explanation),
-      }));
+      for (const item of companyNews) {
+        for (const categorySlug of item.categorySlugs) {
+          categoryCounts.set(categorySlug, (categoryCounts.get(categorySlug) ?? 0) + 1);
+        }
+      }
+
+      const categoryBreakdown = categories
+        .map((category) => ({
+          slug: category.slug,
+          name: category.name,
+          count: categoryCounts.get(category.slug) ?? 0,
+        }))
+        .filter((item) => item.count > 0);
+      const partnerships = recentNews
+        .filter((item) => item.categorySlugs.includes("partnership"))
+        .slice(0, 2)
+        .map<Partnership>((item) => ({
+          name: item.headline,
+          detail: toCompleteSentence(item.summary),
+        }));
+      const companyEvents = eventRows.filter((row) => row.company_id === companyRow.id);
+      const milestones = companyEvents
+        .slice(0, 4)
+        .map<Milestone>((row) => ({
+          date: format(new Date(row.event_date), "yyyy-MM-dd"),
+          title: row.event_type,
+          detail: toCompleteSentence(row.explanation),
+        }));
+      const scoreBreakdown = companyEvents
+        .slice()
+        .sort((left, right) => new Date(left.event_date).getTime() - new Date(right.event_date).getTime())
+        .map((row) => ({
+          date: format(new Date(row.event_date), "yyyy-MM-dd"),
+          label: format(new Date(row.event_date), "MMM d"),
+          total: row.score_delta,
+          eventType: row.event_type,
+          scoreDelta: row.score_delta,
+          explanation: toCompleteSentence(row.explanation),
+        }));
+      const momentum = leaderboard.find((row) => row.companySlug === slug);
+
+      return {
+        company,
+        momentum: withMeaningfulMomentum(momentum),
+        recentNews,
+        partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
+        milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
+        enrichment: mergeCompanyEnrichment(company.enrichmentData, deriveCompanyEnrichment(companyNews, momentum)),
+        scoreBreakdown,
+        categoryBreakdown,
+      };
+    } catch (error) {
+      console.error(`[db] getCompanyDetailData processing failed for ${slug}:`, error);
+      return fallbackCompanyDetail(slug);
+    }
+  },
+  {
+    key: "surface:company-detail",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+    describeArgs: (slug) => ({ slug }),
+  },
+);
+
+const getDailyDigestDataCached = createInstrumentedCache(
+  "daily_digest_data",
+  async (targetDate: string): Promise<DailyDigestRecord> => {
+    const generatedAt = new Date().toISOString();
+    const [digestRows, companyRows, news, leaderboard, newsRows] = await Promise.all([
+      getDailyDigestRows(),
+      getCompanyRows(),
+      getNewsItemsData(),
+      getLeaderboardData(),
+      getNewsRows(),
+    ]);
+
+    if (!digestRows || !companyRows || !newsRows) {
+      return fallbackDailyDigest();
+    }
+
+    const digestRow =
+      digestRows.find((row) => row.digest_date === targetDate) ??
+      digestRows.sort((left, right) => new Date(right.digest_date).getTime() - new Date(left.digest_date).getTime())[0];
+
+    if (!digestRow) {
+      return fallbackDailyDigest();
+    }
+
+    const companyById = Object.fromEntries(companyRows.map((row) => [row.id, row]));
+    const newsSlugById = Object.fromEntries(newsRows.map((row) => [row.id, row.slug]));
+    const inferredTopStories = news
+      .filter((item) => getContentDateKey(item.publishedAt) === digestRow.digest_date)
+      .sort((left, right) => right.importanceScore - left.importanceScore || new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
+      .slice(0, 10);
+
+    const winnerSlug = companyById[digestRow.biggest_winner_company_id]?.slug ?? dailyDigest.biggestWinnerCompanySlug;
+    const loserSlug = companyById[digestRow.biggest_loser_company_id]?.slug ?? dailyDigest.biggestLoserCompanySlug;
+    const mostImportantSlug = digestRow.most_important_news_item_id
+      ? newsSlugById[digestRow.most_important_news_item_id]
+      : undefined;
+    const digestTopStorySlugs = digestRow.top_story_slugs?.length ? digestRow.top_story_slugs : inferredTopStories.map((item) => item.slug);
+    const topStories = digestTopStorySlugs.map((slug) => news.find((item) => item.slug === slug)).filter(Boolean) as typeof news;
+    const mostImportantStory =
+      news.find((item) => item.slug === mostImportantSlug) ??
+      topStories[0] ??
+      inferredTopStories[0] ??
+      newsItemsBySlug[dailyDigest.mostImportantNewsSlug];
+    const fallbackDigest = fallbackDailyDigest();
+
+    if (!mostImportantStory) {
+      return fallbackDigest;
+    }
+
+    const resolvedTopStories =
+      topStories.length > 0 ? topStories : inferredTopStories.length > 0 ? inferredTopStories : fallbackDigest.topStories;
+    const { leadStory, orderedStories } = resolveDigestLeadStory(resolvedTopStories, mostImportantStory);
+    const resolvedTopStorySlugs =
+      orderedStories.length > 0 ? orderedStories.map((story) => story.slug) : digestTopStorySlugs.length > 0 ? digestTopStorySlugs : fallbackDigest.digest.topStorySlugs;
+    const useFallbackCopy = shouldUseDigestFallback(digestRow.summary, digestRow.narrative);
+    const fallbackSummary = leadStory ? toCompleteSentence(leadStory.shortSummary || leadStory.summary || leadStory.whyItMatters || leadStory.headline) : buildDigestSummaryFromStories(orderedStories);
+    const fallbackNarrative = buildDigestNarrativeFromStories(orderedStories);
+
+    logger.info("ui", "daily_digest_story_cohesion", {
+      cacheKey: `daily-digest:${digestRow.digest_date}`,
+      generatedAt,
+      summaryGeneratedAt: digestRow.created_at,
+      useFallbackCopy,
+      digestHeadline: digestRow.headline_of_the_day,
+      leadStorySlug: leadStory?.slug ?? null,
+      topStorySlug: orderedStories[0]?.slug ?? null,
+      mostImportantSlug,
+    });
 
     return {
-      company,
-      momentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === slug)),
-      recentNews,
-      partnerships: partnerships.length > 0 ? partnerships : companiesBySlug[slug]?.partnerships ?? [],
-      milestones: milestones.length > 0 ? milestones : companiesBySlug[slug]?.milestones ?? [],
-      enrichment: mergeCompanyEnrichment(
-        company.enrichmentData,
-        deriveCompanyEnrichment(companyNews, leaderboard.find((row) => row.companySlug === slug)),
-      ),
-      scoreBreakdown,
-      categoryBreakdown,
+      generatedAt,
+      digest: {
+        date: digestRow.digest_date,
+        title: digestRow.title,
+        summary: useFallbackCopy ? fallbackSummary : toCompleteSentence(digestRow.summary),
+        narrative: useFallbackCopy ? fallbackNarrative : cleanNarrativeText(digestRow.narrative ?? dailyDigest.narrative),
+        headlineOfTheDay: useFallbackCopy ? (leadStory?.headline ?? digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay) : digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay,
+        themes: digestRow.themes?.length ? digestRow.themes : dailyDigest.themes,
+        biggestWinnerCompanySlug: winnerSlug,
+        biggestLoserCompanySlug: loserSlug,
+        mostImportantNewsSlug: leadStory?.slug ?? mostImportantStory.slug,
+        topStorySlugs: resolvedTopStorySlugs,
+        watchNext: (digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext)
+          .map((item) => toCompleteSentence(item))
+          .filter(Boolean),
+      },
+      leadStory: leadStory ?? mostImportantStory,
+      topStories: orderedStories,
+      biggestWinnerMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === winnerSlug)),
+      biggestLoserMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === loserSlug)),
+      mostImportantStory: leadStory ?? mostImportantStory,
+      lastUpdatedAt: digestRow.created_at,
     };
-  } catch (error) {
-    console.error(`[db] getCompanyDetailData processing failed for ${slug}:`, error);
-    return fallbackCompanyDetail(slug);
-  }
-});
+  },
+  {
+    key: "surface:daily-digest",
+    revalidate: MEDIUM_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+    describeArgs: (targetDate) => ({ targetDate }),
+  },
+);
 
-export const getDailyDigestData = async (
+export async function getDailyDigestData(
   targetDate = format(new Date(), "yyyy-MM-dd"),
-): Promise<DailyDigestRecord> => {
-  const generatedAt = new Date().toISOString();
-  const [digestRows, companyRows, news, leaderboard, newsRows] = await Promise.all([
-    getDailyDigestRows(),
-    getCompanyRows(),
-    getNewsItemsData(),
-    getLeaderboardData(),
-    getNewsRows(),
-  ]);
-
-  if (!digestRows || !companyRows || !newsRows) {
-    return fallbackDailyDigest();
-  }
-
-  const digestRow =
-    digestRows.find((row) => row.digest_date === targetDate) ??
-    digestRows.sort((left, right) => new Date(right.digest_date).getTime() - new Date(left.digest_date).getTime())[0];
-
-  if (!digestRow) {
-    return fallbackDailyDigest();
-  }
-
-  const companyById = Object.fromEntries(companyRows.map((row) => [row.id, row]));
-  const newsSlugById = Object.fromEntries(newsRows.map((row) => [row.id, row.slug]));
-  const inferredTopStories = news
-    .filter((item) => getContentDateKey(item.publishedAt) === digestRow.digest_date)
-    .sort((left, right) => right.importanceScore - left.importanceScore || new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime())
-    .slice(0, 10);
-
-  const winnerSlug = companyById[digestRow.biggest_winner_company_id]?.slug ?? dailyDigest.biggestWinnerCompanySlug;
-  const loserSlug = companyById[digestRow.biggest_loser_company_id]?.slug ?? dailyDigest.biggestLoserCompanySlug;
-  const mostImportantSlug = digestRow.most_important_news_item_id
-    ? newsSlugById[digestRow.most_important_news_item_id]
-    : undefined;
-  const digestTopStorySlugs = digestRow.top_story_slugs?.length ? digestRow.top_story_slugs : inferredTopStories.map((item) => item.slug);
-  const topStories = digestTopStorySlugs.map((slug) => news.find((item) => item.slug === slug)).filter(Boolean) as typeof news;
-  const mostImportantStory =
-    news.find((item) => item.slug === mostImportantSlug) ??
-    topStories[0] ??
-    inferredTopStories[0] ??
-    newsItemsBySlug[dailyDigest.mostImportantNewsSlug];
-  const fallbackDigest = fallbackDailyDigest();
-
-  if (!mostImportantStory) {
-    return fallbackDigest;
-  }
-
-  const resolvedTopStories =
-    topStories.length > 0 ? topStories : inferredTopStories.length > 0 ? inferredTopStories : fallbackDigest.topStories;
-  const { leadStory, orderedStories } = resolveDigestLeadStory(resolvedTopStories, mostImportantStory);
-  const resolvedTopStorySlugs =
-    orderedStories.length > 0 ? orderedStories.map((story) => story.slug) : digestTopStorySlugs.length > 0 ? digestTopStorySlugs : fallbackDigest.digest.topStorySlugs;
-  const useFallbackCopy = shouldUseDigestFallback(digestRow.summary, digestRow.narrative);
-  const fallbackSummary = leadStory ? toCompleteSentence(leadStory.shortSummary || leadStory.summary || leadStory.whyItMatters || leadStory.headline) : buildDigestSummaryFromStories(orderedStories);
-  const fallbackNarrative = buildDigestNarrativeFromStories(orderedStories);
-
-  logger.info("ui", "daily_digest_story_cohesion", {
-    cacheKey: `daily-digest:${digestRow.digest_date}`,
-    generatedAt,
-    summaryGeneratedAt: digestRow.created_at,
-    useFallbackCopy,
-    digestHeadline: digestRow.headline_of_the_day,
-    leadStorySlug: leadStory?.slug ?? null,
-    topStorySlug: orderedStories[0]?.slug ?? null,
-    mostImportantSlug,
-  });
-
-  return {
-    generatedAt,
-    digest: {
-      date: digestRow.digest_date,
-      title: digestRow.title,
-      summary: useFallbackCopy ? fallbackSummary : toCompleteSentence(digestRow.summary),
-      narrative: useFallbackCopy ? fallbackNarrative : cleanNarrativeText(digestRow.narrative ?? dailyDigest.narrative),
-      headlineOfTheDay: useFallbackCopy ? (leadStory?.headline ?? digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay) : digestRow.headline_of_the_day ?? dailyDigest.headlineOfTheDay,
-      themes: digestRow.themes?.length ? digestRow.themes : dailyDigest.themes,
-      biggestWinnerCompanySlug: winnerSlug,
-      biggestLoserCompanySlug: loserSlug,
-      mostImportantNewsSlug: leadStory?.slug ?? mostImportantStory.slug,
-      topStorySlugs: resolvedTopStorySlugs,
-      watchNext: (digestRow.watch_next?.length ? digestRow.watch_next : dailyDigest.watchNext)
-        .map((item) => toCompleteSentence(item))
-        .filter(Boolean),
-    },
-    leadStory: leadStory ?? mostImportantStory,
-    topStories: orderedStories,
-    biggestWinnerMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === winnerSlug)),
-    biggestLoserMomentum: withMeaningfulMomentum(leaderboard.find((row) => row.companySlug === loserSlug)),
-    mostImportantStory: leadStory ?? mostImportantStory,
-    lastUpdatedAt: digestRow.created_at,
-  };
-};
+): Promise<DailyDigestRecord> {
+  return getDailyDigestDataCached(targetDate);
+}
 
 export const getDailyDigestByDate = async (date: string): Promise<DailyDigestRecord> => {
   const client = getSupabaseServerClient();
 
   if (client) {
-    const result = await getDailyDigestData(date);
-
-    return result;
+    return getDailyDigestData(date);
   }
 
   if (date === dailyDigest.date) {
@@ -1631,28 +1821,38 @@ export const getDailyDigestByDate = async (date: string): Promise<DailyDigestRec
   };
 };
 
-export const getDigestArchiveDates = async (): Promise<string[]> => {
-  const client = getSupabaseServerClient();
+export const getDigestArchiveDates = createInstrumentedCache(
+  "digest_archive_dates",
+  async (): Promise<string[]> => {
+    const client = getSupabaseServerClient();
 
-  if (client) {
-    const { data } = await client
-      .from("daily_digests")
-      .select("digest_date")
-      .order("digest_date", { ascending: false })
-      .limit(7);
+    if (client) {
+      const { data } = await client
+        .from("daily_digests")
+        .select("digest_date")
+        .order("digest_date", { ascending: false })
+        .limit(7);
 
-    if (data && data.length > 0) {
-      return (data as Array<{ digest_date: string }>).map((row) => row.digest_date);
+      if (data && data.length > 0) {
+        return (data as Array<{ digest_date: string }>).map((row) => row.digest_date);
+      }
     }
-  }
 
-  const allDates = [dailyDigest.date, ...pastDigests.map((d) => d.date)];
-  const sorted = [...new Set(allDates)].sort((a, b) => b.localeCompare(a));
+    const allDates = [dailyDigest.date, ...pastDigests.map((d) => d.date)];
+    const sorted = [...new Set(allDates)].sort((a, b) => b.localeCompare(a));
 
-  return sorted.slice(0, 7);
-};
+    return sorted.slice(0, 7);
+  },
+  {
+    key: "surface:digest-archive-dates",
+    revalidate: MEDIUM_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getRecentMomentumEventsData = cache(async () => {
+export const getRecentMomentumEventsData = createInstrumentedCache(
+  "recent_momentum_events_data",
+  async () => {
   const [companyRows, eventRows, newsRows] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows()]);
 
   if (!companyRows || !eventRows || !newsRows) {
@@ -1675,9 +1875,17 @@ export const getRecentMomentumEventsData = cache(async () => {
     explanation: toCompleteSentence(row.explanation),
     headline: row.news_item_id ? newsById[row.news_item_id]?.headline ?? row.event_type : row.event_type,
   }));
-});
+  },
+  {
+    key: "surface:recent-momentum-events",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getSiteLastUpdatedAt = cache(async (): Promise<string | null> => {
+export const getSiteLastUpdatedAt = createInstrumentedCache(
+  "site_last_updated_at",
+  async (): Promise<string | null> => {
   const newsRows = await getNewsRows();
 
   if (!newsRows || newsRows.length === 0) {
@@ -1685,9 +1893,17 @@ export const getSiteLastUpdatedAt = cache(async (): Promise<string | null> => {
   }
 
   return getLatestPublishedTimestampFromNewsRows(newsRows);
-});
+  },
+  {
+    key: "surface:site-last-updated-at",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getLeaderboardLastUpdatedAt = cache(async (): Promise<string | null> => {
+export const getLeaderboardLastUpdatedAt = createInstrumentedCache(
+  "leaderboard_last_updated_at",
+  async (): Promise<string | null> => {
   const momentumRows = await getMomentumRows();
 
   if (momentumRows && momentumRows.length > 0) {
@@ -1695,9 +1911,17 @@ export const getLeaderboardLastUpdatedAt = cache(async (): Promise<string | null
   }
 
   return null;
-});
+  },
+  {
+    key: "surface:leaderboard-last-updated-at",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getLeaderboardRefreshState = cache(async (): Promise<LeaderboardRefreshState> => {
+export const getLeaderboardRefreshState = createInstrumentedCache(
+  "leaderboard_refresh_state",
+  async (): Promise<LeaderboardRefreshState> => {
   const fetchedAt = new Date().toISOString();
   const [lastUpdatedAt, siteLastUpdatedAt, pipelineState] = await Promise.all([
     getLeaderboardLastUpdatedAt(),
@@ -1749,9 +1973,17 @@ export const getLeaderboardRefreshState = cache(async (): Promise<LeaderboardRef
   } satisfies LeaderboardRefreshState;
   logger.info("ui", "leaderboard_refresh_state", state);
   return state;
-});
+  },
+  {
+    key: "surface:leaderboard-refresh-state",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
-export const getHomePageData = cache(async (): Promise<HomePageData> => {
+export const getHomePageData = createInstrumentedCache(
+  "home_page_data",
+  async (): Promise<HomePageData> => {
   const generatedAt = new Date().toISOString();
   const [news, rawLeaderboard, launchData, timeline, movers, companyCards, siteLastUpdatedAt, leaderboardRefreshState] = await Promise.all([
     getNewsItemsData(),
@@ -1840,7 +2072,13 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
       seedMode: false,
     },
   };
-});
+  },
+  {
+    key: "surface:home-page",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
 /* ------------------------------------------------------------------ */
 /*  Trending Topics                                                   */
@@ -1897,7 +2135,9 @@ function fallbackTrendingTopics(): TrendingTag[] {
     }));
 }
 
-export const getTrendingTopicsData = cache(async (): Promise<TrendingTag[]> => {
+export const getTrendingTopicsData = createInstrumentedCache(
+  "trending_topics_data",
+  async (): Promise<TrendingTag[]> => {
   const [newsRows, companyRows, companyNewsRows, categoryRows, newsCategoryRows, tagRows, newsTagRows] =
     await Promise.all([
       getNewsRows(),
@@ -1965,17 +2205,25 @@ export const getTrendingTopicsData = cache(async (): Promise<TrendingTag[]> => {
     cacheKey: "trending:topics",
     topicCount: result.length,
     recordCount: recentNews.length,
-    latestPublishedAt: recentNews[0]?.publishedAt ?? null,
+      latestPublishedAt: recentNews[0]?.publishedAt ?? null,
   });
 
   return result;
-});
+  },
+  {
+    key: "surface:trending-topics",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
 /* ------------------------------------------------------------------ */
 /*  Heatmap                                                           */
 /* ------------------------------------------------------------------ */
 
-export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
+export const getHeatmapData = createInstrumentedCache(
+  "heatmap_data",
+  async (): Promise<HeatmapData> => {
   const [companyRows, eventRows, newsRows] = await Promise.all([getCompanyRows(), getEventRows(), getNewsRows()]);
 
   if (!companyRows || !eventRows || !newsRows) {
@@ -2102,7 +2350,13 @@ export const getHeatmapData = cache(async (): Promise<HeatmapData> => {
     eventCount: cells.reduce((sum, cell) => sum + cell.eventCount, 0),
   });
   return result;
-});
+  },
+  {
+    key: "surface:heatmap",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
 
 /* ------------------------------------------------------------------ */
 /*  Full Timeline                                                      */
@@ -2115,7 +2369,9 @@ export type FullTimelineData = {
   lastUpdatedAt: string;
 };
 
-export const getFullTimelineData = cache(async (days: number): Promise<FullTimelineData> => {
+export const getFullTimelineData = createInstrumentedCache(
+  "full_timeline_data",
+  async (days: number): Promise<FullTimelineData> => {
   const [companyRows, eventRows, newsRows, newsItems] = await Promise.all([
     getCompanyRows(),
     getEventRows(),
@@ -2226,4 +2482,11 @@ export const getFullTimelineData = cache(async (days: number): Promise<FullTimel
     companyCount: timelineCompanies.length,
   });
   return result;
-});
+  },
+  {
+    key: "surface:full-timeline",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+    describeArgs: (days) => ({ days }),
+  },
+);

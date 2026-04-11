@@ -47,7 +47,7 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300;
 
 export default async function HomePage() {
   const { todayStories, breakingStories, leaderboard, launches, timeline, topMovers, trendingTopics, tickerItems, stats, sectionFreshness, leaderboardRefreshState } =
@@ -210,7 +210,7 @@ export default async function HomePage() {
                 <li>Each signal decays over time, which keeps the ranking focused on current momentum instead of stale headlines.</li>
                 <li>Negative events, including lawsuits, outages, and safety incidents, pull scores down.</li>
                 <li>Official announcements and major publications carry more weight than low-credibility chatter.</li>
-                <li>Scores refresh throughout the day, with priority checks every 15 minutes and broader updates every 30 minutes.</li>
+                <li>Scores refresh throughout the day, with priority checks every hour and broader ingestion every two hours.</li>
               </ul>
             </div>
           </section>
