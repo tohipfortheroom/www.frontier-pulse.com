@@ -1,17 +1,3 @@
 {
-  "framework": "nextjs",
-  "crons": [
-    {
-      "path": "/api/cron/ingest",
-      "schedule": "*/30 * * * *"
-    },
-    {
-      "path": "/api/cron/ingest-priority",
-      "schedule": "15,45 * * * *"
-    },
-    {
-      "path": "/api/cron/send-digest",
-      "schedule": "0 13 * * *"
-    }
-  ]
+  "framework": "nextjs"
 }
