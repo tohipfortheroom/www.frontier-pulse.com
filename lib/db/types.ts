@@ -183,6 +183,15 @@ export type MomentumScoreRow = {
   calculated_at: string;
 };
 
+export type MomentumScoreHistoryRow = {
+  id: string;
+  company_id: string;
+  date_key: string;
+  score: number;
+  calculated_at: string;
+  created_at: string;
+};
+
 export type DailyDigestRow = {
   id: string;
   digest_date: string;

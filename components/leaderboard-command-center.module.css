@@ -300,6 +300,24 @@
   line-height: 1.65;
 }
 
+.comparisonRange,
+.comparisonNote {
+  margin-top: 10px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.comparisonRange {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.comparisonNote {
+  color: var(--text-secondary);
+}
+
 .comparisonControls {
   display: flex;
   flex-direction: column;
@@ -634,6 +652,11 @@
   color: var(--red);
 }
 
+.deltaNeutral {
+  background: rgba(139, 143, 168, 0.1);
+  color: var(--text-secondary);
+}
+
 .deltaIcon,
 .insightIcon {
   width: 14px;
@@ -671,6 +694,10 @@
 
 .trendDown {
   color: var(--red);
+}
+
+.trendNeutral {
+  color: var(--text-secondary);
 }
 
 .tableShell {

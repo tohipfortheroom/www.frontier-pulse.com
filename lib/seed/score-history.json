@@ -1,0 +1,14 @@
+{
+  "2026-04-03": {
+    "openai": 18.4,
+    "anthropic": 14.7,
+    "google-deepmind": 11.2,
+    "xai": 9.8,
+    "deepseek": 8.3,
+    "meta-ai": 6.1,
+    "nvidia": 4.3,
+    "mistral": 1.9,
+    "microsoft-ai": -2.1,
+    "amazon-aws-ai": -4.6
+  }
+}

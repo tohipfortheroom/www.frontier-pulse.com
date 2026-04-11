@@ -8,6 +8,7 @@ import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YA
 
 import type { CompanyCardRecord, LeaderboardRefreshState } from "@/lib/db/types";
 import { getSupabaseBrowserClient } from "@/lib/db/browser-client";
+import { buildHistoryChartSeries, formatTrendPercent, getTrendPercentTone, type HistoryWindow, type TrendPercentDelta } from "@/lib/score-history";
 import { getLeaderboardRangeLabel } from "@/lib/surface-data";
 import { cn, formatLastUpdatedLabel, formatScore, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
@@ -29,7 +30,7 @@ type LeaderboardCommandCenterProps = {
 };
 
 type FilterId = "7d" | "30d" | "90d" | "all" | "momentum";
-type ChartWindow = 7 | 30;
+type ChartWindow = HistoryWindow;
 
 type LeaderboardEntry = {
   company: CompanyCardRecord["company"];
@@ -41,6 +42,8 @@ type LeaderboardEntry = {
   trend: string;
   keyDriver: string;
   sparkline: number[];
+  history: NonNullable<CompanyCardRecord["momentum"]>["history"];
+  trendPercent7d: TrendPercentDelta;
 };
 
 type NotableMover = {
@@ -77,43 +80,27 @@ const CHART_FALLBACK_COLORS = [
   "#fb923c",
 ];
 
-function computeSevenDayPercent(entry: LeaderboardEntry) {
-  const baseline = Math.max(entry.score - entry.scoreChange7d, 1);
-  return (entry.scoreChange7d / baseline) * 100;
-}
-
-function extendSparkline(values: number[]) {
-  if (values.length >= 8) {
-    return values.slice(-8);
-  }
+function sparklinePath(data: number[], width = 120, height = 38) {
+  const values = data.filter((value) => Number.isFinite(value));
 
   if (values.length === 0) {
-    return [42, 44, 45, 47, 49, 51, 53, 55];
+    return {
+      points: [] as Array<{ x: number; y: number }>,
+      polyline: "",
+      fillPath: "",
+    };
   }
 
-  const first = values[0];
-  return [...Array.from({ length: 8 - values.length }, () => first), ...values];
-}
+  if (values.length === 1) {
+    const point = { x: width / 2, y: height / 2 };
 
-function expandSeries(values: number[], targetLength: number) {
-  if (values.length >= targetLength) {
-    return values.slice(values.length - targetLength);
+    return {
+      points: [point],
+      polyline: `${point.x},${point.y}`,
+      fillPath: "",
+    };
   }
 
-  return Array.from({ length: targetLength }, (_, index) => {
-    const ratio = targetLength === 1 ? 0 : index / (targetLength - 1);
-    const sourceIndex = ratio * Math.max(values.length - 1, 0);
-    const lowerIndex = Math.floor(sourceIndex);
-    const upperIndex = Math.min(values.length - 1, Math.ceil(sourceIndex));
-    const lower = values[lowerIndex] ?? values[0] ?? 0;
-    const upper = values[upperIndex] ?? values[values.length - 1] ?? lower;
-    const mix = sourceIndex - lowerIndex;
-    return Number((lower + (upper - lower) * mix).toFixed(2));
-  });
-}
-
-function sparklinePath(data: number[], width = 120, height = 38) {
-  const values = extendSparkline(data);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const range = max - min || 1;
@@ -129,22 +116,18 @@ function sparklinePath(data: number[], width = 120, height = 38) {
   const fillPath = `M 0 ${height} L ${points.map((point) => `${point.x} ${point.y}`).join(" L ")} L ${width} ${height} Z`;
 
   return {
+    points,
     polyline,
     fillPath,
   };
-}
-
-function formatPercent(value: number) {
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(1)}%`;
 }
 
 function formatCompactDelta(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}`;
 }
 
-function formatMagnitude(value: number) {
-  return Math.abs(value).toFixed(1);
+function getTrendPercentValue(trend: TrendPercentDelta) {
+  return trend.status === "percent" && typeof trend.value === "number" ? trend.value : null;
 }
 
 function getLensScore(entry: LeaderboardEntry, filter: FilterId) {
@@ -163,12 +146,12 @@ function getLensScore(entry: LeaderboardEntry, filter: FilterId) {
   }
 }
 
-function getTrendTone(value: number) {
-  return value >= 0 ? "up" : "down";
-}
+function getTrendIcon(value: number | null) {
+  if (typeof value !== "number" || value === 0) {
+    return TrendingUp;
+  }
 
-function getTrendIcon(value: number) {
-  return value >= 0 ? ArrowUpRight : ArrowDownRight;
+  return value > 0 ? ArrowUpRight : ArrowDownRight;
 }
 
 function podiumTone(index: number) {
@@ -188,13 +171,15 @@ function HistoryTooltip({ active, label, payload }: TooltipContentProps) {
     return null;
   }
 
+  const fullLabel = typeof payload[0]?.payload?.fullLabel === "string" ? payload[0].payload.fullLabel : String(label ?? "");
+
   const rows = [...payload]
     .filter((entry) => typeof entry.value === "number" && typeof entry.name === "string")
     .sort((left, right) => Number(right.value ?? 0) - Number(left.value ?? 0));
 
   return (
     <div className={styles.comparisonTooltip}>
-      <p className={styles.tooltipLabel}>{label} window</p>
+      <p className={styles.tooltipLabel}>{fullLabel}</p>
       <div className={styles.tooltipList}>
         {rows.map((entry) => (
           <div key={String(entry.name)} className={styles.tooltipRow}>
@@ -244,17 +229,32 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
       (record): record is CompanyCardRecord & { momentum: NonNullable<CompanyCardRecord["momentum"]> } =>
         Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score)),
     )
-    .map<LeaderboardEntry>((record) => ({
-      company: record.company,
-      activityCount: record.activityCount,
-      rank: record.momentum.rank,
-      score: record.momentum.score,
-      scoreChange24h: record.momentum.scoreChange24h,
-      scoreChange7d: record.momentum.scoreChange7d,
-      trend: record.momentum.trend,
-      keyDriver: toCompleteSentence(record.momentum.keyDriver),
-      sparkline: extendSparkline(record.momentum.sparkline),
-    }));
+    .map<LeaderboardEntry>((record) => {
+      const trendPercent7d =
+        record.momentum.trendPercent7d ?? {
+          status: "na" as const,
+          value: null,
+          baselineDate: null,
+          baselineScore: null,
+          currentDate: record.momentum.history?.at(-1)?.date ?? null,
+          currentScore: record.momentum.score,
+          windowDays: 7,
+        };
+
+      return {
+        company: record.company,
+        activityCount: record.activityCount,
+        rank: record.momentum.rank,
+        score: record.momentum.score,
+        scoreChange24h: record.momentum.scoreChange24h,
+        scoreChange7d: record.momentum.scoreChange7d,
+        trend: record.momentum.trend,
+        keyDriver: toCompleteSentence(record.momentum.keyDriver),
+        sparkline: record.momentum.sparkline,
+        history: record.momentum.history,
+        trendPercent7d,
+      };
+    });
 
   const sortedEntries =
     activeFilter === "all"
@@ -264,7 +264,9 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
   const rankedEntries = sortedEntries.map((entry, index) => ({
     ...entry,
     displayRank: index + 1,
-    sevenDayPercent: computeSevenDayPercent(entry),
+    sevenDayPercentValue: getTrendPercentValue(entry.trendPercent7d),
+    sevenDayPercentLabel: formatTrendPercent(entry.trendPercent7d),
+    sevenDayPercentTone: getTrendPercentTone(entry.trendPercent7d),
   }));
 
   const podiumEntries = rankedEntries.slice(0, 3);
@@ -273,22 +275,24 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
     ...entry,
     lineColor: entry.company.color || CHART_FALLBACK_COLORS[index % CHART_FALLBACK_COLORS.length],
   }));
-  const comparisonSeries = Array.from({ length: chartWindow }, (_, index) => {
-    const point = {
-      label: `${chartWindow - index}d`,
-    } as Record<string, string | number>;
-
-    comparisonEntries.forEach((entry) => {
-      point[entry.company.slug] = expandSeries(entry.sparkline, chartWindow)[index];
-    });
-
-    return point;
-  });
-  const biggestMover = [...rankedEntries].sort((left, right) => right.sevenDayPercent - left.sevenDayPercent)[0];
+  const comparisonHistory = buildHistoryChartSeries(
+    comparisonEntries.map((entry) => ({
+      companySlug: entry.company.slug,
+      history: entry.history,
+    })),
+    chartWindow,
+  );
+  const comparisonSeries = comparisonHistory.series;
+  const biggestMover =
+    [...rankedEntries]
+      .filter((entry) => typeof entry.sevenDayPercentValue === "number")
+      .sort((left, right) => (right.sevenDayPercentValue ?? 0) - (left.sevenDayPercentValue ?? 0))[0] ?? rankedEntries[0];
   const risingStar =
     [...rankedEntries]
-      .filter((entry) => entry.displayRank > 3)
-      .sort((left, right) => right.sevenDayPercent - left.sevenDayPercent)[0] ?? rankedEntries[0];
+      .filter((entry) => entry.displayRank > 3 && typeof entry.sevenDayPercentValue === "number")
+      .sort((left, right) => (right.sevenDayPercentValue ?? 0) - (left.sevenDayPercentValue ?? 0))[0] ??
+    rankedEntries.find((entry) => entry.displayRank > 3) ??
+    rankedEntries[0];
   const positiveEvents = recentEvents.filter((event) => event.scoreDelta > 0).length;
   const modelPush = recentEvents.filter((event) => /model|launch|benchmark|reasoning/i.test(event.eventType)).length;
   const trendAlertTitle =
@@ -317,23 +321,33 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
     timeframe: string;
     direction: "up" | "down";
     items: LeaderboardEntry[];
-    getDelta: (entry: LeaderboardEntry) => number;
+    getDeltaLabel: (entry: LeaderboardEntry) => string;
   }> = [
     {
       id: "sharpest-climb",
       label: "Sharpest Climb",
       timeframe: "7d",
       direction: "up",
-      items: [...allEntries].filter((entry) => entry.scoreChange7d > 0).sort((left, right) => right.scoreChange7d - left.scoreChange7d),
-      getDelta: (entry) => entry.scoreChange7d,
+      items: [...allEntries]
+        .filter((entry) => {
+          const value = getTrendPercentValue(entry.trendPercent7d);
+          return typeof value === "number" && value > 0;
+        })
+        .sort((left, right) => (getTrendPercentValue(right.trendPercent7d) ?? 0) - (getTrendPercentValue(left.trendPercent7d) ?? 0)),
+      getDeltaLabel: (entry) => formatTrendPercent(entry.trendPercent7d),
     },
     {
       id: "sharpest-drop",
       label: "Sharpest Drop",
       timeframe: "7d",
       direction: "down",
-      items: [...allEntries].filter((entry) => entry.scoreChange7d < 0).sort((left, right) => left.scoreChange7d - right.scoreChange7d),
-      getDelta: (entry) => entry.scoreChange7d,
+      items: [...allEntries]
+        .filter((entry) => {
+          const value = getTrendPercentValue(entry.trendPercent7d);
+          return typeof value === "number" && value < 0;
+        })
+        .sort((left, right) => (getTrendPercentValue(left.trendPercent7d) ?? 0) - (getTrendPercentValue(right.trendPercent7d) ?? 0)),
+      getDeltaLabel: (entry) => formatTrendPercent(entry.trendPercent7d),
     },
     {
       id: "Biggest 24h Jump",
@@ -341,7 +355,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
       timeframe: "24h",
       direction: "up",
       items: [...allEntries].filter((entry) => entry.scoreChange24h > 0).sort((left, right) => right.scoreChange24h - left.scoreChange24h),
-      getDelta: (entry) => entry.scoreChange24h,
+      getDeltaLabel: (entry) => formatCompactDelta(entry.scoreChange24h),
     },
   ];
   const usedMoverSlugs = new Set<string>();
@@ -364,7 +378,10 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
         id: spec.id,
         label: spec.label,
         direction: spec.direction,
-        deltaLabel: `${spec.direction === "up" ? "▲" : "▼"} ${formatMagnitude(spec.getDelta(entry))}`,
+        deltaLabel:
+          spec.timeframe === "7d"
+            ? spec.getDeltaLabel(entry)
+            : `${spec.direction === "up" ? "▲" : "▼"} ${spec.getDeltaLabel(entry)}`,
         timeframe: spec.timeframe,
         entry,
       };
@@ -431,21 +448,36 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
               <p className={styles.kicker}>Momentum History</p>
               <h2 className={styles.sectionTitle}>Overlay the board before the podium</h2>
               <p className={styles.comparisonDescription}>
-                Compare the current leaders across a compressed momentum window to see who is sustaining pressure versus drifting off the pace.
+                Compare the current leaders across logged daily score snapshots to see who is sustaining pressure versus drifting off the pace.
               </p>
+              {comparisonHistory.rangeLabel ? (
+                <p className={styles.comparisonRange}>Showing {comparisonHistory.rangeLabel}</p>
+              ) : null}
+              {comparisonHistory.isColdStart && comparisonHistory.historyStartLabel ? (
+                <p className={styles.comparisonNote}>
+                  History begins {comparisonHistory.historyStartLabel} — chart will populate as daily scores are logged.
+                </p>
+              ) : null}
             </div>
 
             <div className={styles.comparisonControls}>
-              <span className={styles.comparisonMeta}>{comparisonEntries.length} leaders tracked</span>
+              <span className={styles.comparisonMeta}>
+                {comparisonEntries.length} leaders tracked{comparisonHistory.rangeLabel ? ` / ${comparisonHistory.rangeLabel}` : ""}
+              </span>
               <div className={styles.windowToggle}>
-                {[7, 30].map((windowSize) => (
+                {[
+                  { value: 7 as ChartWindow, label: "7d" },
+                  { value: 30 as ChartWindow, label: "30d" },
+                  { value: 90 as ChartWindow, label: "90d" },
+                  { value: "all" as ChartWindow, label: "All" },
+                ].map((windowSize) => (
                   <button
-                    key={windowSize}
+                    key={windowSize.label}
                     type="button"
-                    className={cn(styles.windowButton, chartWindow === windowSize && styles.windowButtonActive)}
-                    onClick={() => setChartWindow(windowSize as ChartWindow)}
+                    className={cn(styles.windowButton, chartWindow === windowSize.value && styles.windowButtonActive)}
+                    onClick={() => setChartWindow(windowSize.value)}
                   >
-                    {windowSize}d
+                    {windowSize.label}
                   </button>
                 ))}
               </div>
@@ -463,8 +495,8 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
                     tickLine={false}
                     axisLine={false}
                     tickMargin={10}
-                    minTickGap={chartWindow === 30 ? 14 : 8}
-                    interval={chartWindow === 30 ? 2 : 0}
+                    minTickGap={chartWindow === "all" || chartWindow === 90 ? 18 : chartWindow === 30 ? 14 : 8}
+                    interval={chartWindow === "all" || chartWindow === 90 ? 6 : chartWindow === 30 ? 2 : 0}
                   />
                   <YAxis
                     stroke="var(--text-dim)"
@@ -478,12 +510,13 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
                   {comparisonEntries.map((entry) => (
                     <Line
                       key={entry.company.slug}
-                      type="monotone"
+                      type="stepAfter"
                       dataKey={entry.company.slug}
                       name={entry.company.name}
                       stroke={entry.lineColor}
                       strokeWidth={entry.displayRank <= 3 ? 2.4 : 1.9}
-                      dot={false}
+                      connectNulls={false}
+                      dot={comparisonHistory.isColdStart ? { r: 3, strokeWidth: 0, fill: entry.lineColor } : false}
                       activeDot={{ r: 4, strokeWidth: 0, fill: entry.lineColor }}
                       isAnimationActive={false}
                     />
@@ -528,8 +561,14 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
         <div className={styles.podiumGrid}>
           {podiumEntries.map((entry, index) => {
             const tone = podiumTone(index);
-            const TrendIcon = getTrendIcon(entry.sevenDayPercent);
+            const DeltaIcon = getTrendIcon(entry.scoreChange24h);
             const sparkline = sparklinePath(entry.sparkline, 140, 50);
+            const trendStroke =
+              entry.sevenDayPercentTone === "up"
+                ? "var(--green)"
+                : entry.sevenDayPercentTone === "down"
+                  ? "var(--red)"
+                  : "var(--text-dim)";
 
             return (
               <article
@@ -554,34 +593,49 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
                 <div className={styles.scoreBlock}>
                   <div className={cn(styles.scoreValue, tone === "gold" && styles.scoreGold)}>{entry.score.toFixed(1)}</div>
                   <span className={cn(styles.deltaPill, entry.scoreChange24h >= 0 ? styles.deltaUp : styles.deltaDown)}>
-                    <TrendIcon className={styles.deltaIcon} />
+                    <DeltaIcon className={styles.deltaIcon} />
                     {formatCompactDelta(entry.scoreChange24h)}
                   </span>
                 </div>
 
                 <svg viewBox="0 0 140 50" className={styles.podiumSparkline} aria-hidden="true">
-                  <defs>
-                    <linearGradient id={`podium-gradient-${entry.company.slug}`} x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor={entry.sevenDayPercent >= 0 ? "var(--green)" : "var(--red)"} stopOpacity="0.32" />
-                      <stop offset="100%" stopColor={entry.sevenDayPercent >= 0 ? "var(--cyan)" : "var(--magenta)"} stopOpacity="0.02" />
-                    </linearGradient>
-                  </defs>
-                  <path d={sparkline.fillPath} fill={`url(#podium-gradient-${entry.company.slug})`} />
-                  <polyline
-                    fill="none"
-                    points={sparkline.polyline}
-                    stroke={entry.sevenDayPercent >= 0 ? "var(--green)" : "var(--red)"}
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
+                  {sparkline.points.length > 1 ? (
+                    <>
+                      <defs>
+                        <linearGradient id={`podium-gradient-${entry.company.slug}`} x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor={trendStroke} stopOpacity="0.32" />
+                          <stop offset="100%" stopColor={entry.sevenDayPercentTone === "down" ? "var(--magenta)" : "var(--cyan)"} stopOpacity="0.02" />
+                        </linearGradient>
+                      </defs>
+                      <path d={sparkline.fillPath} fill={`url(#podium-gradient-${entry.company.slug})`} />
+                      <polyline
+                        fill="none"
+                        points={sparkline.polyline}
+                        stroke={trendStroke}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </>
+                  ) : sparkline.points[0] ? (
+                    <circle cx={sparkline.points[0].x} cy={sparkline.points[0].y} r="3.2" fill={trendStroke} />
+                  ) : null}
                 </svg>
 
                 <div className={styles.metricRow}>
                   <div>
                     <p className={styles.metricLabel}>7d Trend</p>
-                    <p className={cn(styles.metricValue, entry.sevenDayPercent >= 0 ? styles.trendUp : styles.trendDown)}>
-                      {formatPercent(entry.sevenDayPercent)}
+                    <p
+                      className={cn(
+                        styles.metricValue,
+                        entry.sevenDayPercentTone === "up"
+                          ? styles.trendUp
+                          : entry.sevenDayPercentTone === "down"
+                            ? styles.trendDown
+                            : styles.trendNeutral,
+                      )}
+                    >
+                      {entry.sevenDayPercentLabel}
                     </p>
                   </div>
                   <div>
@@ -612,8 +666,14 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
 
           <div className={styles.tableBody}>
             {remainingEntries.map((entry, index) => {
-              const TrendIcon = getTrendIcon(entry.sevenDayPercent);
+              const TrendIcon = getTrendIcon(entry.sevenDayPercentValue);
               const sparkline = sparklinePath(entry.sparkline, 104, 30);
+              const trendStroke =
+                entry.sevenDayPercentTone === "up"
+                  ? "var(--green)"
+                  : entry.sevenDayPercentTone === "down"
+                    ? "var(--red)"
+                    : "var(--text-dim)";
 
               return (
                 <button
@@ -643,19 +703,32 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
                   </span>
 
                   <span className={styles.trendCell}>
-                    <span className={cn(styles.trendBadge, entry.sevenDayPercent >= 0 ? styles.deltaUp : styles.deltaDown)}>
+                    <span
+                      className={cn(
+                        styles.trendBadge,
+                        entry.sevenDayPercentTone === "up"
+                          ? styles.deltaUp
+                          : entry.sevenDayPercentTone === "down"
+                            ? styles.deltaDown
+                            : styles.deltaNeutral,
+                      )}
+                    >
                       <TrendIcon className={styles.deltaIcon} />
-                      {formatPercent(entry.sevenDayPercent)}
+                      {entry.sevenDayPercentLabel}
                     </span>
                     <svg viewBox="0 0 104 30" className={styles.rowSparkline} aria-hidden="true">
-                      <polyline
-                        fill="none"
-                        points={sparkline.polyline}
-                        stroke={entry.sevenDayPercent >= 0 ? "var(--green)" : "var(--red)"}
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+                      {sparkline.points.length > 1 ? (
+                        <polyline
+                          fill="none"
+                          points={sparkline.polyline}
+                          stroke={trendStroke}
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      ) : sparkline.points[0] ? (
+                        <circle cx={sparkline.points[0].x} cy={sparkline.points[0].y} r="2.8" fill={trendStroke} />
+                      ) : null}
                     </svg>
                   </span>
 
@@ -686,7 +759,16 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
                   </div>
                   <div className={styles.moverHeader}>
                     <h3 className={styles.insightTitle}>{mover.entry.company.name}</h3>
-                    <span className={cn(styles.deltaPill, mover.direction === "up" ? styles.deltaUp : styles.deltaDown)}>
+                    <span
+                      className={cn(
+                        styles.deltaPill,
+                        mover.direction === "up"
+                          ? styles.deltaUp
+                          : mover.direction === "down"
+                            ? styles.deltaDown
+                            : styles.deltaNeutral,
+                      )}
+                    >
                       {mover.deltaLabel}
                       <span className={styles.moverTimeframe}>{mover.timeframe}</span>
                     </span>
@@ -713,7 +795,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
             </div>
             <h3 className={styles.insightTitle}>{biggestMover.company.name} is moving the board fastest</h3>
             <p className={styles.insightBody}>
-              {biggestMover.company.name} has posted the strongest seven-day acceleration on the board at {formatPercent(biggestMover.sevenDayPercent)}.
+              {biggestMover.company.name} has posted the strongest seven-day acceleration on the board at {biggestMover.sevenDayPercentLabel}.
             </p>
           </article>
 
@@ -724,7 +806,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
             </div>
             <h3 className={styles.insightTitle}>{risingStar.company.name} is the pressure build to watch</h3>
             <p className={styles.insightBody}>
-              Outside the podium, {risingStar.company.shortName} has the steepest positive slope, adding {formatCompactDelta(risingStar.scoreChange7d)} points over the last seven days.
+              Outside the podium, {risingStar.company.shortName} has the strongest seven-day move at {risingStar.sevenDayPercentLabel}.
             </p>
           </article>
 

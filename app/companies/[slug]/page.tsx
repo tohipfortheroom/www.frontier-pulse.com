@@ -4,7 +4,8 @@ import dynamicImport from "next/dynamic";
 import { notFound } from "next/navigation";
 import Script from "next/script";
 
-import { getCompaniesIndexData, getCompanyDetailData, getLeaderboardRefreshState } from "@/lib/db/queries";
+import { getCompanyDetailData, getLeaderboardRefreshState } from "@/lib/db/queries";
+import { formatTrendPercent, getTrendPercentTone } from "@/lib/score-history";
 import { formatDateLabel, formatScore, formatUpdateTimestamp, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 
 import { ModuleStatusStrip } from "@/components/module-status-strip";
@@ -45,17 +46,13 @@ function formatTrendMetric(value: number | null | undefined) {
   return `${value > 0 ? "+" : ""}${value.toFixed(2)}`;
 }
 
-export function generateStaticParams() {
-  return getCompaniesIndexData().then((records) => records.map(({ company }) => ({ slug: company.slug })));
-}
-
 export async function generateMetadata({
   params,
 }: {
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const [record, refreshState] = await Promise.all([getCompanyDetailData(slug), getLeaderboardRefreshState()]);
+  const record = await getCompanyDetailData(slug);
 
   if (!record) {
     return {
@@ -143,6 +140,15 @@ export default async function CompanyDetailPage({
     },
   ].filter((item) => item.value !== "—");
   const showMomentum = Boolean(momentum && hasMeaningfulMetric(momentum.score));
+  const sevenDayTrend = momentum?.trendPercent7d;
+  const sevenDayTrendLabel = sevenDayTrend ? formatTrendPercent(sevenDayTrend) : "N/A";
+  const sevenDayTrendTone = sevenDayTrend ? getTrendPercentTone(sevenDayTrend) : "neutral";
+  const sevenDayTrendClasses =
+    sevenDayTrendTone === "up"
+      ? "border-[var(--accent-green-border)] bg-[var(--accent-green-soft)] text-[var(--accent-green)]"
+      : sevenDayTrendTone === "down"
+        ? "border-[var(--accent-red-border)] bg-[var(--accent-red-soft)] text-[var(--accent-red)]"
+        : "border-[var(--border)] bg-[var(--surface-soft)] text-[var(--text-secondary)]";
   const latestCoverageAt = recentNews[0]?.publishedAt ?? null;
   const staleWarning =
     refreshState.status === "stale" && refreshState.lastUpdatedAt
@@ -223,7 +229,7 @@ export default async function CompanyDetailPage({
                     {formatScore(momentum.score)}
                   </p>
                   <span className="font-[family-name:var(--font-mono)] text-sm text-[var(--text-tertiary)]">
-                    {momentum.trend} 7d trend
+                    {momentum.trend} {sevenDayTrendLabel} vs 7d ago
                   </span>
                 </div>
                 <div className="surface-inline mt-6 rounded-2xl border border-[var(--border)] p-4">
@@ -236,7 +242,12 @@ export default async function CompanyDetailPage({
                 </div>
                 <div className="mt-6 flex gap-3">
                   <ScorePill value={momentum.scoreChange24h ?? 0} label="24h" />
-                  <ScorePill value={momentum.scoreChange7d ?? 0} label="7d" />
+                  <span
+                    className={`inline-flex items-center rounded-full border px-3 py-1 font-[family-name:var(--font-mono)] text-xs font-medium tracking-[0.08em] ${sevenDayTrendClasses}`}
+                  >
+                    <span className="mr-2 opacity-80">7d</span>
+                    {sevenDayTrendLabel}
+                  </span>
                 </div>
                 <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(momentum.keyDriver)}</p>
               </>

@@ -1,3 +1,5 @@
+import type { ScoreHistoryPoint, TrendPercentDelta } from "@/lib/score-history";
+
 import type { EventType } from "../scoring/momentum.ts";
 
 export const seedNow = new Date("2026-04-03T14:30:00-05:00");
@@ -111,6 +113,8 @@ export type MomentumSnapshot = {
   trend: TrendDirection;
   keyDriver: string;
   sparkline: number[];
+  history?: ScoreHistoryPoint[];
+  trendPercent7d?: TrendPercentDelta;
   driverNewsSlugs: string[];
 };
 

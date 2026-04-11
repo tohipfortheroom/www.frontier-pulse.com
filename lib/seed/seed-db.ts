@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 
 import { sourceRegistry } from "../ingestion/pipeline.ts";
+import { getSeedScoreHistoryEntries } from "../score-history.ts";
 import {
   categories,
   companies,
@@ -223,6 +224,21 @@ export async function main() {
 
   if (momentumError) {
     throw momentumError;
+  }
+
+  const momentumHistoryPayload = getSeedScoreHistoryEntries().map((entry) => ({
+    company_id: companyIdBySlug[entry.companySlug],
+    date_key: entry.dateKey,
+    score: entry.score,
+    calculated_at: entry.calculatedAt ?? seedNow.toISOString(),
+  }));
+
+  const { error: historyError } = await supabase
+    .from("momentum_score_history")
+    .upsert(momentumHistoryPayload, { onConflict: "company_id,date_key" });
+
+  if (historyError) {
+    throw historyError;
   }
 
   const { error: digestError } = await supabase.from("daily_digests").upsert(

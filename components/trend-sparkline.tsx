@@ -17,7 +17,36 @@ export function TrendSparkline({
 }: TrendSparklineProps) {
   const gradientId = useId();
   const width = 120;
-  const safeData = data.length > 1 ? data : [0, ...(data.length === 1 ? data : [0])];
+  const safeData = data.filter((value) => Number.isFinite(value));
+
+  if (safeData.length === 0) {
+    return (
+      <div style={{ height }} className="w-full">
+        <svg
+          viewBox={`0 0 ${width} 40`}
+          preserveAspectRatio="none"
+          className="h-full w-full overflow-visible"
+          aria-hidden="true"
+        />
+      </div>
+    );
+  }
+
+  if (safeData.length === 1) {
+    return (
+      <div style={{ height }} className="w-full">
+        <svg
+          viewBox={`0 0 ${width} 40`}
+          preserveAspectRatio="none"
+          className="h-full w-full overflow-visible"
+          aria-hidden="true"
+        >
+          <circle cx={width / 2} cy={20} r={3.5} fill={color} />
+        </svg>
+      </div>
+    );
+  }
+
   const minValue = Math.min(...safeData);
   const maxValue = Math.max(...safeData);
   const range = maxValue - minValue || 1;

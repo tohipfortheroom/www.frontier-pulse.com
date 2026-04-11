@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
-import { getNewsItemDetailData, getNewsItemsData } from "@/lib/db/queries";
+import { getNewsItemDetailData } from "@/lib/db/queries";
 import { accentClasses, cn, formatTimestamp, toCompleteSentence } from "@/lib/utils";
 
 import { BookmarkButton } from "@/components/bookmark-button";
@@ -14,11 +14,6 @@ import { ReactionBar } from "@/components/reaction-bar";
 import { ScrollReveal } from "@/components/scroll-reveal";
 import { CategoryPill, TagPill } from "@/components/tag-pill";
 import { ShareButton } from "@/components/share-button";
-
-export async function generateStaticParams() {
-  const items = await getNewsItemsData();
-  return items.map((item) => ({ slug: item.slug }));
-}
 
 export const revalidate = 300;
 

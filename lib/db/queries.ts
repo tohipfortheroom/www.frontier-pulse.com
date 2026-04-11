@@ -15,6 +15,7 @@ import type {
   HeatmapData,
   HomePageData,
   LeaderboardRefreshState,
+  MomentumScoreHistoryRow,
   MomentumScoreRow,
   NewsDetailRecord,
   NewsItemRow,
@@ -65,6 +66,16 @@ import { sourceRegistry } from "@/lib/ingestion/pipeline";
 import type { RawIngestedItem } from "@/lib/ingestion/types";
 import { getPipelineStateRow } from "@/lib/ingestion/run-state";
 import { logger } from "@/lib/monitoring/logger";
+import {
+  buildCompanyHistoryMap,
+  buildDailyHistoryEntriesFromMomentumRows,
+  buildDailyHistoryEntriesFromStoreRows,
+  buildSparklineFromHistory,
+  calculateScoreChangeFromHistory,
+  calculateTrendPercent,
+  getSeedScoreHistoryEntries,
+  mergeDailyScoreEntries,
+} from "@/lib/score-history";
 import { buildSectionFreshness, getCanonicalLeaderboardRecords, getContentDateKey, getLatestPublishedAt, resolveDigestLeadStory } from "@/lib/surface-data";
 import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
@@ -396,6 +407,43 @@ function toTrendDirection(scoreChange7d: number, score?: number): TrendDirection
   return "→";
 }
 
+const fallbackScoreHistoryEntries = getSeedScoreHistoryEntries();
+const fallbackScoreHistoryByCompany = buildCompanyHistoryMap(fallbackScoreHistoryEntries);
+
+function buildFallbackMomentumSnapshot(companySlug: string): MomentumSnapshot | undefined {
+  const fallback = getCompanyMomentum(companySlug);
+
+  if (!fallback) {
+    return undefined;
+  }
+
+  const history = fallbackScoreHistoryByCompany.get(companySlug) ?? [];
+  const score = history.at(-1)?.score ?? fallback.score;
+  const scoreChange7d = calculateScoreChangeFromHistory(history, 7);
+
+  return {
+    ...fallback,
+    score,
+    scoreChange24h: history.length >= 2 ? Number((score - (history.at(-2)?.score ?? score)).toFixed(2)) : 0,
+    scoreChange7d,
+    trend: toTrendDirection(scoreChange7d, score),
+    sparkline: buildSparklineFromHistory(history, 7),
+    history,
+    trendPercent7d: calculateTrendPercent(history, 7),
+  } satisfies MomentumSnapshot;
+}
+
+function buildFallbackMomentumSnapshots() {
+  return companies
+    .map((company) => buildFallbackMomentumSnapshot(company.slug))
+    .filter((snapshot): snapshot is MomentumSnapshot => Boolean(snapshot))
+    .sort((left, right) => right.score - left.score)
+    .map((snapshot, index) => ({
+      ...snapshot,
+      rank: index + 1,
+    }));
+}
+
 function launchTypeFromProductType(type: string): LaunchTypeMap {
   const normalized = type.toLowerCase();
 
@@ -644,7 +692,7 @@ function fallbackCompanyCards(): CompanyCardRecord[] {
   return companies
     .map((company) => {
       const activityCount = sortedNewsItems.filter((item) => item.companySlugs.includes(company.slug)).length;
-      const momentum = getCompanyMomentum(company.slug);
+      const momentum = buildFallbackMomentumSnapshot(company.slug);
 
       return {
         company,
@@ -673,11 +721,11 @@ function fallbackCompanyDetail(slug: string): CompanyDetailRecord | null {
 
   return {
     company,
-    momentum: withMeaningfulMomentum(getCompanyMomentum(slug)),
+    momentum: withMeaningfulMomentum(buildFallbackMomentumSnapshot(slug)),
     recentNews: companyNews.slice(0, 5),
     partnerships: company.partnerships,
     milestones: company.milestones,
-    enrichment: mergeCompanyEnrichment(company.enrichmentData, deriveCompanyEnrichment(companyNews, getCompanyMomentum(slug))),
+    enrichment: mergeCompanyEnrichment(company.enrichmentData, deriveCompanyEnrichment(companyNews, buildFallbackMomentumSnapshot(slug))),
     scoreBreakdown: momentumEvents
       .filter((event) => event.companySlug === slug)
       .map((event) => ({
@@ -706,8 +754,8 @@ function fallbackDailyDigest(): DailyDigestRecord {
     },
     leadStory,
     topStories: dailyDigest.topStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean),
-    biggestWinnerMomentum: withMeaningfulMomentum(getCompanyMomentum(dailyDigest.biggestWinnerCompanySlug)),
-    biggestLoserMomentum: withMeaningfulMomentum(getCompanyMomentum(dailyDigest.biggestLoserCompanySlug)),
+    biggestWinnerMomentum: withMeaningfulMomentum(buildFallbackMomentumSnapshot(dailyDigest.biggestWinnerCompanySlug)),
+    biggestLoserMomentum: withMeaningfulMomentum(buildFallbackMomentumSnapshot(dailyDigest.biggestLoserCompanySlug)),
     mostImportantStory: leadStory,
     lastUpdatedAt: generatedAt,
   };
@@ -720,12 +768,13 @@ function fallbackHomePage(): HomePageData {
   const todayStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && getContentDateKey(item.publishedAt) === latestDateKey).slice(0, 5);
   const breakingStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
   const tickerItems = buildTickerItems(sortedNewsItems);
+  const leaderboard = buildFallbackMomentumSnapshots();
 
   return {
     generatedAt,
     todayStories,
     breakingStories,
-    leaderboard: momentumSnapshots,
+    leaderboard,
     launches,
     timeline: timelineEntries,
     topMovers,
@@ -752,7 +801,7 @@ function fallbackHomePage(): HomePageData {
         cacheKey: "home:leaderboard:fallback",
         generatedAt,
         newestContentAt: latestPublishedAt,
-        contentCount: momentumSnapshots.filter((row) => hasMeaningfulMetric(row.score)).length,
+        contentCount: leaderboard.filter((row) => hasMeaningfulMetric(row.score)).length,
         staleAfterHours: 168,
         now: generatedAt,
       }),
@@ -921,6 +970,19 @@ const getMomentumRows = cache(async () => {
   return data as MomentumScoreRow[] | null;
 });
 
+const getMomentumHistoryRows = cache(async () => {
+  const client = getSupabaseServerClient();
+
+  if (!client) {
+    return null;
+  }
+
+  const data = await runSupabaseQuery("momentum_score_history", () =>
+    client.from("momentum_score_history").select("*").order("date_key", { ascending: true }).order("calculated_at", { ascending: true }),
+  );
+  return data as MomentumScoreHistoryRow[] | null;
+});
+
 const getDailyDigestRows = async () => {
   const client = getSupabaseServerClient();
 
@@ -1035,10 +1097,17 @@ function buildMomentumSnapshotsFromDatabase(
   momentumRows: MomentumScoreRow[],
   eventRows: EventRow[],
   newsRows: NewsItemRow[],
+  momentumHistoryRows: MomentumScoreHistoryRow[] | null,
 ) {
   const historyByCompanyId = new Map<string, MomentumScoreRow[]>();
   const eventsByCompanyId = new Map<string, EventRow[]>();
   const newsById = Object.fromEntries(newsRows.map((row) => [row.id, row]));
+  const dailyHistoryEntries = mergeDailyScoreEntries(
+    fallbackScoreHistoryEntries,
+    buildDailyHistoryEntriesFromMomentumRows(companyRows, momentumRows),
+    momentumHistoryRows?.length ? buildDailyHistoryEntriesFromStoreRows(companyRows, momentumHistoryRows) : [],
+  );
+  const dailyHistoryByCompanySlug = buildCompanyHistoryMap(dailyHistoryEntries);
 
   momentumRows.forEach((row) => {
     const current = historyByCompanyId.get(row.company_id) ?? [];
@@ -1053,26 +1122,42 @@ function buildMomentumSnapshotsFromDatabase(
   });
 
   const snapshots = companyRows.map<MomentumSnapshot>((companyRow) => {
-    const fallback = getCompanyMomentum(companyRow.slug);
+    const fallback = buildFallbackMomentumSnapshot(companyRow.slug) ?? getCompanyMomentum(companyRow.slug);
     const history = historyByCompanyId.get(companyRow.id) ?? [];
+    const dailyHistory = dailyHistoryByCompanySlug.get(companyRow.slug) ?? fallback?.history ?? [];
     const latest = history.at(-1);
     const leadingEvent = (eventsByCompanyId.get(companyRow.id) ?? [])[0];
     const leadingNewsSlug = leadingEvent?.news_item_id ? newsById[leadingEvent.news_item_id]?.slug : undefined;
-    const score = Number(latest?.score ?? fallback?.score ?? 0);
-    const scoreChange7d = Number(latest?.score_change_7d ?? fallback?.scoreChange7d ?? 0);
+    const score = Number((latest?.score ?? dailyHistory.at(-1)?.score ?? fallback?.score ?? 0).toFixed(2));
+    const scoreChange24h = Number(
+      (
+        latest?.score_change_24h ??
+        (dailyHistory.length >= 2 ? dailyHistory[dailyHistory.length - 1].score - dailyHistory[dailyHistory.length - 2].score : fallback?.scoreChange24h ?? 0)
+      ).toFixed(2),
+    );
+    const scoreChange7d = Number(
+      (
+        dailyHistory.length > 0
+          ? calculateScoreChangeFromHistory(dailyHistory, 7)
+          : latest?.score_change_7d ?? fallback?.scoreChange7d ?? 0
+      ).toFixed(2),
+    );
+    const trendPercent7d = dailyHistory.length > 0 ? calculateTrendPercent(dailyHistory, 7) : fallback?.trendPercent7d;
 
     return {
       companySlug: companyRow.slug,
       rank: 0,
       score,
-      scoreChange24h: Number(latest?.score_change_24h ?? fallback?.scoreChange24h ?? 0),
+      scoreChange24h,
       scoreChange7d,
       trend: toTrendDirection(scoreChange7d, score),
       keyDriver: toCompleteSentence(leadingEvent?.explanation ?? fallback?.keyDriver ?? "Recent activity"),
       sparkline:
-        history.length > 0
-          ? history.slice(-7).map((row) => Number(row.score))
-          : fallback?.sparkline ?? companiesBySlug[companyRow.slug]?.sparkline ?? [0, 0, 0, 0, 0, 0, 0],
+        dailyHistory.length > 0
+          ? buildSparklineFromHistory(dailyHistory, 7)
+          : fallback?.sparkline ?? companiesBySlug[companyRow.slug]?.sparkline ?? [],
+      history: dailyHistory,
+      trendPercent7d,
       driverNewsSlugs: leadingNewsSlug ? [leadingNewsSlug] : fallback?.driverNewsSlugs ?? [],
     };
   });
@@ -1150,18 +1235,19 @@ export const getNewsItemDetailData = cache(async (slug: string): Promise<NewsDet
 });
 
 export const getLeaderboardData = cache(async (): Promise<MomentumSnapshot[]> => {
-  const [companyRows, momentumRows, eventRows, newsRows] = await Promise.all([
+  const [companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows] = await Promise.all([
     getCompanyRows(),
     getMomentumRows(),
     getEventRows(),
     getNewsRows(),
+    getMomentumHistoryRows(),
   ]);
 
   if (!companyRows || !momentumRows || !eventRows || !newsRows) {
-    return momentumSnapshots;
+    return buildFallbackMomentumSnapshots();
   }
 
-  return buildMomentumSnapshotsFromDatabase(companyRows, momentumRows, eventRows, newsRows);
+  return buildMomentumSnapshotsFromDatabase(companyRows, momentumRows, eventRows, newsRows, momentumHistoryRows);
 });
 
 export const getCompaniesIndexData = cache(async (): Promise<CompanyCardRecord[]> => {
@@ -1504,8 +1590,8 @@ export const getDailyDigestByDate = async (date: string): Promise<DailyDigestRec
     },
     leadStory: newsItemsBySlug[digestSource.mostImportantNewsSlug],
     topStories: digestSource.topStorySlugs.map((slug) => newsItemsBySlug[slug]).filter(Boolean),
-    biggestWinnerMomentum: withMeaningfulMomentum(getCompanyMomentum(digestSource.biggestWinnerCompanySlug)),
-    biggestLoserMomentum: withMeaningfulMomentum(getCompanyMomentum(digestSource.biggestLoserCompanySlug)),
+    biggestWinnerMomentum: withMeaningfulMomentum(buildFallbackMomentumSnapshot(digestSource.biggestWinnerCompanySlug)),
+    biggestLoserMomentum: withMeaningfulMomentum(buildFallbackMomentumSnapshot(digestSource.biggestLoserCompanySlug)),
     mostImportantStory: newsItemsBySlug[digestSource.mostImportantNewsSlug],
     lastUpdatedAt: seedNow.toISOString(),
   };

@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 
 import { getSupabaseServiceClient } from "@/lib/db/client";
 import type { CompanyRow, EventRow, NewsItemRow } from "@/lib/db/types";
+import { toHistoryDateKey } from "@/lib/score-history";
 import { calculateMomentumChange, calculateMomentumScore, getBaseWeight, type EventType } from "@/lib/scoring/momentum";
 
 type CompanyNewsRow = {
@@ -217,6 +218,25 @@ export async function recomputeLeaderboardFromNews() {
 
   if (momentumError) {
     throw momentumError;
+  }
+
+  const dateKey = toHistoryDateKey(referenceDate);
+
+  if (dateKey) {
+    const momentumHistoryPayload = momentumScoresPayload.map((row) => ({
+      company_id: row.company_id,
+      date_key: dateKey,
+      score: row.score,
+      calculated_at: row.calculated_at,
+    }));
+
+    const { error: historyError } = await client
+      .from("momentum_score_history")
+      .upsert(momentumHistoryPayload, { onConflict: "company_id,date_key" });
+
+    if (historyError) {
+      throw historyError;
+    }
   }
 
   return {
