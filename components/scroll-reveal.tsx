@@ -26,6 +26,16 @@ export function ScrollReveal({ children, className, delay = 0 }: ScrollRevealPro
       return;
     }
 
+    // Keep content visible even if intersection events are delayed or never fire.
+    const fallbackReveal = window.setTimeout(() => {
+      setRevealed(true);
+    }, 1200);
+
+    if (element.getBoundingClientRect().top <= window.innerHeight * 1.15) {
+      setRevealed(true);
+      return () => window.clearTimeout(fallbackReveal);
+    }
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) {
@@ -33,16 +43,21 @@ export function ScrollReveal({ children, className, delay = 0 }: ScrollRevealPro
         }
 
         setRevealed(true);
+        window.clearTimeout(fallbackReveal);
         observer.disconnect();
       },
       {
-        threshold: 0.15,
+        rootMargin: "0px 0px 18% 0px",
+        threshold: 0.01,
       },
     );
 
     observer.observe(element);
 
-    return () => observer.disconnect();
+    return () => {
+      window.clearTimeout(fallbackReveal);
+      observer.disconnect();
+    };
   }, []);
 
   return (
