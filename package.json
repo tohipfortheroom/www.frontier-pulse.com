@@ -10,6 +10,7 @@
     "seed": "npx tsx lib/seed/seed-db.ts",
     "ingest": "npx tsx lib/ingestion/cron.ts",
     "backfill": "npx tsx scripts/backfill.ts",
+    "recompute:scores": "npx tsx scripts/recompute-score-range.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

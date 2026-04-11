@@ -66,6 +66,7 @@ import { normalizeIngestedItem } from "@/lib/ingestion/normalizer";
 import { sourceRegistry } from "@/lib/ingestion/pipeline";
 import type { RawIngestedItem } from "@/lib/ingestion/types";
 import { getPipelineStateRow } from "@/lib/ingestion/run-state";
+import { isSupabaseMissingTableError } from "@/lib/error-utils";
 import { logger } from "@/lib/monitoring/logger";
 import {
   buildCompanyHistoryMap,
@@ -829,17 +830,29 @@ type SupabaseResult<T> = {
   error: { message?: string } | null;
 };
 
-async function runSupabaseQuery<T>(label: string, query: () => PromiseLike<SupabaseResult<T>>): Promise<T | null> {
+async function runSupabaseQuery<T>(
+  label: string,
+  query: () => PromiseLike<SupabaseResult<T>>,
+  options?: { ignoreMissingTable?: string },
+): Promise<T | null> {
   try {
     const { data, error } = await query();
 
     if (error) {
+      if (options?.ignoreMissingTable && isSupabaseMissingTableError(error, options.ignoreMissingTable)) {
+        return null;
+      }
+
       console.error(`[db] ${label} query failed: ${error.message ?? "Unknown error"}`);
       return null;
     }
 
     return data;
   } catch (error) {
+    if (options?.ignoreMissingTable && isSupabaseMissingTableError(error, options.ignoreMissingTable)) {
+      return null;
+    }
+
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[db] ${label} query threw: ${message}`);
     return null;
@@ -977,8 +990,10 @@ const getMomentumHistoryRows = cache(async () => {
     return null;
   }
 
-  const data = await runSupabaseQuery("momentum_score_history", () =>
-    client.from("momentum_score_history").select("*").order("date_key", { ascending: true }).order("calculated_at", { ascending: true }),
+  const data = await runSupabaseQuery(
+    "momentum_score_history",
+    () => client.from("momentum_score_history").select("*").order("date_key", { ascending: true }).order("calculated_at", { ascending: true }),
+    { ignoreMissingTable: "momentum_score_history" },
   );
   return data as MomentumScoreHistoryRow[] | null;
 });

@@ -7,6 +7,7 @@ import {
   calculateMomentumScore,
   EVENT_WEIGHTS,
   getBaseWeight,
+  normalizeDailyImpact,
   type EventType,
   type MomentumEventLike,
 } from "./momentum";
@@ -116,15 +117,13 @@ describe("calculateMomentumScore", () => {
   it("sums decayed scores for a specific company", () => {
     const score = calculateMomentumScore(events, "openai", NOW);
 
-    // 10 * 0.9^0 + 6 * 0.9^1 = 10 + 5.4 = 15.4
-    expect(score).toBeCloseTo(15.4, 1);
+    expect(score).toBeCloseTo(6.4, 1);
   });
 
   it("filters events by company slug", () => {
     const score = calculateMomentumScore(events, "anthropic", NOW);
 
-    // Only one event for anthropic: 10 * 0.9^0 = 10
-    expect(score).toBeCloseTo(10, 1);
+    expect(score).toBeCloseTo(3.77, 1);
   });
 
   it("returns 0 for company with no events", () => {
@@ -142,7 +141,31 @@ describe("calculateMomentumScore", () => {
     ];
 
     const score = calculateMomentumScore(eventsWithoutDelta, "meta-ai", NOW);
-    expect(score).toBe(-4); // Controversy weight
+    expect(score).toBeLessThan(0);
+    expect(score).toBeCloseTo(-2.53, 1);
+  });
+
+  it("compresses same-day bursts into a readable range", () => {
+    const burstScore = calculateMomentumScore(
+      Array.from({ length: 12 }, () => ({
+        companySlug: "openai",
+        eventType: "Major model release" as const,
+        scoreDelta: 10,
+        eventDate: NOW.toISOString(),
+      })),
+      "openai",
+      NOW,
+    );
+
+    expect(burstScore).toBeLessThan(7);
+  });
+});
+
+describe("normalizeDailyImpact", () => {
+  it("compresses repeated raw impact without flipping sign", () => {
+    expect(normalizeDailyImpact(148)).toBeGreaterThan(0);
+    expect(normalizeDailyImpact(148)).toBeLessThan(11);
+    expect(normalizeDailyImpact(-25)).toBeLessThan(0);
   });
 });
 

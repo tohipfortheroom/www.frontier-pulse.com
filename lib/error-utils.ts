@@ -31,3 +31,20 @@ export function getErrorMessage(error: unknown) {
 
   return "Unknown error";
 }
+
+export function isSupabaseMissingTableError(error: unknown, tableName?: string) {
+  const message = getErrorMessage(error).toLowerCase();
+  const missingTable =
+    message.includes("could not find the table") ||
+    (message.includes("relation") && message.includes("does not exist"));
+
+  if (!missingTable) {
+    return false;
+  }
+
+  if (!tableName) {
+    return true;
+  }
+
+  return message.includes(tableName.toLowerCase());
+}

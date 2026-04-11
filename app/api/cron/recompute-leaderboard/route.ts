@@ -7,13 +7,33 @@ import { recomputeLeaderboardFromNews } from "@/lib/ingestion/leaderboard";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function getReferenceDate(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const referenceDate = searchParams.get("referenceDate");
+
+  if (!referenceDate) {
+    return undefined;
+  }
+
+  const parsed =
+    /^\d{4}-\d{2}-\d{2}$/.test(referenceDate)
+      ? new Date(`${referenceDate}T23:59:59.999Z`)
+      : new Date(referenceDate);
+
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid referenceDate: ${referenceDate}`);
+  }
+
+  return parsed;
+}
+
 export async function GET(request: Request) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const result = await recomputeLeaderboardFromNews();
+    const result = await recomputeLeaderboardFromNews(getReferenceDate(request));
 
     return NextResponse.json(result);
   } catch (error) {
@@ -29,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const result = await recomputeLeaderboardFromNews();
+    const result = await recomputeLeaderboardFromNews(getReferenceDate(request));
 
     return NextResponse.json(result);
   } catch (error) {

@@ -2,7 +2,7 @@ import { subDays } from "date-fns";
 
 import { getSupabaseServiceClient } from "@/lib/db/client";
 import type { CompanyRow, EventRow, NewsItemRow } from "@/lib/db/types";
-import { getErrorMessage } from "@/lib/error-utils";
+import { getErrorMessage, isSupabaseMissingTableError } from "@/lib/error-utils";
 import { toHistoryDateKey } from "@/lib/score-history";
 import { calculateMomentumChange, calculateMomentumScore, getBaseWeight, type EventType } from "@/lib/scoring/momentum";
 
@@ -106,12 +106,24 @@ function shouldRetryEventUpsertWithRoundedScores(error: unknown) {
   );
 }
 
-export async function recomputeLeaderboardFromNews() {
+function normalizeReferenceDate(referenceDateInput?: Date | string) {
+  const referenceDate = referenceDateInput ? new Date(referenceDateInput) : new Date();
+
+  if (Number.isNaN(referenceDate.getTime())) {
+    throw new Error(`Invalid reference date: ${referenceDateInput}`);
+  }
+
+  return referenceDate;
+}
+
+export async function recomputeLeaderboardFromNews(referenceDateInput?: Date | string) {
   const client = getSupabaseServiceClient();
 
   if (!client) {
     throw new Error("Supabase service role is not configured.");
   }
+
+  const referenceDate = normalizeReferenceDate(referenceDateInput);
 
   const [companyResult, newsResult, companyNewsResult, categoryResult, newsCategoryResult] = await Promise.all([
     client.from("companies").select("id, slug").order("name"),
@@ -201,7 +213,7 @@ export async function recomputeLeaderboardFromNews() {
     }
   }
 
-  const cutoff = subDays(new Date(), 30).toISOString();
+  const cutoff = subDays(referenceDate, 30).toISOString();
   const { data: eventRows, error: eventFetchError } = await client
     .from("events")
     .select("*")
@@ -229,7 +241,6 @@ export async function recomputeLeaderboardFromNews() {
     })
     .filter((row): row is NonNullable<typeof row> => Boolean(row));
 
-  const referenceDate = new Date();
   const momentumScoresPayload = companyRows.map((company) => {
     const companySlug = company.slug;
     const score = calculateMomentumScore(momentumEvents, companySlug, referenceDate);
@@ -267,14 +278,22 @@ export async function recomputeLeaderboardFromNews() {
       .from("momentum_score_history")
       .upsert(momentumHistoryPayload, { onConflict: "company_id,date_key" });
 
-    if (historyError) {
+    if (historyError && !isSupabaseMissingTableError(historyError, "momentum_score_history")) {
       throw historyError;
     }
+
+    return {
+      eventsGenerated: eventsToUpsert.length,
+      momentumRows: momentumScoresPayload.length,
+      calculatedAt: referenceDate.toISOString(),
+      historyPersisted: !historyError,
+    };
   }
 
   return {
     eventsGenerated: eventsToUpsert.length,
     momentumRows: momentumScoresPayload.length,
     calculatedAt: referenceDate.toISOString(),
+    historyPersisted: false,
   };
 }
