@@ -50,6 +50,7 @@
 
 - `components/score-breakdown-chart.tsx`: Recharts was warning during prerender because the chart mounted before a stable client size existed. Added a mount guard and inert placeholder so the chart only renders after client mount, eliminating the width/height warning without changing the visual design.
 - `components/compare-page-client.tsx`: Some compare-page controls were under the 44px mobile touch target guidance. Increased the company selector tap targets with minimal class changes and no layout redesign.
+- `app/leaderboard/page.tsx`, `app/companies/page.tsx`, `app/compare/page.tsx`, `app/companies/[slug]/page.tsx`: Ranking-dependent graphics were still surfacing an April 3 snapshot on the live site even after the production scoring tables refreshed. Switched those ranking surfaces from ISR to request-time rendering so leaderboard charts, company score widgets, and comparison graphics always read the current Supabase state instead of a stale prerendered snapshot.
 - Verification: `npm run build` completed successfully after the Phase 6 fixes. Local builds still log Supabase fetch failures in this environment, but the app now continues to degrade to seed data instead of failing the build.
 - Verification: Re-ran `npm test` and `npm run build` after the cron/homepage/chart changes. The full test suite passed, and production builds still complete successfully with the existing local Supabase connectivity caveat.
 

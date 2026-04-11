@@ -28,7 +28,7 @@ const ScoreBreakdownChart = dynamicImport(
   },
 );
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 function formatMetricValue(value: number | null | undefined, { digits = 0, suffix = "" }: { digits?: number; suffix?: string } = {}) {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {

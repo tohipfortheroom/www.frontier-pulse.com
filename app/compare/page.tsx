@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   description: "Compare up to four AI companies side by side across momentum, radar profiles, product breadth, recent coverage, and shared competitive pressure.",
 };
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type ComparePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
