@@ -1,4 +1,5 @@
 import { logger } from "../monitoring/logger.ts";
+import { getErrorMessage } from "../error-utils.ts";
 import { generateDailyDigest } from "./digest-generator.ts";
 import { recomputeLeaderboardFromNews } from "./leaderboard.ts";
 import { runIngestionPipeline, runPriorityIngestion } from "./pipeline.ts";
@@ -42,7 +43,7 @@ async function runDownstreamTask<T>(
     });
     return payload;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = getErrorMessage(error);
     logger.error("ingestion", `${task}_failed`, {
       task,
       error: message,
@@ -57,11 +58,7 @@ async function runDownstreamTask<T>(
   }
 }
 
-export async function runCronIngestion(triggerKind: PipelineTriggerKind = "cron") {
-  const ingestion = await runIngestionPipeline({
-    triggerKind,
-    targetScope: "all",
-  });
+async function appendDownstreamTasks(ingestion: Awaited<ReturnType<typeof runIngestionPipeline>>) {
   const shouldRunDownstream = !ingestion.dryRun && (ingestion.status === "success" || ingestion.status === "partial_success");
   const leaderboard = shouldRunDownstream
     ? await runDownstreamTask("leaderboard", () => recomputeLeaderboardFromNews())
@@ -95,6 +92,34 @@ export async function runCronIngestion(triggerKind: PipelineTriggerKind = "cron"
     digest,
     downstreamErrors,
   };
+}
+
+export async function runCronIngestion(triggerKind: PipelineTriggerKind = "cron") {
+  const ingestion = await runIngestionPipeline({
+    triggerKind,
+    targetScope: "all",
+  });
+
+  return appendDownstreamTasks(ingestion);
+}
+
+export async function runBackfillIngestion({
+  triggerKind = "manual",
+  selectedSourceIds,
+  maxAgeOverrideHours,
+}: {
+  triggerKind?: Extract<PipelineTriggerKind, "manual" | "cli">;
+  selectedSourceIds?: string[];
+  maxAgeOverrideHours?: number;
+} = {}) {
+  const ingestion = await runIngestionPipeline({
+    triggerKind,
+    targetScope: selectedSourceIds?.length ? "selected" : "all",
+    selectedSourceIds,
+    maxAgeOverrideHours,
+  });
+
+  return appendDownstreamTasks(ingestion);
 }
 
 export async function runPriorityCronIngestion(triggerKind: PipelineTriggerKind = "priority-cron") {

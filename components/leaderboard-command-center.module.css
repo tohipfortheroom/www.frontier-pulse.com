@@ -411,6 +411,32 @@
   letter-spacing: 0.04em;
 }
 
+.chartLegendButton {
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease,
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease;
+}
+
+.chartLegendButton:hover {
+  border-color: rgba(0, 229, 255, 0.24);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
+.chartLegendItemActive {
+  border-color: rgba(0, 229, 255, 0.24);
+  background: rgba(0, 229, 255, 0.08);
+  color: var(--text-primary);
+}
+
+.chartLegendItemMuted {
+  opacity: 0.58;
+}
+
 .chartLegendDot,
 .tooltipDot {
   width: 8px;

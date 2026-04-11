@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { getErrorMessage } from "@/lib/error-utils";
 import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
-import { runIngestionPipeline } from "@/lib/ingestion/pipeline";
+import { runBackfillIngestion } from "@/lib/ingestion/cron";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,32 +13,41 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = (await request.json().catch(() => null)) as {
-    maxAgeDays?: number;
-    sources?: string[];
-  } | null;
+  try {
+    const payload = (await request.json().catch(() => null)) as {
+      maxAgeDays?: number;
+      sources?: string[];
+    } | null;
 
-  const maxAgeDays = Math.min(payload?.maxAgeDays ?? 30, 90);
+    const maxAgeDays = Math.min(payload?.maxAgeDays ?? 30, 90);
 
-  const result = await runIngestionPipeline({
-    triggerKind: "manual",
-    targetScope: payload?.sources ? "selected" : "all",
-    selectedSourceIds: payload?.sources,
-    maxAgeOverrideHours: maxAgeDays * 24,
-  });
+    const result = await runBackfillIngestion({
+      triggerKind: "manual",
+      selectedSourceIds: payload?.sources,
+      maxAgeOverrideHours: maxAgeDays * 24,
+    });
 
-  return NextResponse.json({
-    status: result.status,
-    statusReason: result.statusReason,
-    durationMs: result.durationMs,
-    sourceCount: result.sourceCount,
-    sourceSuccessCount: result.sourceSuccessCount,
-    fetchedCount: result.fetchedCount,
-    normalizedCount: result.normalizedCount,
-    insertedCount: result.insertedCount,
-    updatedCount: result.updatedCount,
-    duplicatesFiltered: result.duplicatesFiltered,
-    oldRejected: result.oldRejected,
-    sampleHeadlines: result.items.slice(0, 15).map((item) => item.headline),
-  });
+    return NextResponse.json({
+      status: result.status,
+      statusReason: result.statusReason,
+      durationMs: result.durationMs,
+      sourceCount: result.sourceCount,
+      sourceSuccessCount: result.sourceSuccessCount,
+      sourceFailureCount: result.sourceFailureCount,
+      fetchedCount: result.fetchedCount,
+      normalizedCount: result.normalizedCount,
+      insertedCount: result.insertedCount,
+      updatedCount: result.updatedCount,
+      duplicatesFiltered: result.duplicatesFiltered,
+      oldRejected: result.oldRejected,
+      leaderboard: result.leaderboard,
+      digest: result.digest,
+      downstreamErrors: result.downstreamErrors,
+      sampleHeadlines: result.items.slice(0, 15).map((item) => item.headline),
+    });
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.error("[cron][backfill] Failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

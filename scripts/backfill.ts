@@ -1,4 +1,4 @@
-import { runIngestionPipeline } from "../lib/ingestion/pipeline.ts";
+import { runBackfillIngestion } from "../lib/ingestion/cron.ts";
 
 const DEFAULT_MAX_AGE_HOURS = 30 * 24; // 30 days
 
@@ -10,9 +10,8 @@ async function backfill() {
   console.log(`  Max age: ${maxAgeHours} hours (${Math.round(maxAgeHours / 24)} days)`);
   console.log(`  Sources: ${sourceFilter?.join(", ") || "all"}\n`);
 
-  const result = await runIngestionPipeline({
+  const result = await runBackfillIngestion({
     triggerKind: "cli",
-    targetScope: sourceFilter ? "selected" : "all",
     selectedSourceIds: sourceFilter,
     maxAgeOverrideHours: maxAgeHours,
   });
@@ -27,6 +26,12 @@ async function backfill() {
   console.log(`  Duplicates filtered: ${result.duplicatesFiltered}`);
   console.log(`  Rejected (too old): ${result.oldRejected}`);
   console.log(`  Rejected (invalid): ${result.invalidRejected}`);
+  console.log(`  Leaderboard refresh: ${result.leaderboard.status}`);
+  console.log(`  Digest refresh: ${result.digest.status}`);
+
+  if (result.downstreamErrors.length > 0) {
+    console.log(`  Downstream errors: ${result.downstreamErrors.join("; ")}`);
+  }
 
   if (result.items.length > 0) {
     console.log(`\n  Sample headlines:`);

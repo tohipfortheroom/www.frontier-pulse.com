@@ -2,7 +2,8 @@ name: Frontier Pulse Scheduler
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    - cron: "0,30 * * * *"
+    - cron: "15,45 * * * *"
     - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
@@ -54,13 +55,11 @@ jobs:
 
           if [ -z "$task" ]; then
             case "$SCHEDULE" in
-              "*/15 * * * *")
-                minute=$(date -u +%M)
-                if [ $((10#$minute % 30)) -eq 0 ]; then
-                  task="full-ingest"
-                else
-                  task="priority-ingest"
-                fi
+              "0,30 * * * *")
+                task="full-ingest"
+                ;;
+              "15,45 * * * *")
+                task="priority-ingest"
                 ;;
               "0 13 * * *")
                 task="send-digest"

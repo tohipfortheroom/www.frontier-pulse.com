@@ -2,6 +2,7 @@ import { subDays } from "date-fns";
 
 import { getSupabaseServiceClient } from "@/lib/db/client";
 import type { CompanyRow, EventRow, NewsItemRow } from "@/lib/db/types";
+import { getErrorMessage } from "@/lib/error-utils";
 import { toHistoryDateKey } from "@/lib/score-history";
 import { calculateMomentumChange, calculateMomentumScore, getBaseWeight, type EventType } from "@/lib/scoring/momentum";
 
@@ -73,6 +74,36 @@ function buildScoreDelta(baseEventType: EventType, importanceScore: number, impa
 
 function buildExplanation(news: NewsItemRow) {
   return news.short_summary || news.why_it_matters || news.summary || news.headline;
+}
+
+function buildEventsPayload(eventsToUpsert: NewsItemMomentum[], roundScoreDelta = false) {
+  const createdAt = new Date().toISOString();
+
+  return eventsToUpsert.map((event) => ({
+    company_id: event.companyId,
+    news_item_id: event.newsId,
+    event_type: event.eventType,
+    score_delta: roundScoreDelta ? Math.round(event.scoreDelta) : event.scoreDelta,
+    event_date: event.eventDate,
+    explanation: event.explanation,
+    created_at: createdAt,
+  }));
+}
+
+function shouldRetryEventUpsertWithRoundedScores(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+  return (
+    (
+      message.includes("score_delta") ||
+      message.includes("invalid input syntax for type integer") ||
+      message.includes("type integer")
+    ) &&
+    (
+      message.includes("integer") ||
+      message.includes("numeric") ||
+      message.includes("type mismatch")
+    )
+  );
 }
 
 export async function recomputeLeaderboardFromNews() {
@@ -150,21 +181,23 @@ export async function recomputeLeaderboardFromNews() {
   }
 
   if (eventsToUpsert.length > 0) {
-    const { error: eventUpsertError } = await client.from("events").upsert(
-      eventsToUpsert.map((event) => ({
-        company_id: event.companyId,
-        news_item_id: event.newsId,
-        event_type: event.eventType,
-        score_delta: event.scoreDelta,
-        event_date: event.eventDate,
-        explanation: event.explanation,
-        created_at: new Date().toISOString(),
-      })),
-      { onConflict: "company_id,news_item_id,event_type,event_date" },
-    );
+    const eventPayload = buildEventsPayload(eventsToUpsert);
+    const { error: eventUpsertError } = await client
+      .from("events")
+      .upsert(eventPayload, { onConflict: "company_id,news_item_id,event_type,event_date" });
 
     if (eventUpsertError) {
-      throw eventUpsertError;
+      if (!shouldRetryEventUpsertWithRoundedScores(eventUpsertError)) {
+        throw eventUpsertError;
+      }
+
+      const { error: roundedEventUpsertError } = await client
+        .from("events")
+        .upsert(buildEventsPayload(eventsToUpsert, true), { onConflict: "company_id,news_item_id,event_type,event_date" });
+
+      if (roundedEventUpsertError) {
+        throw roundedEventUpsertError;
+      }
     }
   }
 

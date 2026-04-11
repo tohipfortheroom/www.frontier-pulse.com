@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getErrorMessage } from "@/lib/error-utils";
 import { sendDailyDigest } from "@/lib/email/digest-sender";
 import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
 
@@ -20,7 +21,7 @@ async function handleSendDigest(request: Request) {
       timestamp: new Date().toISOString(),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = getErrorMessage(err);
     console.error("[send-digest] Cron failed:", message);
 
     return NextResponse.json(

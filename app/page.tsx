@@ -52,6 +52,10 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const { todayStories, breakingStories, leaderboard, launches, timeline, topMovers, trendingTopics, tickerItems, stats, sectionFreshness, leaderboardRefreshState } =
     await getHomePageData();
+  const todayInAiWarning =
+    todayStories.length > 0 && sectionFreshness.todayInAi.stale && sectionFreshness.todayInAi.newestContentAt
+      ? `Showing the latest available stories from ${formatDateLabel(sectionFreshness.todayInAi.newestContentAt)} because nothing newer landed in the last 24 hours.`
+      : null;
   const websiteSchema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -106,15 +110,11 @@ export default async function HomePage() {
               items={[
                 { label: "Updated", value: sectionFreshness.todayInAi.newestContentAt ? formatUpdateTimestamp(sectionFreshness.todayInAi.newestContentAt) : "Unavailable" },
                 { label: "Stories", value: todayStories.length.toString() },
-                { label: "Window", value: "Current day" },
+                { label: "Window", value: todayStories.length > 0 && sectionFreshness.todayInAi.stale ? "Latest available" : "Last 24h" },
               ]}
-              warning={
-                sectionFreshness.todayInAi.stale && sectionFreshness.todayInAi.newestContentAt
-                  ? `Today in AI is behind the live feed. The latest visible story is from ${formatDateLabel(sectionFreshness.todayInAi.newestContentAt)}.`
-                  : null
-              }
+              warning={todayInAiWarning}
             />
-            {todayStories.length > 0 && !sectionFreshness.todayInAi.stale ? (
+            {todayStories.length > 0 ? (
               <HorizontalScroller viewportClassName="-mx-5 mt-8 px-5">
                 <>
                   {todayStories.map((story) => (
@@ -127,9 +127,7 @@ export default async function HomePage() {
             ) : (
               <div className="mt-8 space-y-3 text-center">
                 <p className="text-sm text-[var(--text-tertiary)]">
-                  {sectionFreshness.todayInAi.stale && sectionFreshness.todayInAi.newestContentAt
-                    ? `Today in AI is behind. The latest visible snapshot is from ${formatDateLabel(sectionFreshness.todayInAi.newestContentAt)}.`
-                    : "No stories tracked yet today. Check back soon."}
+                  No stories tracked in the last 24 hours. Check back soon.
                 </p>
                 <Link href="/news" className={buttonVariants({ variant: "ghost" })}>
                   Open the full news stream

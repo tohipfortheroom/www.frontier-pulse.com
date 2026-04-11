@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getErrorMessage } from "@/lib/error-utils";
 import { runCronIngestion } from "@/lib/ingestion/cron";
 import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
 
@@ -16,7 +17,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = getErrorMessage(error);
     console.error("[cron][ingest] Failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
+    const message = getErrorMessage(error);
     console.error("[cron][ingest] Failed:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }

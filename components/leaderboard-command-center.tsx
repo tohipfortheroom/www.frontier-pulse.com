@@ -199,6 +199,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
   const router = useRouter();
   const [activeFilter, setActiveFilter] = useState<FilterId>("all");
   const [chartWindow, setChartWindow] = useState<ChartWindow>(30);
+  const [selectedComparisonSlugs, setSelectedComparisonSlugs] = useState<string[]>([]);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -271,10 +272,13 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
 
   const podiumEntries = rankedEntries.slice(0, 3);
   const remainingEntries = rankedEntries.slice(3, 10);
-  const comparisonEntries = rankedEntries.slice(0, 10).map((entry, index) => ({
+  const comparisonCandidates = rankedEntries.slice(0, 10).map((entry, index) => ({
     ...entry,
     lineColor: entry.company.color || CHART_FALLBACK_COLORS[index % CHART_FALLBACK_COLORS.length],
   }));
+  const comparisonCandidatesKey = comparisonCandidates.map((entry) => entry.company.slug).join("|");
+  const defaultComparisonSlugs = comparisonCandidates.slice(0, 5).map((entry) => entry.company.slug);
+  const comparisonEntries = comparisonCandidates.filter((entry) => selectedComparisonSlugs.includes(entry.company.slug));
   const comparisonHistory = buildHistoryChartSeries(
     comparisonEntries.map((entry) => ({
       companySlug: entry.company.slug,
@@ -389,6 +393,29 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
     .filter((mover): mover is NotableMover => Boolean(mover))
     .slice(0, 3);
 
+  useEffect(() => {
+    setSelectedComparisonSlugs((previous) => {
+      const availableSlugs = comparisonCandidates.map((entry) => entry.company.slug);
+      const persisted = previous.filter((slug) => availableSlugs.includes(slug));
+
+      if (persisted.length > 0) {
+        return persisted;
+      }
+
+      return defaultComparisonSlugs;
+    });
+  }, [comparisonCandidatesKey]);
+
+  const toggleComparisonEntry = (companySlug: string) => {
+    setSelectedComparisonSlugs((previous) => {
+      if (previous.includes(companySlug)) {
+        return previous.length > 1 ? previous.filter((slug) => slug !== companySlug) : previous;
+      }
+
+      return [...previous, companySlug];
+    });
+  };
+
   if (rankedEntries.length === 0) {
     return (
       <div className={styles.shell}>
@@ -462,7 +489,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
 
             <div className={styles.comparisonControls}>
               <span className={styles.comparisonMeta}>
-                {comparisonEntries.length} leaders tracked{comparisonHistory.rangeLabel ? ` / ${comparisonHistory.rangeLabel}` : ""}
+                {comparisonEntries.length} of {comparisonCandidates.length} leaders shown{comparisonHistory.rangeLabel ? ` / ${comparisonHistory.rangeLabel}` : ""}
               </span>
               <div className={styles.windowToggle}>
                 {[
@@ -529,12 +556,26 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
           </div>
 
           <div className={styles.chartLegend}>
-            {comparisonEntries.map((entry) => (
-              <span key={entry.company.slug} className={styles.chartLegendItem}>
-                <span className={styles.chartLegendDot} style={{ backgroundColor: entry.lineColor }} />
-                {entry.company.name}
-              </span>
-            ))}
+            {comparisonCandidates.map((entry) => {
+              const isSelected = selectedComparisonSlugs.includes(entry.company.slug);
+
+              return (
+                <button
+                  key={entry.company.slug}
+                  type="button"
+                  aria-pressed={isSelected}
+                  className={cn(
+                    styles.chartLegendItem,
+                    styles.chartLegendButton,
+                    isSelected ? styles.chartLegendItemActive : styles.chartLegendItemMuted,
+                  )}
+                  onClick={() => toggleComparisonEntry(entry.company.slug)}
+                >
+                  <span className={styles.chartLegendDot} style={{ backgroundColor: entry.lineColor }} />
+                  {entry.company.name}
+                </button>
+              );
+            })}
           </div>
         </div>
       </section>

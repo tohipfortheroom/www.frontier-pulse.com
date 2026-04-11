@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getErrorMessage } from "@/lib/error-utils";
 import { runPriorityCronIngestion } from "@/lib/ingestion/cron";
 import { isCronAuthorized } from "@/lib/ingestion/cron-auth";
 
@@ -11,8 +12,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runPriorityCronIngestion();
-  return NextResponse.json(result);
+  try {
+    const result = await runPriorityCronIngestion();
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.error("[cron][ingest-priority] Failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {
@@ -20,6 +27,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const result = await runPriorityCronIngestion();
-  return NextResponse.json(result);
+  try {
+    const result = await runPriorityCronIngestion();
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = getErrorMessage(error);
+    console.error("[cron][ingest-priority] Failed:", message);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

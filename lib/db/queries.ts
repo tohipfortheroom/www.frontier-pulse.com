@@ -29,6 +29,7 @@ import {
   selectBestWhyItMatters,
   sanitizeEditorialText,
 } from "@/lib/content";
+import { buildNewsLaunchCards, selectTodayInAiStories } from "@/lib/homepage-surface";
 import {
   categories,
   companies,
@@ -764,8 +765,7 @@ function fallbackDailyDigest(): DailyDigestRecord {
 function fallbackHomePage(): HomePageData {
   const generatedAt = seedNow.toISOString();
   const latestPublishedAt = sortedNewsItems[0]?.publishedAt ?? seedNow.toISOString();
-  const latestDateKey = getContentDateKey(latestPublishedAt);
-  const todayStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && getContentDateKey(item.publishedAt) === latestDateKey).slice(0, 5);
+  const todayStories = selectTodayInAiStories(sortedNewsItems, new Date(generatedAt));
   const breakingStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
   const tickerItems = buildTickerItems(sortedNewsItems);
   const leaderboard = buildFallbackMomentumSnapshots();
@@ -787,7 +787,7 @@ function fallbackHomePage(): HomePageData {
         generatedAt,
         newestContentAt: getLatestPublishedAt(todayStories),
         contentCount: todayStories.length,
-        expectedDateKey: latestDateKey,
+        staleAfterHours: 24,
         now: generatedAt,
       }),
       breakingMoves: buildSectionFreshness({
@@ -1286,10 +1286,11 @@ export const getCompaniesIndexData = cache(async (): Promise<CompanyCardRecord[]
 });
 
 export const getLaunchesData = cache(async (): Promise<LaunchCardData[]> => {
-  const [companyRows, productRows] = await Promise.all([getCompanyRows(), getProductRows()]);
+  const [companyRows, productRows, news] = await Promise.all([getCompanyRows(), getProductRows(), getNewsItemsData()]);
+  const newsLaunches = buildNewsLaunchCards(news);
 
   if (!companyRows || !productRows) {
-    return launches;
+    return newsLaunches.length > 0 ? newsLaunches : launches;
   }
 
   const companyById = Object.fromEntries(companyRows.map((row) => [row.id, row]));
@@ -1314,7 +1315,25 @@ export const getLaunchesData = cache(async (): Promise<LaunchCardData[]> => {
       };
     });
 
-  return recentLaunches.length > 0 ? recentLaunches : launches;
+  const latestProductLaunchAt = recentLaunches[0]?.launchDate ? new Date(recentLaunches[0].launchDate).getTime() : null;
+  const latestNewsLaunchAt = newsLaunches[0]?.launchDate ? new Date(newsLaunches[0].launchDate).getTime() : null;
+  const shouldPreferNewsLaunches =
+    newsLaunches.length > 0 &&
+    (
+      recentLaunches.length === 0 ||
+      latestProductLaunchAt === null ||
+      (latestNewsLaunchAt !== null && latestNewsLaunchAt - latestProductLaunchAt > 48 * 60 * 60 * 1000)
+    );
+
+  if (shouldPreferNewsLaunches) {
+    return newsLaunches;
+  }
+
+  if (recentLaunches.length > 0) {
+    return recentLaunches;
+  }
+
+  return newsLaunches.length > 0 ? newsLaunches : launches;
 });
 
 export const getTimelineData = cache(async (): Promise<TimelineEntry[]> => {
@@ -1737,10 +1756,15 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
   }
 
   const latestPublishedAt = getLatestPublishedAt(news) ?? siteLastUpdatedAt ?? seedNow.toISOString();
-  const currentDateKey = getContentDateKey(generatedAt);
-  const latestNewsDateKey = getContentDateKey(latestPublishedAt);
-  const todayStories = news.filter((item) => isHomepageStoryEligible(item) && getContentDateKey(item.publishedAt) === latestNewsDateKey).slice(0, 5);
-  const breakingStories = news.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
+  const todayStories = selectTodayInAiStories(news, new Date(generatedAt));
+  const breakingStories = news
+    .filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical")
+    .sort(
+      (left, right) =>
+        right.importanceScore - left.importanceScore ||
+        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
+    )
+    .slice(0, 3);
   const dynamicTickerItems = buildTickerItems(news);
   const tickerItems = dynamicTickerItems.length >= 8 ? dynamicTickerItems : homeTickerItems;
 
@@ -1750,7 +1774,7 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
       generatedAt,
       newestContentAt: getLatestPublishedAt(todayStories),
       contentCount: todayStories.length,
-      expectedDateKey: currentDateKey,
+      staleAfterHours: 24,
       now: generatedAt,
     }),
     breakingMoves: buildSectionFreshness({
@@ -1774,8 +1798,6 @@ export const getHomePageData = cache(async (): Promise<HomePageData> => {
     cacheKey: "home-page-data",
     generatedAt,
     newestStoryTimestamp: latestPublishedAt,
-    latestNewsDateKey,
-    currentDateKey,
     todayInAi: sectionFreshness.todayInAi,
     breakingMoves: sectionFreshness.breakingMoves,
     leaderboard: sectionFreshness.leaderboard,

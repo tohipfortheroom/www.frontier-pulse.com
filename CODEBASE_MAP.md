@@ -1,12 +1,10 @@
 # CODEBASE_MAP
 
-## Phase 0 Summary
-
 Project: `Frontier Pulse`
 
-Goal of this document: map the current Next.js app before making credibility, data, and QA fixes.
+Purpose: current codebase map for the live Next.js app before credibility, data, and QA fixes.
 
-## 1. Top-Level Directory Structure
+## 1. Top-Level Structure
 
 ```text
 .
@@ -18,24 +16,23 @@ Goal of this document: map the current Next.js app before making credibility, da
 |- lib/
 |- public/
 |- scripts/
-|- screenshots/
+|- .github/
 |- .env.example
 |- .env.local
 |- .env.production
 |- next.config.ts
 |- package.json
-|- tsconfig.json
 |- vercel.json
 |- vitest.config.ts
 ```
 
 Key folders:
 
-- `app/`: App Router pages, layouts, route handlers, feed endpoints, metadata routes.
-- `components/`: shared UI and page-level client/server presentation components.
-- `lib/`: Supabase clients, query layer, ingestion pipeline, scoring, email, search, notifications, utilities.
-- `public/`: static brand assets and public files.
-- `scripts/`: backfill tooling.
+- `app/`: App Router pages, loading/error boundaries, metadata routes, and API/cron route handlers.
+- `components/`: shared presentation and client components for homepage sections, leaderboard, company pages, news cards, chrome, and charts.
+- `lib/`: Supabase clients, query layer, ingestion pipeline, scoring, source health, content cleanup, search, notifications, email, and seed fallbacks.
+- `scripts/`: manual backfill tooling.
+- `.github/workflows/`: scheduler workflow that hits live cron endpoints.
 
 ## 2. Framework, Router, and Rendering Strategy
 
@@ -46,37 +43,33 @@ Key folders:
 - Root layout: `app/layout.tsx`
 - Nested layouts: none found
 
-Rendering strategy is mixed:
+Rendering is mixed:
 
-- Dynamic SSR via `export const dynamic = "force-dynamic"`:
+- Dynamic server rendering with `export const dynamic = "force-dynamic"`:
   - `/`
   - `/news`
   - `/daily-digest`
   - `/timeline`
   - `/heatmap`
-  - several API/cron endpoints
-- ISR-style revalidation via `export const revalidate = 300`:
+  - cron and most API routes
+- ISR-style revalidation with `export const revalidate = 300`:
   - `/leaderboard`
   - `/companies`
   - `/companies/[slug]`
   - `/news/[slug]`
   - `/trending`
   - `/compare`
-- Static metadata objects on simpler pages:
+- Plain server-rendered/static pages with static metadata:
   - `/about`
   - `/bookmarks`
   - `/privacy`
   - `/terms`
   - `/admin`
 
-Static param generation:
+Important correction:
 
-- `app/companies/[slug]/page.tsx` uses `generateStaticParams()`
-- `app/news/[slug]/page.tsx` uses `generateStaticParams()`
-
-Metadata generation:
-
-- Dynamic `generateMetadata()` is used on the home page, leaderboard, company detail, news detail, daily digest, and timeline pages.
+- `generateStaticParams()` is not currently used anywhere.
+- Dynamic metadata is used on `/`, `/leaderboard`, `/companies/[slug]`, `/news/[slug]`, `/daily-digest`, and `/timeline`.
 
 ## 3. Supabase Client Setup
 
@@ -86,8 +79,8 @@ Server-side client setup:
   - `getSupabaseReadClient()`
   - `getSupabaseServiceClient()`
   - `getSupabaseServerClient()`
-  - read client uses service role if present, otherwise anon key
-  - auth persistence/refresh disabled
+  - read client prefers service role if present, otherwise anon key
+  - auth persistence and token refresh are disabled
 
 Browser-side client setup:
 
@@ -95,19 +88,17 @@ Browser-side client setup:
   - `getSupabaseBrowserClient()`
   - only initializes in the browser when `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` exist
 
-Primary query layer:
+Primary server query layer:
 
 - `lib/db/queries.ts`
-  - central server-side data access layer
-  - wraps Supabase reads in `runSupabaseQuery()`
-  - uses `react` `cache()` for memoized server fetches
-  - falls back to seed data from `lib/seed/data.ts` when Supabase is unavailable or a query fails
+  - central data access for pages
+  - wraps reads in `runSupabaseQuery()`
+  - memoizes many reads with React `cache()`
+  - falls back to seed data in `lib/seed/data.ts` if Supabase is unavailable or a query fails
 
-## 4. Supabase Tables, Columns, Realtime, and RPC
+## 4. Supabase Tables, RPC, and Pipeline Touchpoints
 
-### Tables queried by the app
-
-Read-heavy tables used by the site:
+Tables queried by the app:
 
 - `companies`
 - `company_products`
@@ -119,73 +110,102 @@ Read-heavy tables used by the site:
 - `news_item_tags`
 - `events`
 - `momentum_scores`
+- `momentum_score_history`
 - `daily_digests`
-
-Tables used by app features or operations:
-
-- `subscribers`
-- `push_subscriptions`
-- `reactions`
 - `source_health`
 - `pipeline_state`
 - `ingestion_runs`
 - `ingestion_run_sources`
+- `subscribers`
+- `push_subscriptions`
+- `reactions`
 
-Notable column-level usage:
+Tables written by ingestion / operational flows:
 
-- `news_items.search_vector` is used for full-text search in `lib/search/server.ts`
-- `momentum_scores.calculated_at` drives score history ordering
-- `events.event_date` drives timeline and heatmap
-- `daily_digests.digest_date` drives archive lookup
+- `news_items`
+- `company_news`
+- `news_item_categories`
+- `news_item_tags`
+- `events`
+- `momentum_scores`
+- `momentum_score_history`
+- `daily_digests`
+- `source_health`
+- `pipeline_state`
+- `ingestion_runs`
+- `ingestion_run_sources`
+- `subscribers`
+- `push_subscriptions`
+- `reactions`
 
-### Realtime subscriptions
-
-Client-side Supabase realtime is used in:
-
-- `components/leaderboard-table.tsx`
-  - subscribes to `momentum_scores`
-  - refreshes the route on score changes
-- `components/leaderboard-command-center.tsx`
-  - subscribes to `momentum_scores`
-  - refreshes the leaderboard page
-- `components/news-page-client.tsx`
-  - subscribes to `news_items`
-  - tracks pending realtime inserts and refresh flow
-
-### RPC calls
-
-Supabase RPC is used for ingestion locking only:
+RPC calls:
 
 - `acquire_pipeline_lock`
 - `release_pipeline_lock`
 
-These are called from:
+RPC usage:
 
 - `lib/ingestion/run-state.ts`
 
-### Edge functions / views
+Supabase Edge Functions:
 
-- No Supabase Edge Functions are referenced in the application code.
-- No SQL views are referenced by the app query layer.
-- SQL functions exist in migrations, including:
-  - `public.set_updated_at()`
-  - `public.acquire_pipeline_lock(...)`
-  - `public.release_pipeline_lock(...)`
+- none referenced in app code
 
-## 5. Route Map
+Supabase views:
 
-### User-facing page routes
+- none referenced in app code
+
+## 5. Scheduler and Refresh Pipeline
+
+Live scheduler wiring:
+
+- `.github/workflows/frontier-pulse-scheduler.yml`
+
+Scheduled tasks:
+
+- every 15 minutes: either priority ingest or full ingest depending on minute
+- daily at `13:00 UTC`: digest send
+- manual workflow dispatch supports:
+  - `priority-ingest`
+  - `full-ingest`
+  - `recompute-leaderboard`
+  - `send-digest`
+  - `backfill`
+
+Cron endpoints:
+
+- `/api/cron/ingest` -> `app/api/cron/ingest/route.ts`
+- `/api/cron/ingest-priority` -> `app/api/cron/ingest-priority/route.ts`
+- `/api/cron/recompute-leaderboard` -> `app/api/cron/recompute-leaderboard/route.ts`
+- `/api/cron/backfill` -> `app/api/cron/backfill/route.ts`
+- `/api/cron/send-digest` -> `app/api/cron/send-digest/route.ts`
+
+Refresh pipeline chain:
+
+1. GitHub Actions scheduler calls a protected cron route.
+2. `lib/ingestion/cron.ts` runs ingestion.
+3. Successful full ingestion triggers:
+   - `recomputeLeaderboardFromNews()` from `lib/ingestion/leaderboard.ts`
+   - `generateDailyDigest()` from `lib/ingestion/digest-generator.ts`
+4. UI surfaces read from:
+   - `news_items` for the live feed
+   - `events`, `momentum_scores`, `momentum_score_history` for score surfaces
+   - `daily_digests` for digest pages
+
+## 6. Route Map
+
+User-facing routes:
 
 - `/` -> `app/page.tsx`
-- `/leaderboard` -> `app/leaderboard/page.tsx`
 - `/companies` -> `app/companies/page.tsx`
 - `/companies/[slug]` -> `app/companies/[slug]/page.tsx`
 - `/news` -> `app/news/page.tsx`
 - `/news/[slug]` -> `app/news/[slug]/page.tsx`
+- `/leaderboard` -> `app/leaderboard/page.tsx`
 - `/daily-digest` -> `app/daily-digest/page.tsx`
 - `/timeline` -> `app/timeline/page.tsx`
-- `/trending` -> `app/trending/page.tsx`
 - `/heatmap` -> `app/heatmap/page.tsx`
+- `/trending` -> `app/trending/page.tsx`
 - `/compare` -> `app/compare/page.tsx`
 - `/bookmarks` -> `app/bookmarks/page.tsx`
 - `/about` -> `app/about/page.tsx`
@@ -193,14 +213,15 @@ These are called from:
 - `/terms` -> `app/terms/page.tsx`
 - `/admin` -> `app/admin/page.tsx`
 
-### Feed and metadata routes
+Feed and metadata routes:
 
 - `/feed.xml` -> `app/feed.xml/route.ts`
 - `/feed/[company]` -> `app/feed/[company]/route.ts`
 - `sitemap.xml` -> `app/sitemap.ts`
 - `robots.txt` -> `app/robots.ts`
+- Open Graph image -> `app/opengraph-image.tsx`
 
-### API routes
+API routes:
 
 - `/api/health` -> `app/api/health/route.ts`
 - `/api/search` -> `app/api/search/route.ts`
@@ -212,265 +233,205 @@ These are called from:
 - `/api/admin/ingest` -> `app/api/admin/ingest/route.ts`
 - `/api/cron/ingest` -> `app/api/cron/ingest/route.ts`
 - `/api/cron/ingest-priority` -> `app/api/cron/ingest-priority/route.ts`
-- `/api/cron/backfill` -> `app/api/cron/backfill/route.ts`
 - `/api/cron/recompute-leaderboard` -> `app/api/cron/recompute-leaderboard/route.ts`
+- `/api/cron/backfill` -> `app/api/cron/backfill/route.ts`
 - `/api/cron/send-digest` -> `app/api/cron/send-digest/route.ts`
 
-### Loading and error boundaries
+Loading and error boundaries:
 
-- Global: `app/loading.tsx`, `app/error.tsx`, `app/not-found.tsx`
-- Companies: `app/companies/loading.tsx`
-- Company detail: `app/companies/[slug]/loading.tsx`, `app/companies/[slug]/error.tsx`
-- News: `app/news/loading.tsx`
-- News detail: `app/news/[slug]/loading.tsx`
-- Daily digest: `app/daily-digest/loading.tsx`
-- Leaderboard: `app/leaderboard/loading.tsx`
-- Compare: `app/compare/loading.tsx`
+- global: `app/loading.tsx`, `app/error.tsx`, `app/not-found.tsx`
+- companies index: `app/companies/loading.tsx`
+- company detail: `app/companies/[slug]/loading.tsx`, `app/companies/[slug]/error.tsx`
+- news index: `app/news/loading.tsx`
+- news detail: `app/news/[slug]/loading.tsx`
+- leaderboard: `app/leaderboard/loading.tsx`
+- daily digest: `app/daily-digest/loading.tsx`
+- compare: `app/compare/loading.tsx`
 
-## 6. Shared Layout Chrome
+## 7. Shared Layout Chrome
 
-The shared shell is owned by `app/layout.tsx`.
+Global shell is owned by `app/layout.tsx`.
 
-Rendered globally in the root layout:
+Always rendered there:
 
 - `Navbar` -> `components/navbar.tsx`
 - `Footer` -> `components/footer.tsx`
 - `KeyboardShortcuts` -> `components/keyboard-shortcuts.tsx`
-- `ChatWidget` -> `components/chat-widget.tsx` when `CHAT_ENABLED === "true"`
 - `AppProviders` -> `components/app-providers.tsx`
+- `ChatWidget` -> `components/chat-widget.tsx` when `CHAT_ENABLED === "true"`
 
-Important note for later duplicate-chrome checks:
+No nested layout currently duplicates chrome, so duplicate header/footer issues would have to come from page-level imports rather than layout nesting.
 
-- Only one layout file exists.
-- Header and footer are currently intended to be rendered once, at the root layout level.
+Chrome details:
 
-Navbar details:
+- header/nav: `components/navbar.tsx`
+  - includes nav links, `DataFreshnessIndicator`, `ThemeToggle`, `GlobalSearch`, `BookmarkCountBadge`, `NotificationBell`, mobile drawer, and the live clock
+- footer: `components/footer.tsx`
+  - includes newsletter form, social links, legal/resource links, quick links, and footer-level `Last updated`
 
-- Main nav links live in `components/navbar.tsx`
-- Includes `DataFreshnessIndicator`, `GlobalSearch`, `BookmarkCountBadge`, `NotificationBell`, `ThemeToggle`
+## 8. Component Ownership by Product Surface
 
-Footer details:
+Homepage:
 
-- Footer is in `components/footer.tsx`
-- Includes `NewsletterForm`
-- Also includes legal/resource links and quick company links
+- page composition: `app/page.tsx`
+- hero section: `components/hero.tsx`
+- animated counters: `components/animated-counter.tsx`
+- top ticker: `components/interactive-ticker.tsx`, `components/news-ticker-item.tsx`
+- section nav / scroll helpers: `components/section-nav.tsx`, `components/scroll-progress.tsx`, `components/scroll-reveal.tsx`
+- shared section framing: `components/section-header.tsx`, `components/module-status-strip.tsx`
+- Today in AI / Breaking Moves cards: `components/news-card.tsx`
+- leaderboard preview: `components/leaderboard-table.tsx`
+- latest launches: `components/launch-card.tsx`
+- timeline preview: `components/interactive-timeline.tsx`
+- top movers: `components/top-mover-card.tsx`
+- trending topics: `components/trending-topics-client.tsx`
 
-## 7. Components Responsible for Core Product Surfaces
+Leaderboard:
 
-### Hero section
+- page entry: `app/leaderboard/page.tsx`
+- main surface: `components/leaderboard-command-center.tsx`
+- tabular preview/full leaderboard: `components/leaderboard-table.tsx`
+- comparison / momentum history charting inside command center: Recharts-based UI in `components/leaderboard-command-center.tsx`
+- older standalone chart component also exists: `components/momentum-history-chart.tsx`
 
-- `components/hero.tsx`
-- Rendered from `app/page.tsx`
-- Uses:
-  - `AnimatedCounter`
-  - `BrandLogo`
-  - `InteractiveTicker`
-  - `HeroScrollCue`
+Company pages:
 
-### Homepage leaderboard preview
+- page entry: `app/companies/[slug]/page.tsx`
+- recent events/news cards: `components/news-card.tsx`
+- score pill and sparkline: `components/score-pill.tsx`, `components/trend-sparkline.tsx`
+- category donut: `components/category-donut.tsx`
+- score breakdown chart: `components/score-breakdown-chart.tsx`
+
+Daily digest:
+
+- page entry: `app/daily-digest/page.tsx`
+- archive navigation: `components/digest-archive-nav.tsx`
+- digest story blocks: `components/daily-digest-block.tsx`
+
+News and article cards:
+
+- primary story/article card component: `components/news-card.tsx`
+- news index client/filter UI: `components/news-page-client.tsx`
+- detail page: `app/news/[slug]/page.tsx`
+
+Heatmap:
+
+- page entry: `app/heatmap/page.tsx`
+- visualization: `components/industry-heatmap.tsx`
+
+Timeline:
+
+- page entry: `app/timeline/page.tsx`
+- interactive client UI: `components/timeline-page-client.tsx`
+- item rendering: `components/timeline-item.tsx`
+
+Compare:
+
+- page entry: `app/compare/page.tsx`
+- comparison client UI: `components/compare-page-client.tsx`
+
+Companies index:
+
+- page entry: `app/companies/page.tsx`
+- client UI: `components/companies-index-client.tsx`
+- card rendering: `components/company-card.tsx`
+
+## 9. Data Fetching Patterns
+
+Server data loading:
+
+- page components call async query helpers from `lib/db/queries.ts`
+- query helpers are mostly wrapped in React `cache()`
+- fallback seed data is used when Supabase is unavailable or a query fails
+
+Client-side realtime / interactivity:
 
 - `components/leaderboard-table.tsx`
-- Rendered from `app/page.tsx` in preview mode
-
-### Full leaderboard page
-
+  - optional Supabase realtime subscription to `momentum_scores`
 - `components/leaderboard-command-center.tsx`
-- Rendered from `app/leaderboard/page.tsx`
-- More editorial/visual command-center treatment than the homepage table
-
-### Company pages
-
-Primary page file:
-
-- `app/companies/[slug]/page.tsx`
-
-Supporting company-detail components used there:
-
-- `NewsCard`
-- `ScorePill`
-- `TrendSparkline`
-- `CategoryDonut` (dynamic import)
-- `ScoreBreakdownChart` (dynamic import)
-- `ShareButton`
-- `SectionHeader`
-
-### Daily digest
-
-- `app/daily-digest/page.tsx`
-- `components/daily-digest-block.tsx`
-- `components/digest-archive-nav.tsx`
-
-### Article / summary cards
-
-Primary reusable article card:
-
-- `components/news-card.tsx`
-
-Digest-specific summary card:
-
-- `components/daily-digest-block.tsx`
-
-Other related content cards:
-
-- `components/top-mover-card.tsx`
-- `components/launch-card.tsx`
-- `components/company-card.tsx`
-
-## 8. Data-Fetching Patterns
-
-### Server component data fetching
-
-Most page routes are async server components that call functions from `lib/db/queries.ts`.
-
-Examples:
-
-- `app/page.tsx` -> `getHomePageData()`
-- `app/leaderboard/page.tsx` -> `getCompaniesIndexData()`, `getRecentMomentumEventsData()`
-- `app/companies/page.tsx` -> `getCompaniesIndexData()`
-- `app/companies/[slug]/page.tsx` -> `getCompanyDetailData()`
-- `app/news/page.tsx` -> `getNewsItemsData()`, `getCompaniesIndexData()`
-- `app/news/[slug]/page.tsx` -> `getNewsItemDetailData()`
-- `app/daily-digest/page.tsx` -> `getDailyDigestData()`, `getDailyDigestByDate()`, `getDigestArchiveDates()`
-- `app/timeline/page.tsx` -> `getFullTimelineData()`
-- `app/trending/page.tsx` -> `getTrendingTopicsData()`
-- `app/heatmap/page.tsx` -> `getHeatmapData()`
-- `app/compare/page.tsx` -> `getCompaniesIndexData()`, `getNewsItemsData()`
-
-### Client-side interactivity
-
-Client components are used for filtering, search, realtime refresh, local UI state, and browser-only features.
-
-Notable client components:
-
+  - Supabase realtime subscription to `momentum_scores`
 - `components/news-page-client.tsx`
-- `components/companies-index-client.tsx`
-- `components/leaderboard-table.tsx`
-- `components/leaderboard-command-center.tsx`
-- `components/trending-topics-client.tsx`
-- `components/timeline-page-client.tsx`
-- `components/industry-heatmap.tsx`
-- `components/bookmarks-page-client.tsx`
+  - Supabase realtime subscription to `news_items`
+- `components/navbar.tsx`
+  - client clock via `useEffect`
+- chart and filter UIs use client components and local state
 
-### API-backed client fetching
+No Pages Router data APIs in use:
 
-Client-side fetches go to app route handlers, not directly to external services.
-
-Examples:
-
-- `components/data-freshness-indicator.tsx` -> `/api/health`
-- `components/news-page-client.tsx` -> `/api/health`
-- global search UI likely goes through `/api/search`
-
-### Dynamic imports
-
-Used for heavier client/chart components and loading placeholders:
-
-- `CategoryDonut`
-- `ScoreBreakdownChart`
-- `TimelinePageClient`
-- `ComparePageClient`
-- `TrendingTopicsClient`
-
-### Deprecated Pages Router patterns
-
-- No `getServerSideProps`
-- No `getStaticProps`
-- No `pages/` router in use
-
-## 9. Query Layer by Surface
-
-### Home page
-
-`getHomePageData()` combines:
-
-- news items
-- leaderboard
-- launches
-- timeline
-- top movers
-- trending topics
-- daily digest
-- ticker items
-
-### Leaderboard
-
-`getLeaderboardData()` builds momentum snapshots from:
-
-- `companies`
-- `momentum_scores`
-- `events`
-- `news_items`
-
-`getCompaniesIndexData()` combines:
-
-- company records
-- leaderboard results
-- related activity counts
-
-### Company detail
-
-`getCompanyDetailData(slug)` combines:
-
-- `companies`
-- `company_products`
-- `news_items`
-- leaderboard data
-- `events`
-
-### Daily digest
-
-`getDailyDigestData()` and `getDailyDigestByDate()` combine:
-
-- `daily_digests`
-- `companies`
-- `news_items`
-- leaderboard data
-
-### News index and detail
-
-- `getNewsItemsData()`
-- `getNewsItemDetailData(slug)`
-
-### Trending
-
-- `getTrendingTopicsData()` uses recent `news_items` plus tag/category joins
-
-### Heatmap and timeline
-
-- `getHeatmapData()` -> `companies` + `events`
-- `getFullTimelineData(days)` -> `companies` + `events` + `news_items`
-
-## 10. Search, Notifications, and Supporting Systems
+- no `getServerSideProps`
+- no `getStaticProps`
 
 Search:
 
-- `lib/search/server.ts`
-- Supabase full-text search on `news_items.search_vector`
-- falls back to seed-data search if Supabase is unavailable
+- server-side search logic lives in `lib/search/server.ts`
+- queries `news_items.search_vector`
 
-Notifications:
+## 10. Query Helpers That Matter for This Bug Set
 
-- browser push subscription endpoint: `app/api/notifications/subscribe/route.ts`
-- push sending logic: `lib/notifications/web-push.ts`
-- client entry: `components/notification-bell.tsx`
+Core row fetchers in `lib/db/queries.ts`:
 
-Digest email:
+- `getNewsRows()`
+- `getEventRows()`
+- `getMomentumRows()`
+- `getMomentumHistoryRows()`
+- `getDailyDigestRows()`
 
-- sending logic: `lib/email/digest-sender.ts`
-- HTML template: `lib/email/templates/daily-digest.ts`
+Derived surface loaders:
 
-Ingestion and scoring:
+- `getHomePageData()`
+- `getLeaderboardData()`
+- `getCompaniesIndexData()`
+- `getCompanyDetailData(slug)`
+- `getDailyDigestData()`
+- `getDailyDigestByDate(date)`
+- `getRecentMomentumEventsData()`
+- `getHeatmapData()`
+- `getFullTimelineData(days)`
+- `getLeaderboardRefreshState()`
+- `getSiteLastUpdatedAt()`
 
-- `lib/ingestion/`
-- `lib/scoring/`
-- admin entry page: `app/admin/page.tsx`
+Key observations:
 
-## 11. Environment Variables Referenced
+- homepage "Today in AI" is derived in `getHomePageData()` from `news_items`, using the newest content date in the feed rather than strictly the current calendar date
+- homepage launches come from `getLaunchesData()`, which reads `company_products`
+- company pages derive score and recent events from `getCompanyDetailData()`
+- leaderboard/company/heatmap/timeline all depend on `events` and `momentum_scores` being refreshed after ingestion
 
-Site and public URLs:
+## 11. Content Cleanup / Editorial Utilities
+
+Content sanitization:
+
+- `lib/content.ts`
+  - `decodeHtmlEntities()`
+  - `sanitizeEditorialText()`
+  - `buildSentenceExcerpt()`
+  - `looksLikeTruncatedText()`
+  - `looksLikeCorruptedDigestText()`
+  - `isGenericWhyItMatters()`
+
+Date and text formatting:
+
+- `lib/utils.ts`
+  - `formatTimestamp()`
+  - `formatUpdateTimestamp()`
+  - `formatLastUpdatedLabel()`
+  - `toCompleteSentence()`
+  - `hasMeaningfulMetric()`
+
+Ingestion cleanup:
+
+- RSS decoding and excerpt extraction: `lib/ingestion/sources/rss.ts`
+- normalization: `lib/ingestion/normalizer.ts`
+- summarization / why-it-matters generation: `lib/ingestion/summarizer.ts`
+
+## 12. Environment Variables Referenced
+
+Site/runtime:
 
 - `NEXT_PUBLIC_SITE_URL`
-- `VERCEL_PROJECT_PRODUCTION_URL`
+- `CHAT_ENABLED`
+- `NODE_ENV`
+- `ADMIN_ENABLED`
 
 Supabase:
 
@@ -478,45 +439,39 @@ Supabase:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 
-Feature flags / admin:
-
-- `CHAT_ENABLED`
-- `ADMIN_ENABLED`
-- `NODE_ENV`
-
-Cron and ingestion:
+Cron / ingestion:
 
 - `CRON_SECRET`
 - `SOURCE_ALLOWLIST`
 - `BACKFILL_MAX_AGE_HOURS`
 - `BACKFILL_SOURCES`
 - `SUMMARIZER_DELAY_MS`
-
-LLM / summarization:
-
 - `SUMMARIZER_API_KEY`
 - `SUMMARIZER_PROVIDER`
 - `SUMMARIZER_MODEL`
 
-Email:
-
-- `RESEND_API_KEY`
-- `RESEND_FROM_ADDRESS`
-
-Push notifications:
+Notifications:
 
 - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
 - `VAPID_PUBLIC_KEY`
 - `VAPID_PRIVATE_KEY`
 - `VAPID_SUBJECT`
 
-## 12. Current Architectural Notes Relevant to Later Phases
+Email:
 
-- The app already expects graceful degradation and uses seed-data fallbacks widely in `lib/db/queries.ts`.
-- The root layout is the single owner of header/footer chrome, which will make duplicate shell checks straightforward.
-- The app mixes server-rendered data with client-side realtime refreshes, so hydration and stale-loading bugs may be concentrated in client wrappers such as:
-  - `components/news-page-client.tsx`
-  - `components/leaderboard-table.tsx`
-  - `components/leaderboard-command-center.tsx`
-  - `components/data-freshness-indicator.tsx`
-- The home page, daily digest, leaderboard, company pages, and news cards all depend on editorial text fields from Supabase and are likely the main surfaces for null handling and truncation fixes.
+- `RESEND_API_KEY`
+- `RESEND_FROM_ADDRESS`
+- `VERCEL_PROJECT_PRODUCTION_URL`
+
+Footer/social:
+
+- `NEXT_PUBLIC_X_URL`
+- `NEXT_PUBLIC_TWITTER_URL`
+- `NEXT_PUBLIC_GITHUB_URL`
+
+## 13. Current Architecture Notes to Reference During Fixes
+
+- The app intentionally degrades to seed data when Supabase reads fail. Bugs can appear as stale-but-valid-looking content instead of obvious errors.
+- Homepage, leaderboard, company pages, heatmap, and timeline do not all read the same underlying table directly; some derive from `news_items`, while score surfaces derive from `events` and `momentum_scores`.
+- Source health is computed from `source_health`, `pipeline_state`, recent run summaries, and latest `news_items` timestamps in `lib/ingestion/source-health.ts`.
+- Footer social links are already guarded by `lib/site-config.ts` so root `x.com` / `github.com` values resolve to `null`.
