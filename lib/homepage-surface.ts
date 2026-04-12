@@ -37,6 +37,26 @@ export function selectTodayInAiStories(news: NewsItem[], now = new Date(), limit
     .slice(0, limit);
 }
 
+export function selectBreakingMovesStories(news: NewsItem[], now = new Date(), limit = 3, maxAgeHours = 36) {
+  const nowMs = now.getTime();
+
+  return news
+    .filter((item) => {
+      if (item.companySlugs.length === 0 || item.importanceLevel !== "Critical") {
+        return false;
+      }
+
+      const publishedAtMs = new Date(item.publishedAt).getTime();
+      return Number.isFinite(publishedAtMs) && publishedAtMs <= nowMs && nowMs - publishedAtMs <= maxAgeHours * 60 * 60 * 1000;
+    })
+    .sort(
+      (left, right) =>
+        right.importanceScore - left.importanceScore ||
+        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
+    )
+    .slice(0, limit);
+}
+
 function inferLaunchType(item: NewsItem): LaunchCardData["type"] {
   if (item.categorySlugs.includes("model-release")) {
     return "MODEL";

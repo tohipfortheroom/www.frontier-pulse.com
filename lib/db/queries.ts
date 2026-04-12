@@ -28,7 +28,7 @@ import {
   selectBestWhyItMatters,
   sanitizeEditorialText,
 } from "@/lib/content";
-import { buildNewsLaunchCards, selectTodayInAiStories } from "@/lib/homepage-surface";
+import { buildNewsLaunchCards, selectBreakingMovesStories, selectTodayInAiStories } from "@/lib/homepage-surface";
 import {
   categories,
   companies,
@@ -772,7 +772,7 @@ function fallbackHomePage(): HomePageData {
   const generatedAt = seedNow.toISOString();
   const latestPublishedAt = sortedNewsItems[0]?.publishedAt ?? seedNow.toISOString();
   const todayStories = selectTodayInAiStories(sortedNewsItems, new Date(generatedAt));
-  const breakingStories = sortedNewsItems.filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical").slice(0, 3);
+  const breakingStories = selectBreakingMovesStories(sortedNewsItems, new Date(generatedAt));
   const tickerItems = buildTickerItems(sortedNewsItems);
   const leaderboard = buildFallbackMomentumSnapshots();
 
@@ -2004,14 +2004,7 @@ export const getHomePageData = createInstrumentedCache(
 
   const latestPublishedAt = getLatestPublishedAt(news) ?? siteLastUpdatedAt ?? seedNow.toISOString();
   const todayStories = selectTodayInAiStories(news, new Date(generatedAt));
-  const breakingStories = news
-    .filter((item) => isHomepageStoryEligible(item) && item.importanceLevel === "Critical")
-    .sort(
-      (left, right) =>
-        right.importanceScore - left.importanceScore ||
-        new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
-    )
-    .slice(0, 3);
+  const breakingStories = selectBreakingMovesStories(news, new Date(generatedAt));
   const dynamicTickerItems = buildTickerItems(news);
   const tickerItems = dynamicTickerItems.length >= 8 ? dynamicTickerItems : homeTickerItems;
 

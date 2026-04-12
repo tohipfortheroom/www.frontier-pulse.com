@@ -56,6 +56,12 @@ export default async function HomePage() {
     todayStories.length > 0 && sectionFreshness.todayInAi.stale && sectionFreshness.todayInAi.newestContentAt
       ? `Showing the latest available stories from ${formatDateLabel(sectionFreshness.todayInAi.newestContentAt)} because nothing newer landed in the last 24 hours.`
       : null;
+  const breakingMovesWarning =
+    breakingStories.length === 0
+      ? "No critical stories landed in the last 36 hours."
+      : sectionFreshness.breakingMoves.stale && sectionFreshness.breakingMoves.newestContentAt
+        ? `Latest critical story is from ${formatDateLabel(sectionFreshness.breakingMoves.newestContentAt)}.`
+        : null;
   const websiteSchema = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -148,10 +154,11 @@ export default async function HomePage() {
             />
             <ModuleStatusStrip
               items={[
-                { label: "Updated", value: sectionFreshness.breakingMoves.newestContentAt ? formatUpdateTimestamp(sectionFreshness.breakingMoves.newestContentAt) : "Unavailable" },
+                { label: "Updated", value: sectionFreshness.breakingMoves.newestContentAt ? formatUpdateTimestamp(sectionFreshness.breakingMoves.newestContentAt) : "" },
                 { label: "Stories", value: breakingStories.length.toString() },
-                { label: "Window", value: "Critical only" },
+                { label: "Window", value: "Last 36h" },
               ]}
+              warning={breakingMovesWarning}
             />
             {breakingStories.length > 0 ? (
               <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">

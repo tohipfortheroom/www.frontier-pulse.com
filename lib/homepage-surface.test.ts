@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { NewsItem } from "@/lib/seed/data";
-import { buildNewsLaunchCards, selectTodayInAiStories } from "@/lib/homepage-surface";
+import { buildNewsLaunchCards, selectBreakingMovesStories, selectTodayInAiStories } from "@/lib/homepage-surface";
 
 function makeStory(overrides: Partial<NewsItem> = {}): NewsItem {
   return {
@@ -81,5 +81,19 @@ describe("buildNewsLaunchCards", () => {
       type: "API",
       companySlug: "anthropic",
     });
+  });
+});
+
+describe("selectBreakingMovesStories", () => {
+  it("keeps only critical stories from the recent breaking window", () => {
+    const stories = [
+      makeStory({ slug: "fresh-critical", importanceLevel: "Critical", importanceScore: 10, publishedAt: "2026-04-10T08:00:00.000Z" }),
+      makeStory({ slug: "stale-critical", importanceLevel: "Critical", importanceScore: 9, publishedAt: "2026-04-08T18:00:00.000Z" }),
+      makeStory({ slug: "fresh-notable", importanceLevel: "Notable", importanceScore: 11, publishedAt: "2026-04-10T11:00:00.000Z" }),
+    ];
+
+    const selected = selectBreakingMovesStories(stories, new Date("2026-04-10T12:00:00.000Z"));
+
+    expect(selected.map((story) => story.slug)).toEqual(["fresh-critical"]);
   });
 });
