@@ -7,7 +7,6 @@ import type {
   MomentumSnapshot,
   NewsItem,
   Partnership,
-  PowerRankingSeed,
   ReactionType,
   TimelineEntry,
   TopMover,
@@ -207,24 +206,6 @@ export type DailyDigestRow = {
   watch_next: string[];
   created_at: string;
 };
-
-export type ReactionRow = {
-  id: string;
-  news_item_id: string;
-  reaction_type: ReactionType;
-  visitor_id: string;
-  created_at: string;
-};
-
-export type StorySimilarityRow = {
-  id: string;
-  story_id: string;
-  similar_story_id: string;
-  similarity: number;
-  created_at: string;
-};
-
-export type PowerRankingRecord = PowerRankingSeed;
 
 export type HeatmapEvent = {
   eventType: string;

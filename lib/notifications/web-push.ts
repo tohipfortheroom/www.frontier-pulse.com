@@ -33,10 +33,6 @@ function ensurePushConfigured() {
   return true;
 }
 
-export function getPublicVapidKey() {
-  return process.env.VAPID_PUBLIC_KEY ?? "";
-}
-
 export async function sendBreakingNewsNotifications(items: SummarizedCandidate[]) {
   const client = getSupabaseServiceClient();
 

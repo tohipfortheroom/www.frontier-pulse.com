@@ -2941,53 +2941,6 @@ export const reactionSeed: ReactionSeed[] = [
   { newsSlug: "openai-oracle-stargate-expansion", counts: { bullish: 26, fire: 14, mind_blown: 7, bearish: 5 } },
 ];
 
-export const seedReactionCounts: Record<string, Record<string, number>> = Object.fromEntries(
-  reactionSeed.map((entry) => [
-    entry.newsSlug,
-    { fire: 0, mind_blown: 0, bearish: 0, bullish: 0, yawn: 0, ...entry.counts },
-  ]),
-);
-
-export const powerRankingsSeed: PowerRankingSeed[] = [
-  {
-    weekStart: "2026-03-30",
-    rankings: [
-      {
-        rank: 1,
-        companySlug: "openai",
-        scoreChange7d: 18.4,
-        narrative: "OpenAI won the week by finally moving GPT-5 from anticipation into an actual rollout story.",
-      },
-      {
-        rank: 2,
-        companySlug: "anthropic",
-        scoreChange7d: 14.7,
-        narrative: "Anthropic stayed close because Claude 4.6 Opus landed with a sharper enterprise message than many rivals.",
-      },
-      {
-        rank: 3,
-        companySlug: "google-deepmind",
-        scoreChange7d: 11.2,
-        narrative: "Google DeepMind kept stacking technical credibility, even if product translation still trails the research narrative.",
-      },
-      {
-        rank: 4,
-        companySlug: "xai",
-        scoreChange7d: 9.8,
-        narrative: "xAI's beta motion kept it relevant by turning training scale into a visible product milestone.",
-      },
-      {
-        rank: 5,
-        companySlug: "deepseek",
-        scoreChange7d: 8.3,
-        narrative: "DeepSeek remained the open-weight spoiler, forcing larger labs to answer a lower-cost reasoning story.",
-      },
-    ],
-    narrative:
-      "The week belonged to companies that made capability legible. OpenAI and Anthropic both translated model momentum into something buyers could react to, while Google DeepMind continued to gather technical evidence that it belongs at the top of the board. The second tier was defined by pressure from two very different directions: xAI pushing spectacle and infrastructure, and DeepSeek pushing openness and efficiency.",
-  },
-];
-
 export const homeTickerItems: HomeTickerItem[] = [
   { slug: "openai-gpt5-limited-preview", company: "OPENAI", direction: "↑", tone: "green", text: "GPT-5 launch imminent" },
   { slug: "anthropic-claude-4-6-opus", company: "ANTHROPIC", direction: "↑", tone: "green", text: "Claude 4.6 Opus ships" },
@@ -2996,23 +2949,6 @@ export const homeTickerItems: HomeTickerItem[] = [
   { slug: "xai-grok-5-closed-beta", company: "XAI", direction: "↑", tone: "green", text: "Grok 5 training complete" },
   { slug: "deepseek-r2-open-weight-release", company: "DEEPSEEK", direction: "↑", tone: "green", text: "R2 reasoning model released" },
 ];
-
-export const homePageConfig = {
-  todayStorySlugs: [
-    "openai-gpt5-limited-preview",
-    "anthropic-claude-4-6-opus",
-    "openai-oracle-stargate-expansion",
-    "google-gemini-3-benchmark-sweep",
-    "aws-nova-reasoning-family",
-  ],
-  breakingStorySlugs: [
-    "openai-gpt5-limited-preview",
-    "anthropic-claude-4-6-opus",
-    "openai-oracle-stargate-expansion",
-  ],
-  leaderboardPreviewCount: 10,
-  launchSlugs: launches.map((launch) => launch.slug),
-};
 
 export const companiesBySlug = Object.fromEntries(companies.map((company) => [company.slug, company])) as Record<
   string,
@@ -3031,25 +2967,6 @@ export const sortedNewsItems = [...newsItems].sort(
   (left, right) => new Date(right.publishedAt).getTime() - new Date(left.publishedAt).getTime(),
 );
 
-export const companyActivityCounts = Object.fromEntries(
-  companies.map((company) => [
-    company.slug,
-    newsItems.filter((item) => item.companySlugs.includes(company.slug)).length,
-  ]),
-) as Record<string, number>;
-
-export function getCompanyBySlug(slug: string) {
-  return companiesBySlug[slug];
-}
-
-export function getCompanyNews(slug: string) {
-  return sortedNewsItems.filter((item) => item.companySlugs.includes(slug));
-}
-
 export function getCompanyMomentum(slug: string) {
   return momentumSnapshots.find((snapshot) => snapshot.companySlug === slug);
-}
-
-export function getCompanyLaunches(slug: string) {
-  return launches.filter((launch) => launch.companySlug === slug);
 }

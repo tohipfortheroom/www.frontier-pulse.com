@@ -104,11 +104,6 @@ export function formatUpdateTimestamp(date: Date | string) {
   return format(parsed, "MMM d, yyyy");
 }
 
-export function formatTimeOfDay(date: Date | string) {
-  const parsed = toValidDate(date);
-  return parsed ? format(parsed, "h:mm a") : "";
-}
-
 export function formatLongDate(date: Date | string) {
   const parsed = toValidDate(date);
   return parsed ? format(parsed, "EEEE, MMMM d, yyyy") : "";

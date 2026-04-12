@@ -1,6 +1,6 @@
 "use client";
 
-import { differenceInDays, format } from "date-fns";
+import { differenceInDays } from "date-fns";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { companiesBySlug, type TimelineEntry } from "@/lib/seed/data";

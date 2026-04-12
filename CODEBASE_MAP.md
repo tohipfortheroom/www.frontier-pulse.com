@@ -292,7 +292,6 @@ Leaderboard:
 - main surface: `components/leaderboard-command-center.tsx`
 - tabular preview/full leaderboard: `components/leaderboard-table.tsx`
 - comparison / momentum history charting inside command center: Recharts-based UI in `components/leaderboard-command-center.tsx`
-- older standalone chart component also exists: `components/momentum-history-chart.tsx`
 
 Company pages:
 
@@ -322,8 +321,7 @@ Heatmap:
 Timeline:
 
 - page entry: `app/timeline/page.tsx`
-- interactive client UI: `components/timeline-page-client.tsx`
-- item rendering: `components/timeline-item.tsx`
+- interactive client UI and item rendering: `components/timeline-page-client.tsx`
 
 Compare:
 

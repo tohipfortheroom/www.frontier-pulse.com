@@ -99,7 +99,6 @@ export function NewsCard({
   const articleRef = useRef<HTMLElement | null>(null);
   const expandedContentId = useId();
   const [internalExpanded, setInternalExpanded] = useState(defaultExpanded);
-  const primaryCategory = categoriesBySlug[news.categorySlugs[0]];
   const breaking = mode === "breaking" || news.breaking;
   const accentBorderColor = getAccentBorderColor(news, mode);
   const accentGlow = getAccentGlow(news, mode);

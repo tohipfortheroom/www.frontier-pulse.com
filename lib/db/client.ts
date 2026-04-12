@@ -32,10 +32,6 @@ export function isSupabaseServiceConfigured() {
   return Boolean(getSupabaseUrl() && getSupabaseServiceRoleKey());
 }
 
-export function isSupabaseConfigured() {
-  return isSupabaseReadConfigured();
-}
-
 export function getSupabaseReadClient() {
   if (!isSupabaseReadConfigured()) {
     return null;

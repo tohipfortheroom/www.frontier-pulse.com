@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import type { Metadata } from "next";
 
 import { getDailyDigestByDate, getDailyDigestData, getDigestArchiveDates, getSiteLastUpdatedAt } from "@/lib/db/queries";

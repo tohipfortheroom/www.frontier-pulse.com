@@ -1,4 +1,4 @@
-import { categories, companiesBySlug, type ImpactDirection } from "../seed/data.ts";
+import { companiesBySlug, type ImpactDirection } from "../seed/data.ts";
 import { BRAND_NAME } from "../brand.ts";
 import { extractFirstJsonObject } from "../llm/json.ts";
 import {
@@ -25,8 +25,6 @@ type SummaryFields = {
 type ExistingSummaryFields = Pick<SummaryFields, "summary" | "shortSummary" | "whyItMatters" | "summarizerModel">;
 
 const MAX_LLM_CALLS_PER_RUN = 30;
-const CATEGORY_SLUGS = new Set(categories.map((category) => category.slug));
-const TAG_LIMIT = 5;
 const WHY_IT_MATTERS_BANNED_PATTERNS = [
   /this matters because/i,
   /changes how the market reads/i,
@@ -38,28 +36,10 @@ const WHY_IT_MATTERS_BANNED_PATTERNS = [
   /industry significance/i,
 ];
 const SUMMARY_BANNED_PATTERNS = [/this update/i, /the story highlights/i, /the news underscores/i];
-const CATEGORY_ALIASES: Record<string, string> = {
-  regulation: "policy-regulation",
-  executive: "leadership",
-  benchmark: "benchmark",
-  controversy: "controversy",
-  "product-launch": "product-launch",
-  "model-release": "model-release",
-  funding: "funding",
-  partnership: "partnership",
-  research: "research",
-  infrastructure: "infrastructure",
-  leadership: "leadership",
-  "policy-regulation": "policy-regulation",
-};
 
 let llmCallsThisRun = 0;
 let lastLlmCallAt = 0;
 const runCache = new Map<string, SummaryFields>();
-
-function clamp(value: number, min = 1, max = 10) {
-  return Math.max(min, Math.min(max, value));
-}
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -188,24 +168,6 @@ function fallbackSummary(candidate: ScoredCandidate): SummaryFields {
     importanceScore: candidate.importanceScore,
     summarizerModel: null,
   };
-}
-
-function normalizeCategorySlug(value: string) {
-  const normalized = value.trim().toLowerCase().replace(/\s+/g, "-");
-  const mapped = CATEGORY_ALIASES[normalized] ?? normalized;
-  return CATEGORY_SLUGS.has(mapped) ? mapped : null;
-}
-
-function normalizeTag(value: string) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function mergeUnique(values: string[], fallbackValues: string[], limit: number) {
-  return Array.from(new Set([...values, ...fallbackValues])).slice(0, limit);
 }
 
 function mergeExistingSummary(fallback: SummaryFields, existingSummary?: ExistingSummaryFields | null): SummaryFields {

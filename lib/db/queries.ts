@@ -604,10 +604,6 @@ function getStoryWhyItMatters(row: NewsItemRow) {
   );
 }
 
-function isHomepageStoryEligible(item: NewsItem) {
-  return item.companySlugs.length > 0;
-}
-
 function getDigestStoryEvidence(story: NewsItem) {
   const candidates = [story.whyItMatters, story.summary, story.shortSummary]
     .map((candidate) => sanitizeEditorialText(candidate))

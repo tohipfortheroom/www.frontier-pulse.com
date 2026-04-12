@@ -139,7 +139,6 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
   const headline = candidate.headline.trim();
   const sourceTier = inferSourceTier(rawItem);
   const combinedText = `${headline} ${candidate.cleanedText ?? candidate.rawText ?? ""}`.trim();
-  const lowercaseHeadline = headline.toLowerCase();
   const hostname = hostnameFromUrl(candidate.canonicalUrl || rawItem.url);
   const showHn = COMMUNITY_TITLE_PATTERNS.some((pattern) => pattern.test(headline));
   const openSourceDevTool = COMMUNITY_PROJECT_PATTERN.test(combinedText);
