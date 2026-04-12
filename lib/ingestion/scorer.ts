@@ -22,6 +22,9 @@ export function scoreCandidate(candidate: NormalizedCandidate, rawItem: RawInges
     case "partnership":
       importanceScore = 6;
       break;
+    case "acquisition":
+      importanceScore = 8;
+      break;
     case "infrastructure":
       importanceScore = 6;
       break;

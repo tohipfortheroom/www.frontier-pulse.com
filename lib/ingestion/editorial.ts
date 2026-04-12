@@ -6,6 +6,7 @@ import type { NormalizedCandidate, RawIngestedItem, SourceTier } from "./types.t
 const CATEGORY_PRIORITY = [
   "model-release",
   "product-launch",
+  "acquisition",
   "funding",
   "partnership",
   "infrastructure",
@@ -293,7 +294,7 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
   if (communityShowcase || researchOnly || opinionOnly) {
     companySlugs = pruneCompanyAssociations({ ...candidate, companySlugs }, headline, true);
     tagSlugs = tagSlugs.filter((tag) => !LOW_SIGNAL_TAG_BLOCKLIST.has(tag)).slice(0, 2);
-  } else if (researchOnly || sourceTier === "research-repository") {
+  } else if (sourceTier === "research-repository") {
     tagSlugs = tagSlugs.filter((tag) => !RESEARCH_TAG_BLOCKLIST.has(tag)).slice(0, 2);
   } else {
     tagSlugs = tagSlugs.slice(0, 4);

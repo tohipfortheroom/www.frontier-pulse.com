@@ -26,12 +26,15 @@ function formatDevelopmentLog(record: LogRecord) {
 }
 
 function write(record: LogRecord) {
-  if (process.env.NODE_ENV === "production") {
-    console.info(JSON.stringify(record));
-    return;
-  }
+  const output = process.env.NODE_ENV === "production" ? JSON.stringify(record) : formatDevelopmentLog(record);
 
-  console.info(formatDevelopmentLog(record));
+  if (record.level === "error") {
+    console.error(output);
+  } else if (record.level === "warn") {
+    console.warn(output);
+  } else {
+    console.info(output);
+  }
 }
 
 export const logger = {

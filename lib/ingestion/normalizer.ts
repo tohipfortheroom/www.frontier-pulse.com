@@ -55,7 +55,7 @@ function detectCategories(text: string) {
   }
 
   if (/(acquires|acquisition|acquire|merger|merges with|buyout|takes stake)/i.test(normalized)) {
-    categories.add("partnership");
+    categories.add("acquisition");
   }
 
   if (/(funding|valuation|raises|financing|round)/i.test(normalized)) {

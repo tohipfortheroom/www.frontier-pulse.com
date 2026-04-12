@@ -3,6 +3,7 @@ import { differenceInHours, subDays } from "date-fns";
 export type EventType =
   | "Major model release"
   | "Major product launch"
+  | "Major acquisition"
   | "Enterprise partnership"
   | "Funding round"
   | "Infrastructure expansion"
@@ -22,6 +23,7 @@ export type MomentumEventLike = {
 
 export const EVENT_WEIGHTS: Record<EventType, number> = {
   "Major model release": 10,
+  "Major acquisition": 9,
   "Major product launch": 8,
   "Enterprise partnership": 7,
   "Funding round": 6,

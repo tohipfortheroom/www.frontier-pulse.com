@@ -4,14 +4,14 @@ type FetchWithTimeoutInit = RequestInit & {
 
 function sleep(delayMs: number) {
   return new Promise((resolve) => {
-    window.setTimeout(resolve, delayMs);
+    setTimeout(resolve, delayMs);
   });
 }
 
 export async function fetchWithTimeout(input: RequestInfo | URL, init: FetchWithTimeoutInit = {}) {
   const { timeoutMs = 10_000, signal, ...rest } = init;
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   if (signal) {
     if (signal.aborted) {
@@ -33,7 +33,7 @@ export async function fetchWithTimeout(input: RequestInfo | URL, init: FetchWith
 
     throw error;
   } finally {
-    window.clearTimeout(timeout);
+    clearTimeout(timeout);
   }
 }
 

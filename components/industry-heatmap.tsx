@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef, useEffect } from "react";
 import type { HeatmapData, HeatmapCell } from "@/lib/db/types";
 
 type TooltipState = {
@@ -48,15 +48,15 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
     .sort((left, right) => right.date.localeCompare(left.date) || right.eventCount - left.eventCount)
     .slice(0, 8);
 
-  const cellMap = useCallback(() => {
+  const cellMap = useMemo(() => {
     const map = new Map<string, HeatmapCell>();
     for (const cell of data.cells) {
       map.set(`${cell.companySlug}::${cell.date}`, cell);
     }
     return map;
-  }, [data.cells])();
+  }, [data.cells]);
 
-  const industryTotals = useCallback(() => {
+  const industryTotals = useMemo(() => {
     const totals = new Map<string, { eventCount: number; netScore: number }>();
     for (const date of data.dates) {
       let eventCount = 0;
@@ -71,7 +71,7 @@ export function IndustryHeatmap({ data }: { data: HeatmapData }) {
       totals.set(date, { eventCount, netScore });
     }
     return totals;
-  }, [data.dates, data.companies, cellMap])();
+  }, [data.dates, data.companies, cellMap]);
 
   const openTooltip = useCallback((cell: HeatmapCell, rect: DOMRect) => {
     if (cell.eventCount === 0) {

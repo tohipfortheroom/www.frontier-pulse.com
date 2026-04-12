@@ -39,7 +39,7 @@ function trendColor(trend: string): string {
   return "#8a8f9e";
 }
 
-function buildStoryRow(story: NewsItem, companyName: string): string {
+function buildStoryRow(story: NewsItem, companyName: string, siteUrl: string): string {
   const impactColor =
     story.impactDirection === "positive"
       ? "#00e68a"
@@ -53,7 +53,7 @@ function buildStoryRow(story: NewsItem, companyName: string): string {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td>
-              <a href="\${siteUrl}/news/\${story.slug}" style="color: #f5f7fb; text-decoration: none; font-size: 16px; font-weight: 600; line-height: 1.4;">
+              <a href="${siteUrl}/news/${story.slug}" style="color: #f5f7fb; text-decoration: none; font-size: 16px; font-weight: 600; line-height: 1.4;">
                 ${escapeHtml(story.headline)}
               </a>
             </td>
@@ -120,7 +120,7 @@ export function buildDigestEmailHtml(data: DigestEmailData): string {
   const storyRows = top5Stories
     .map((story) => {
       const companySlug = story.companySlugs[0] ?? "AI";
-      return buildStoryRow(story, companySlug);
+      return buildStoryRow(story, companySlug, siteUrl);
     })
     .join("");
 

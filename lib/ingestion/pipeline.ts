@@ -977,7 +977,7 @@ export async function runIngestionPipeline(options: RunIngestionOptions = {}): P
           ? counters.latestItemPublishedAt
           : normalizedCandidate.publishedAt;
 
-      if (runSeenCanonicalUrls.has(normalizedCandidate.canonicalUrl)) {
+      if (normalizedCandidate.canonicalUrl && runSeenCanonicalUrls.has(normalizedCandidate.canonicalUrl)) {
         counters.duplicatesFiltered += 1;
         rejections.push({
           sourceId: attempt.source.id,
@@ -1010,7 +1010,9 @@ export async function runIngestionPipeline(options: RunIngestionOptions = {}): P
         continue;
       }
 
-      runSeenCanonicalUrls.add(normalizedCandidate.canonicalUrl);
+      if (normalizedCandidate.canonicalUrl) {
+        runSeenCanonicalUrls.add(normalizedCandidate.canonicalUrl);
+      }
       runSeenTitleFingerprints.add(normalizedCandidate.titleFingerprint);
       runSeenSlugs.add(normalizedCandidate.slug);
       candidateEnvelopes.push({

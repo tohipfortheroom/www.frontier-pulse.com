@@ -13,6 +13,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const adminSecret = process.env.ADMIN_SECRET || process.env.CRON_SECRET;
+  if (adminSecret) {
+    const authorization = request.headers.get("authorization");
+    if (authorization !== `Bearer ${adminSecret}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const payload = (await request.json().catch(() => null)) as { target?: "main" | "priority" } | null;
   const target = payload?.target === "priority" ? "priority" : "main";
   const result =

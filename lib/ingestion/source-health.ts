@@ -271,7 +271,7 @@ export async function upsertSourceHealth(updates: SourceHealthUpdate[], previous
       last_checked_at: result.completedAt,
       last_succeeded_at: succeeded ? result.completedAt : previous?.last_succeeded_at ?? previous?.last_success_at ?? null,
       last_failed_at: succeeded ? previous?.last_failed_at ?? null : result.completedAt,
-      status: succeeded ? (consecutiveFailures > 0 ? "degraded" : "live") : "error",
+      status: succeeded ? (previousFailures > 0 ? "degraded" : "live") : "error",
       failure_reason: succeeded ? null : result.error ?? "Unknown ingestion error",
       consecutive_failures: consecutiveFailures,
       latest_item_published_at:

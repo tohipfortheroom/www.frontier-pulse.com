@@ -33,6 +33,7 @@ type NewsItemMomentum = {
 const CATEGORY_PRIORITY: Array<{ slug: string; eventType: EventType }> = [
   { slug: "model-release", eventType: "Major model release" },
   { slug: "product-launch", eventType: "Major product launch" },
+  { slug: "acquisition", eventType: "Major acquisition" },
   { slug: "partnership", eventType: "Enterprise partnership" },
   { slug: "funding", eventType: "Funding round" },
   { slug: "infrastructure", eventType: "Infrastructure expansion" },

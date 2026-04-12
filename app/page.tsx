@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import Script from "next/script";
 import { ArrowRight, Flame } from "lucide-react";
 
 import { getHomePageData } from "@/lib/db/queries";
@@ -90,10 +89,9 @@ export default async function HomePage() {
 
   return (
     <div className="relative z-10">
-      <Script
+      <script
         id="home-website-jsonld"
         type="application/ld+json"
-        strategy="afterInteractive"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
       />
       <ScrollProgress />
