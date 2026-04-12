@@ -139,6 +139,12 @@ export function LeaderboardTable({
                 </div>
 
                 <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">{toCompleteSentence(row.keyDriver)}</p>
+                {row.driverSourceTierLabel || row.driverConfidenceLabel ? (
+                  <p className="mt-2 font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                    {row.driverSourceTierLabel ?? "Source quality unavailable"}
+                    {row.driverConfidenceLabel ? ` · ${row.driverConfidenceLabel} confidence` : ""}
+                  </p>
+                ) : null}
 
                 <div className="mt-4 flex items-center justify-end">
                   <span className="text-xs font-medium text-[var(--accent-blue)]">Full details →</span>
@@ -220,7 +226,17 @@ export function LeaderboardTable({
                       <TrendSparkline data={row.sparkline} color={sparklineColor} height={40} />
                     </div>
                   </td>
-                  <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">{toCompleteSentence(row.keyDriver)}</td>
+                  <td className="px-5 py-4 text-sm text-[var(--text-secondary)]">
+                    <div className="space-y-2">
+                      <p>{toCompleteSentence(row.keyDriver)}</p>
+                      {row.driverSourceTierLabel || row.driverConfidenceLabel ? (
+                        <p className="font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                          {row.driverSourceTierLabel ?? "Source quality unavailable"}
+                          {row.driverConfidenceLabel ? ` · ${row.driverConfidenceLabel} confidence` : ""}
+                        </p>
+                      ) : null}
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -248,6 +264,12 @@ export function LeaderboardTable({
                     <span className="font-medium text-[var(--text-primary)]">{company.name}</span>
                   </div>
                   <p className="hidden text-sm text-[var(--text-secondary)] sm:block">{toCompleteSentence(row.keyDriver)}</p>
+                  {row.driverSourceTierLabel || row.driverConfidenceLabel ? (
+                    <p className="hidden font-[family-name:var(--font-mono)] text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)] sm:block">
+                      {row.driverSourceTierLabel ?? "Source quality unavailable"}
+                      {row.driverConfidenceLabel ? ` · ${row.driverConfidenceLabel} confidence` : ""}
+                    </p>
+                  ) : null}
                 </div>
                 <ScorePill value={row.score} />
               </div>

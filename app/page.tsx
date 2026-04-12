@@ -25,7 +25,7 @@ import { formatDateLabel, formatUpdateTimestamp } from "@/lib/utils";
 export async function generateMetadata(): Promise<Metadata> {
   const { stats } = await getHomePageData();
   const title = `${BRAND_NAME} — AI Momentum Tracker`;
-  const description = `${BRAND_NAME} scores and explains AI momentum across ${stats.totalCompanies} companies and ${stats.totalStories} recent stories shaping the race.`;
+  const description = `${BRAND_NAME} scores and explains AI momentum across ${stats.trackedCompanyCount} tracked companies and ${stats.totalStories} recent stories shaping the race.`;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
   return {
@@ -184,7 +184,8 @@ export default async function HomePage() {
             <ModuleStatusStrip
               items={[
                 { label: "Snapshot", value: leaderboardRefreshState.lastUpdatedAt ? formatUpdateTimestamp(leaderboardRefreshState.lastUpdatedAt) : "Unavailable" },
-                { label: "Surface", value: `Top ${Math.min(10, leaderboard.length)} of ${stats.totalCompanies}` },
+                { label: "Scope", value: `Top ${stats.leaderboardSurfaceCount} of ${stats.rankedCompanyCount} ranked` },
+                { label: "Tracked", value: stats.trackedCompanyCount.toString() },
                 { label: "Window", value: "Decay-weighted score" },
               ]}
               warning={

@@ -123,21 +123,41 @@ function buildFallbackWhyItMatters(candidate: ScoredCandidate) {
   }
 
   const companyName = candidate.companySlugs[0] ? companiesBySlug[candidate.companySlugs[0]]?.name : null;
+  const sourceSignal =
+    candidate.sourceTier === "official"
+      ? "because the company published the move directly"
+      : candidate.sourceTier === "major-media"
+        ? "because multiple operational details were strong enough to clear a high-confidence media bar"
+        : candidate.sourceTier === "trade-media"
+          ? "because the report describes a concrete operational move rather than commentary alone"
+          : "";
+
+  if (candidate.categorySlugs.includes("acquisition") && companyName) {
+    return `${companyName} is changing control of assets or distribution through an acquisition, which usually has a more direct competitive effect than a loose partnership${sourceSignal ? ` ${sourceSignal}` : ""}.`;
+  }
 
   if (candidate.categorySlugs.includes("partnership") && companyName) {
-    return `${companyName} now has a named distribution or customer path, which is stronger than AI interest without a commercial channel.`;
+    return `${companyName} now has a named partner, customer path, or distribution channel${sourceSignal ? ` ${sourceSignal}` : ""}.`;
   }
 
   if (candidate.categorySlugs.includes("funding") && companyName) {
-    return `${companyName} has more capacity to hire, buy compute, or expand product rollout after this financing move.`;
+    return `${companyName} has more room to hire, buy compute, or push rollout faster after this financing move${sourceSignal ? ` ${sourceSignal}` : ""}.`;
   }
 
   if (candidate.categorySlugs.includes("policy-regulation") && companyName) {
-    return `This can change launch timing, compliance costs, or regional distribution for ${companyName}.`;
+    return `${companyName} may need to change launch timing, compliance work, or regional availability because of this policy move.`;
   }
 
   if (candidate.categorySlugs.includes("infrastructure") && companyName) {
-    return `This affects how quickly ${companyName} can train, serve, or scale AI products in the market.`;
+    return `${companyName} is adding or securing compute capacity, which affects how quickly it can train, serve, or scale AI products.`;
+  }
+
+  if (candidate.categorySlugs.includes("model-release") && companyName) {
+    return `${companyName} has turned a capability claim into a visible model release, which is a stronger competitive signal than research alone${sourceSignal ? ` ${sourceSignal}` : ""}.`;
+  }
+
+  if (candidate.categorySlugs.includes("product-launch") && companyName) {
+    return `${companyName} is moving product work into a visible rollout with clearer customer availability or packaging${sourceSignal ? ` ${sourceSignal}` : ""}.`;
   }
 
   return "";

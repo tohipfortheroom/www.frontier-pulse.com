@@ -714,6 +714,15 @@
   line-height: 1.55;
 }
 
+.metricMeta,
+.driverMeta {
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
 .trendUp {
   color: var(--green);
 }
@@ -847,6 +856,9 @@
 }
 
 .driverCell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   color: var(--text-secondary);
   font-size: 14px;
   line-height: 1.55;

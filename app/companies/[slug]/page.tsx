@@ -315,7 +315,7 @@ export default async function CompanyDetailPage({
           <SectionHeader
             label="SCORE BREAKDOWN"
             title="What actually drove the score"
-            subtitle="Daily event attribution across the last visible company events."
+            subtitle="Event-by-event attribution with source quality, decay, confidence, and assignment rationale."
             tone="green"
           />
           <ScoreBreakdownChart rows={scoreBreakdown} />

@@ -116,6 +116,10 @@ export type MomentumSnapshot = {
   history?: ScoreHistoryPoint[];
   trendPercent7d?: TrendPercentDelta;
   driverNewsSlugs: string[];
+  driverSourceTierLabel?: string;
+  driverSourceName?: string;
+  driverConfidenceLabel?: string;
+  driverConfidenceScore?: number | null;
 };
 
 export type LaunchCardData = {
@@ -134,6 +138,20 @@ export type TimelineEntry = {
   timestamp: string;
   headline: string;
   detail: string;
+  relationType?: "primary" | "secondary" | "shared";
+  audit?: {
+    newsSlug?: string;
+    sourceName?: string;
+    sourceUrl?: string;
+    sourceTierLabel?: string;
+    categorySlugs?: string[];
+    assignedCompanies?: string[];
+    confidenceScore?: number | null;
+    confidenceLabel?: string | null;
+    scoreContribution?: number;
+    decayAdjustedContribution?: number;
+    companyAssignmentReason?: string;
+  };
   live?: boolean;
 };
 
@@ -226,6 +244,7 @@ export type SourceHealthSeed = {
 export const categories: NewsCategory[] = [
   { slug: "model-release", name: "Model Release", accent: "green" },
   { slug: "product-launch", name: "Product Launch", accent: "blue" },
+  { slug: "acquisition", name: "Acquisition", accent: "amber" },
   { slug: "funding", name: "Funding", accent: "purple" },
   { slug: "partnership", name: "Partnership", accent: "amber" },
   { slug: "research", name: "Research", accent: "green" },

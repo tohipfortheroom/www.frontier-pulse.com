@@ -12,7 +12,8 @@ import { buttonVariants } from "@/components/ui/button";
 type HeroProps = {
   stats: {
     totalStories: number;
-    totalCompanies: number;
+    trackedCompanyCount: number;
+    rankedCompanyCount: number;
     totalLaunches: number;
     lastUpdatedAt: string;
     seedMode: boolean;
@@ -24,7 +25,8 @@ type HeroProps = {
 export function Hero({ stats, tickerItems, firstSectionId }: HeroProps) {
   const counterItems = [
     { label: "Stories tracked", target: stats.totalStories },
-    { label: "Companies monitored", target: stats.totalCompanies },
+    { label: "Companies monitored", target: stats.trackedCompanyCount },
+    { label: "Ranked companies", target: stats.rankedCompanyCount },
     { label: "Launches in play", target: stats.totalLaunches },
   ].filter((item) => hasMeaningfulMetric(item.target));
   const lastUpdatedLabel = formatLastUpdatedLabel(stats.lastUpdatedAt);

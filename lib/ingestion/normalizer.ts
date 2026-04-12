@@ -4,7 +4,8 @@ import { companiesBySlug } from "../seed/data.ts";
 import { sanitizeEditorialText } from "../content.ts";
 import { companyKeywordMap, matchesAnyKeyword, tagKeywordMap } from "./keywords.ts";
 import { buildTitleFingerprint, canonicalizeUrl } from "./quality.ts";
-import { inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "../company-attribution.ts";
+import { filterCompanySlugsByStoryContext, inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "../company-attribution.ts";
+import { hasAcquisitionSignal, hasInfrastructureSignal, hasPartnershipSignal } from "./story-signals.ts";
 
 import type { NormalizedCandidate, RawIngestedItem } from "./types.ts";
 
@@ -50,11 +51,11 @@ function detectCategories(text: string) {
     categories.add(/model|llm|claude|gpt|gemini|llama|grok|reasoning/i.test(normalized) ? "model-release" : "product-launch");
   }
 
-  if (/(partner|partnership|agreement|deal|rollout with)/i.test(normalized)) {
+  if (hasPartnershipSignal(normalized)) {
     categories.add("partnership");
   }
 
-  if (/(acquires|acquisition|acquire|merger|merges with|buyout|takes stake)/i.test(normalized)) {
+  if (hasAcquisitionSignal(normalized)) {
     categories.add("acquisition");
   }
 
@@ -74,7 +75,7 @@ function detectCategories(text: string) {
     categories.add("policy-regulation");
   }
 
-  if (/(data center|cluster|capacity|shipping|racks|infrastructure|silicon|gpu)/i.test(normalized)) {
+  if (hasInfrastructureSignal(normalized)) {
     categories.add("infrastructure");
   }
 
@@ -124,7 +125,7 @@ export function normalizeIngestedItem(item: RawIngestedItem): NormalizedCandidat
     sourceUrl: canonicalUrl || item.url,
     companyHint: item.companyHint,
   });
-  const resolvedCompanySlugs = rankCompanySlugsByStoryContext(
+  const rankedCompanySlugs = rankCompanySlugsByStoryContext(
     inferredPrimaryCompany ? [...companySlugs, inferredPrimaryCompany] : companySlugs,
     {
       headline: title,
@@ -134,6 +135,13 @@ export function normalizeIngestedItem(item: RawIngestedItem): NormalizedCandidat
       companyHint: item.companyHint,
     },
   );
+  const resolvedCompanySlugs = filterCompanySlugsByStoryContext(rankedCompanySlugs, {
+    headline: title,
+    body: `${excerpt} ${rawText}`.trim(),
+    sourceName: item.sourceName,
+    sourceUrl: canonicalUrl || item.url,
+    companyHint: item.companyHint,
+  });
 
   if (!title) {
     return null;

@@ -18,6 +18,7 @@ import type {
   MomentumScoreRow,
   NewsDetailRecord,
   NewsItemRow,
+  SiteStatsSnapshot,
 } from "@/lib/db/types";
 import {
   buildSentenceExcerpt,
@@ -61,12 +62,15 @@ import {
   type TrendDirection,
 } from "@/lib/seed/data";
 import { applyEditorialRules } from "@/lib/ingestion/editorial";
+import { inferSourceTierFromStory } from "@/lib/ingestion/editorial";
+import { getSourceTierLabel } from "@/lib/ingestion/source-tier";
 import { normalizeIngestedItem } from "@/lib/ingestion/normalizer";
 import { sourceRegistry } from "@/lib/ingestion/pipeline";
 import type { RawIngestedItem } from "@/lib/ingestion/types";
 import { getPipelineStateRow } from "@/lib/ingestion/run-state";
 import { isSupabaseMissingTableError } from "@/lib/error-utils";
 import { logger } from "@/lib/monitoring/logger";
+import { buildSiteStatsSnapshot } from "@/lib/site-stats";
 import { CACHE_TAGS, createInstrumentedCache } from "@/lib/server-cache";
 import {
   buildCompanyHistoryMap,
@@ -78,6 +82,7 @@ import {
   getSeedScoreHistoryEntries,
   mergeDailyScoreEntries,
 } from "@/lib/score-history";
+import { applyTimeDecay, getBaseWeight } from "@/lib/scoring/momentum";
 import { buildSectionFreshness, getCanonicalLeaderboardRecords, getContentDateKey, getLatestPublishedAt, resolveDigestLeadStory } from "@/lib/surface-data";
 import { cleanNarrativeText, getConfidenceLabel, getImportanceLabel, hasDisplayText, hasMeaningfulMetric, toCompleteSentence } from "@/lib/utils";
 import { getCompanyLogoUrl } from "@/lib/company-logo";
@@ -816,13 +821,15 @@ function fallbackHomePage(): HomePageData {
       status: "fresh",
       reason: "Preview seed snapshot",
     },
-    stats: {
+    stats: buildSiteStatsSnapshot({
       totalStories: sortedNewsItems.length,
-      totalCompanies: Math.max(companies.length, TRACKED_COMPANY_COUNT),
+      trackedCompanyCount: Math.max(companies.length, TRACKED_COMPANY_COUNT),
+      rankedCompanyCount: leaderboard.filter((row) => hasMeaningfulMetric(row.score)).length,
       totalLaunches: launches.length,
+      totalEvents: momentumEvents.length,
       lastUpdatedAt: latestPublishedAt,
       seedMode: true,
-    },
+    }),
   };
 }
 
@@ -1239,7 +1246,11 @@ function buildMomentumSnapshotsFromDatabase(
     const dailyHistory = dailyHistoryByCompanySlug.get(companyRow.slug) ?? fallback?.history ?? [];
     const latest = history.at(-1);
     const leadingEvent = (eventsByCompanyId.get(companyRow.id) ?? [])[0];
-    const leadingNewsSlug = leadingEvent?.news_item_id ? newsById[leadingEvent.news_item_id]?.slug : undefined;
+    const leadingNewsRow = leadingEvent?.news_item_id ? newsById[leadingEvent.news_item_id] : undefined;
+    const leadingNewsSlug = leadingNewsRow?.slug;
+    const driverSourceTier = leadingNewsRow
+      ? inferSourceTierFromStory(leadingNewsRow.source_name, leadingNewsRow.canonical_url ?? leadingNewsRow.source_url)
+      : null;
     const score = Number((latest?.score ?? dailyHistory.at(-1)?.score ?? fallback?.score ?? 0).toFixed(2));
     const scoreChange24h = Number(
       (
@@ -1271,6 +1282,10 @@ function buildMomentumSnapshotsFromDatabase(
       history: dailyHistory,
       trendPercent7d,
       driverNewsSlugs: leadingNewsSlug ? [leadingNewsSlug] : fallback?.driverNewsSlugs ?? [],
+      driverSourceTierLabel: driverSourceTier ? getSourceTierLabel(driverSourceTier) : fallback?.driverSourceTierLabel,
+      driverSourceName: leadingNewsRow?.source_name ?? fallback?.driverSourceName,
+      driverConfidenceLabel: leadingNewsRow ? getConfidenceLabel(leadingNewsRow.confidence_score) : fallback?.driverConfidenceLabel,
+      driverConfidenceScore: leadingNewsRow?.confidence_score ?? fallback?.driverConfidenceScore ?? null,
     };
   });
 
@@ -1581,15 +1596,16 @@ export const getTopMoversData = createInstrumentedCache(
 export const getCompanyDetailData = createInstrumentedCache(
   "company_detail_data",
   async (slug: string): Promise<CompanyDetailRecord | null> => {
-    const [companyRows, productRows, news, leaderboard, eventRows] = await Promise.all([
+    const [companyRows, productRows, news, newsRows, leaderboard, eventRows] = await Promise.all([
       getCompanyRows(),
       getProductRows(),
       getNewsItemsData(),
+      getNewsRows(),
       getLeaderboardData(),
       getEventRows(),
     ]);
 
-    if (!companyRows || !productRows || !eventRows) {
+    if (!companyRows || !productRows || !newsRows || !eventRows) {
       return fallbackCompanyDetail(slug);
     }
 
@@ -1601,6 +1617,7 @@ export const getCompanyDetailData = createInstrumentedCache(
 
     try {
       const company = mergeCompanyRow(companyRow);
+      const newsById = Object.fromEntries(newsRows.map((row) => [row.id, row]));
       company.products = productRows
         .filter((row) => row.company_id === companyRow.id)
         .map((row) => ({
@@ -1612,6 +1629,7 @@ export const getCompanyDetailData = createInstrumentedCache(
 
       const companyNews = news.filter((item) => item.companySlugs.includes(slug));
       const recentNews = companyNews.slice(0, 5);
+      const companyNewsBySlug = new Map(companyNews.map((item) => [item.slug, item]));
       const categoryCounts = new Map<string, number>();
 
       for (const item of companyNews) {
@@ -1645,14 +1663,44 @@ export const getCompanyDetailData = createInstrumentedCache(
       const scoreBreakdown = companyEvents
         .slice()
         .sort((left, right) => new Date(left.event_date).getTime() - new Date(right.event_date).getTime())
-        .map((row) => ({
-          date: format(new Date(row.event_date), "yyyy-MM-dd"),
-          label: format(new Date(row.event_date), "MMM d"),
-          total: row.score_delta,
-          eventType: row.event_type,
-          scoreDelta: row.score_delta,
-          explanation: toCompleteSentence(row.explanation),
-        }));
+        .map((row) => {
+          const newsSlug = row.news_item_id ? newsById[row.news_item_id]?.slug : undefined;
+          const linkedStory = newsSlug ? companyNewsBySlug.get(newsSlug) : undefined;
+          const sourceTierLabel = linkedStory
+            ? getSourceTierLabel(inferSourceTierFromStory(linkedStory.sourceName, linkedStory.sourceUrl))
+            : undefined;
+          const baseWeight = getBaseWeight(row.event_type as Parameters<typeof getBaseWeight>[0]);
+          const eventDate = new Date(row.event_date);
+          const ageDays = Math.max(0, Math.floor((Date.now() - eventDate.getTime()) / 86_400_000));
+          const decayAdjustedContribution = Number(applyTimeDecay(row.score_delta, row.event_date, new Date()).toFixed(2));
+          const relationIsPrimary = linkedStory?.companySlugs[0] === slug;
+          const assignmentReason = linkedStory
+            ? relationIsPrimary
+              ? `${company.name} is the primary company named in the ranked entity evidence for this story.`
+              : `${company.name} stays linked because the story explicitly names multiple tracked companies with shared relevance.`
+            : `${company.name} is linked through the stored event record.`;
+
+          return {
+            date: format(eventDate, "yyyy-MM-dd"),
+            label: format(eventDate, "MMM d"),
+            total: row.score_delta,
+            eventType: row.event_type,
+            scoreDelta: row.score_delta,
+            explanation: toCompleteSentence(row.explanation),
+            headline: linkedStory?.headline,
+            newsSlug,
+            sourceName: linkedStory?.sourceName,
+            sourceUrl: linkedStory?.sourceUrl,
+            sourceTierLabel,
+            baseWeight,
+            ageDays,
+            decayFactor: baseWeight !== 0 ? Number((decayAdjustedContribution / baseWeight).toFixed(2)) : 0,
+            netContribution: decayAdjustedContribution,
+            confidenceScore: linkedStory?.confidenceScore ?? null,
+            confidenceLabel: linkedStory?.confidenceLevel ?? null,
+            companyAssignmentReason: assignmentReason,
+          };
+        });
       const momentum = leaderboard.find((row) => row.companySlug === slug);
 
       return {
@@ -1715,9 +1763,12 @@ const getDailyDigestDataCached = createInstrumentedCache(
       ? newsSlugById[digestRow.most_important_news_item_id]
       : undefined;
     const digestTopStorySlugs = digestRow.top_story_slugs?.length ? digestRow.top_story_slugs : inferredTopStories.map((item) => item.slug);
-    const topStories = digestTopStorySlugs.map((slug) => news.find((item) => item.slug === slug)).filter(Boolean) as typeof news;
+    const topStories = digestTopStorySlugs
+      .map((slug) => news.find((item) => item.slug === slug))
+      .filter((item): item is (typeof news)[number] => Boolean(item))
+      .filter((item) => getContentDateKey(item.publishedAt) === digestRow.digest_date);
     const mostImportantStory =
-      news.find((item) => item.slug === mostImportantSlug) ??
+      news.find((item) => item.slug === mostImportantSlug && getContentDateKey(item.publishedAt) === digestRow.digest_date) ??
       topStories[0] ??
       inferredTopStories[0] ??
       newsItemsBySlug[dailyDigest.mostImportantNewsSlug];
@@ -1977,11 +2028,44 @@ export const getLeaderboardRefreshState = createInstrumentedCache(
   },
 );
 
+export const getSiteStatsData = createInstrumentedCache(
+  "site_stats_data",
+  async (): Promise<SiteStatsSnapshot> => {
+    const [companyRows, newsRows, news, companyCards, launchData, heatmapData, siteLastUpdatedAt] = await Promise.all([
+      getCompanyRows(),
+      getNewsRows(),
+      getNewsItemsData(),
+      getCompaniesIndexData(),
+      getLaunchesData(),
+      getHeatmapData(),
+      getSiteLastUpdatedAt(),
+    ]);
+    const rankedCompanyCount = companyCards.filter((record) => Boolean(record.momentum && hasMeaningfulMetric(record.momentum.score))).length;
+    const trackedCompanyCount = Math.max(companyCards.length, TRACKED_COMPANY_COUNT);
+    const totalEvents = heatmapData.cells.reduce((sum, cell) => sum + cell.eventCount, 0);
+
+    return buildSiteStatsSnapshot({
+      totalStories: news.length,
+      trackedCompanyCount,
+      rankedCompanyCount,
+      totalLaunches: launchData.length,
+      totalEvents,
+      lastUpdatedAt: siteLastUpdatedAt ?? getLatestPublishedAt(news) ?? seedNow.toISOString(),
+      seedMode: !companyRows || !newsRows,
+    });
+  },
+  {
+    key: "surface:site-stats",
+    revalidate: SHORT_SURFACE_REVALIDATE_SECONDS,
+    tags: SITE_CONTENT_CACHE_TAGS,
+  },
+);
+
 export const getHomePageData = createInstrumentedCache(
   "home_page_data",
   async (): Promise<HomePageData> => {
   const generatedAt = new Date().toISOString();
-  const [news, rawLeaderboard, launchData, timeline, movers, companyCards, siteLastUpdatedAt, leaderboardRefreshState] = await Promise.all([
+  const [news, rawLeaderboard, launchData, timeline, movers, companyCards, siteLastUpdatedAt, leaderboardRefreshState, siteStats] = await Promise.all([
     getNewsItemsData(),
     getLeaderboardData(),
     getLaunchesData(),
@@ -1990,6 +2074,7 @@ export const getHomePageData = createInstrumentedCache(
     getCompaniesIndexData(),
     getSiteLastUpdatedAt(),
     getLeaderboardRefreshState(),
+    getSiteStatsData(),
   ]);
   const canonicalLeaderboardRecords = getCanonicalLeaderboardRecords(companyCards);
   const leaderboard = canonicalLeaderboardRecords.map((record) => record.momentum);
@@ -2054,11 +2139,8 @@ export const getHomePageData = createInstrumentedCache(
     sectionFreshness,
     leaderboardRefreshState,
     stats: {
-      totalStories: news.length,
-      totalCompanies: Math.max(companyCards.length, TRACKED_COMPANY_COUNT),
-      totalLaunches: launchData.length,
+      ...siteStats,
       lastUpdatedAt: siteLastUpdatedAt ?? latestPublishedAt,
-      seedMode: false,
     },
   };
   },
@@ -2398,6 +2480,7 @@ export const getFullTimelineData = createInstrumentedCache(
   const cutoff = subDays(new Date(), days);
   const companyById = new Map(companyRows.map((row) => [row.id, row]));
   const newsById = new Map(newsRows.map((row) => [row.id, row]));
+  const newsItemsBySlugMap = new Map(newsItems.map((item) => [item.slug, item]));
 
   const timelineCompanies = companyRows.map((row) => {
     const company = mergeCompanyRow(row);
@@ -2413,16 +2496,53 @@ export const getFullTimelineData = createInstrumentedCache(
       }
 
       const newsRow = row.news_item_id ? newsById.get(row.news_item_id) : undefined;
+      const linkedStory = newsRow?.slug ? newsItemsBySlugMap.get(newsRow.slug) : undefined;
       const headline = newsRow ? getStoryHeadline(newsRow) : row.event_type;
       const detail = newsRow ? getStoryShortSummary(newsRow) || getStorySummary(newsRow) : toCompleteSentence(row.explanation);
       const timestamp = row.event_date ?? newsRow?.published_at ?? new Date().toISOString();
+      const relationType =
+        linkedStory && linkedStory.companySlugs.length > 1
+          ? linkedStory.companySlugs[0] === companyRow.slug
+            ? "primary"
+            : "secondary"
+          : linkedStory
+            ? "primary"
+            : "shared";
+      const decayAdjustedContribution = Number(applyTimeDecay(row.score_delta, row.event_date, new Date()).toFixed(2));
 
       return {
-        slug: `timeline-${newsRow?.slug ?? row.id}`,
+        slug: `timeline-${newsRow?.slug ?? row.id}-${companyRow.slug}`,
         companySlug: companyRow.slug,
         timestamp,
         headline,
         detail,
+        relationType,
+        audit: {
+          newsSlug: linkedStory?.slug ?? newsRow?.slug,
+          sourceName: linkedStory?.sourceName ?? newsRow?.source_name,
+          sourceUrl: linkedStory?.sourceUrl ?? newsRow?.canonical_url ?? newsRow?.source_url,
+          sourceTierLabel:
+            linkedStory || newsRow
+              ? getSourceTierLabel(
+                  inferSourceTierFromStory(
+                    linkedStory?.sourceName ?? newsRow?.source_name ?? "Unknown source",
+                    linkedStory?.sourceUrl ?? newsRow?.canonical_url ?? newsRow?.source_url ?? "",
+                  ),
+                )
+              : undefined,
+          categorySlugs: linkedStory?.categorySlugs ?? [],
+          assignedCompanies: linkedStory?.companySlugs ?? [companyRow.slug],
+          confidenceScore: linkedStory?.confidenceScore ?? null,
+          confidenceLabel: linkedStory?.confidenceLevel ?? null,
+          scoreContribution: row.score_delta,
+          decayAdjustedContribution,
+          companyAssignmentReason:
+            relationType === "primary"
+              ? `${companyRow.name} is the primary company named for this event.`
+              : relationType === "secondary"
+                ? `${companyRow.name} remains linked because the story explicitly names multiple tracked companies.`
+                : `${companyRow.name} is linked through the stored event record.`,
+        },
         live: false,
       };
     })

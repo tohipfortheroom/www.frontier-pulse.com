@@ -44,6 +44,10 @@ type LeaderboardEntry = {
   sparkline: number[];
   history: NonNullable<CompanyCardRecord["momentum"]>["history"];
   trendPercent7d: TrendPercentDelta;
+  driverSourceTierLabel?: string;
+  driverSourceName?: string;
+  driverConfidenceLabel?: string;
+  driverConfidenceScore?: number | null;
 };
 
 type NotableMover = {
@@ -197,34 +201,6 @@ function HistoryTooltip({ active, label, payload }: TooltipContentProps) {
 
 export function LeaderboardCommandCenter({ records, recentEvents, refreshState }: LeaderboardCommandCenterProps) {
   const router = useRouter();
-  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
-  const [chartWindow, setChartWindow] = useState<ChartWindow>(30);
-  const [selectedComparisonSlugs, setSelectedComparisonSlugs] = useState<string[]>([]);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    const supabase = getSupabaseBrowserClient();
-
-    if (!supabase) {
-      return;
-    }
-
-    const channel = supabase
-      .channel("leaderboard-command-center")
-      .on("postgres_changes", { event: "*", schema: "public", table: "momentum_scores" }, () => {
-        router.refresh();
-      })
-      .subscribe();
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [router]);
-
   const allEntries = records
     .filter(
       (record): record is CompanyCardRecord & { momentum: NonNullable<CompanyCardRecord["momentum"]> } =>
@@ -254,8 +230,42 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
         sparkline: record.momentum.sparkline,
         history: record.momentum.history,
         trendPercent7d,
+        driverSourceTierLabel: record.momentum.driverSourceTierLabel,
+        driverSourceName: record.momentum.driverSourceName,
+        driverConfidenceLabel: record.momentum.driverConfidenceLabel,
+        driverConfidenceScore: record.momentum.driverConfidenceScore,
       };
     });
+  const trackedCount = records.length;
+  const [activeFilter, setActiveFilter] = useState<FilterId>("all");
+  const [chartWindow, setChartWindow] = useState<ChartWindow>(30);
+  const [selectedComparisonSlugs, setSelectedComparisonSlugs] = useState<string[]>(() =>
+    allEntries.slice(0, 5).map((entry) => entry.company.slug),
+  );
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+
+    if (!supabase) {
+      return;
+    }
+
+    const channel = supabase
+      .channel("leaderboard-command-center")
+      .on("postgres_changes", { event: "*", schema: "public", table: "momentum_scores" }, () => {
+        router.refresh();
+      })
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [router]);
 
   const sortedEntries =
     activeFilter === "all"
@@ -464,7 +474,7 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
           <span className={styles.timestampDivider}>/</span>
           <span>{FILTERS.find((filter) => filter.id === activeFilter)?.description}</span>
           <span className={styles.timestampDivider}>/</span>
-          <span>Top {Math.min(10, rankedEntries.length)} of {allEntries.length} ranked companies</span>
+          <span>Top {Math.min(10, rankedEntries.length)} of {allEntries.length} ranked / {trackedCount} tracked</span>
         </div>
       </section>
 
@@ -682,6 +692,12 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
                   <div>
                     <p className={styles.metricLabel}>Key Driver</p>
                     <p className={styles.metricDriver}>{toCompleteSentence(entry.keyDriver)}</p>
+                    {entry.driverSourceTierLabel || entry.driverConfidenceLabel ? (
+                      <p className={styles.metricMeta}>
+                        {entry.driverSourceTierLabel ?? "Source quality unavailable"}
+                        {entry.driverConfidenceLabel ? ` · ${entry.driverConfidenceLabel} confidence` : ""}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </article>
@@ -773,7 +789,15 @@ export function LeaderboardCommandCenter({ records, recentEvents, refreshState }
                     </svg>
                   </span>
 
-                  <span className={styles.driverCell}>{entry.keyDriver}</span>
+                  <span className={styles.driverCell}>
+                    <span>{entry.keyDriver}</span>
+                    {entry.driverSourceTierLabel || entry.driverConfidenceLabel ? (
+                      <span className={styles.driverMeta}>
+                        {entry.driverSourceTierLabel ?? "Source quality unavailable"}
+                        {entry.driverConfidenceLabel ? ` · ${entry.driverConfidenceLabel} confidence` : ""}
+                      </span>
+                    ) : null}
+                  </span>
                 </button>
               );
             })}

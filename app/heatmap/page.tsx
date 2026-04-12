@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { getHeatmapData, getSiteLastUpdatedAt } from "@/lib/db/queries";
+import { getHeatmapData, getSiteLastUpdatedAt, getSiteStatsData } from "@/lib/db/queries";
 import { IndustryHeatmap } from "@/components/industry-heatmap";
 import { ModuleStatusStrip } from "@/components/module-status-strip";
 import { SectionHeader } from "@/components/section-header";
@@ -22,8 +22,8 @@ export const metadata: Metadata = {
 export const revalidate = 600;
 
 export default async function HeatmapPage() {
-  const [data, siteLastUpdatedAt] = await Promise.all([getHeatmapData(), getSiteLastUpdatedAt()]);
-  const eventCount = data.cells.reduce((sum, cell) => sum + cell.eventCount, 0);
+  const [data, siteLastUpdatedAt, stats] = await Promise.all([getHeatmapData(), getSiteLastUpdatedAt(), getSiteStatsData()]);
+  const eventCount = stats.heatmapEventTotal;
   const freshness = buildSectionFreshness({
     cacheKey: "heatmap:page",
     generatedAt: new Date().toISOString(),
@@ -50,7 +50,7 @@ export default async function HeatmapPage() {
           items={[
             { label: "Updated", value: data.lastUpdatedAt ? formatUpdateTimestamp(data.lastUpdatedAt) : "" },
             { label: "Events", value: eventCount.toString() },
-            { label: "Companies", value: data.companies.length.toString() },
+            { label: "Companies", value: stats.trackedCompanyCount.toString() },
             { label: "Window", value: "30 days" },
           ]}
           warning={staleWarning}

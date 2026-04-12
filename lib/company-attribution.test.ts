@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
+import { filterCompanySlugsByStoryContext, inferPrimaryCompanySlug, rankCompanySlugsByStoryContext } from "@/lib/company-attribution";
 
 describe("rankCompanySlugsByStoryContext", () => {
   it("prioritizes the company that dominates the headline and body", () => {
@@ -33,6 +33,28 @@ describe("rankCompanySlugsByStoryContext", () => {
         sourceName: "Reuters",
       }),
     ).toEqual(["amazon-aws-ai", "openai", "nvidia"]);
+  });
+
+  it("drops weak incidental company matches when one company clearly dominates the story", () => {
+    expect(
+      filterCompanySlugsByStoryContext(["openai", "microsoft-ai", "nvidia"], {
+        headline: "OpenAI expands enterprise identity controls for ChatGPT admins",
+        body: "OpenAI said the update adds admin controls and audit tooling for ChatGPT Enterprise customers.",
+        sourceName: "OpenAI News",
+        sourceUrl: "https://openai.com/news/enterprise-admin-controls",
+        companyHint: "openai",
+      }),
+    ).toEqual(["openai"]);
+  });
+
+  it("keeps explicit multi-company stories when both companies have strong evidence", () => {
+    expect(
+      filterCompanySlugsByStoryContext(["openai", "microsoft-ai"], {
+        headline: "OpenAI and Microsoft expand Azure capacity for enterprise ChatGPT workloads",
+        body: "OpenAI and Microsoft said Azure capacity is expanding to support more ChatGPT Enterprise and API demand.",
+        sourceName: "Reuters",
+      }),
+    ).toEqual(["openai", "microsoft-ai"]);
   });
 
   it("infers a missing tracked company when the headline makes it obvious", () => {

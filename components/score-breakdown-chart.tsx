@@ -10,6 +10,18 @@ type ScoreBreakdownRow = {
   eventType: string;
   scoreDelta: number;
   explanation: string;
+  headline?: string;
+  newsSlug?: string;
+  sourceName?: string;
+  sourceUrl?: string;
+  sourceTierLabel?: string;
+  baseWeight?: number;
+  ageDays?: number;
+  decayFactor?: number;
+  netContribution?: number;
+  confidenceScore?: number | null;
+  confidenceLabel?: string | null;
+  companyAssignmentReason?: string;
 };
 
 type ChartRow = {
@@ -39,9 +51,12 @@ function formatEventKey(eventType: string) {
 
 export function ScoreBreakdownChart({ rows }: { rows: ScoreBreakdownRow[] }) {
   const [mounted, setMounted] = useState(false);
-  const { chartRows, eventKeys } = useMemo(() => {
+  const { chartRows, eventKeys, detailRows } = useMemo(() => {
     const byDate = new Map<string, ChartRow>();
     const keys = new Set<string>();
+    const sortedDetails = [...rows].sort(
+      (left, right) => new Date(right.date).getTime() - new Date(left.date).getTime(),
+    );
 
     rows.forEach((row) => {
       const key = formatEventKey(row.eventType);
@@ -59,6 +74,7 @@ export function ScoreBreakdownChart({ rows }: { rows: ScoreBreakdownRow[] }) {
     return {
       chartRows: [...byDate.values()],
       eventKeys: [...keys],
+      detailRows: sortedDetails,
     };
   }, [rows]);
 
@@ -107,6 +123,12 @@ export function ScoreBreakdownChart({ rows }: { rows: ScoreBreakdownRow[] }) {
                             <p className="text-sm font-medium text-[var(--text-primary)]">
                               {detail.eventType} {detail.scoreDelta >= 0 ? `+${detail.scoreDelta}` : detail.scoreDelta}
                             </p>
+                            {detail.sourceTierLabel ? (
+                              <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                                {detail.sourceTierLabel}
+                                {detail.confidenceLabel ? ` · ${detail.confidenceLabel}` : ""}
+                              </p>
+                            ) : null}
                             <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">{detail.explanation}</p>
                           </div>
                         ))}
@@ -129,6 +151,65 @@ export function ScoreBreakdownChart({ rows }: { rows: ScoreBreakdownRow[] }) {
         ) : (
           <div className="surface-subtle h-full w-full rounded-2xl border border-[var(--border)]" aria-hidden="true" />
         )}
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        {detailRows.map((row) => (
+          <div key={`${row.date}-${row.eventType}-${row.explanation.slice(0, 20)}`} className="surface-subtle rounded-2xl border border-[var(--border)] p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 space-y-1">
+                <p className="font-medium text-[var(--text-primary)]">{row.headline ?? row.eventType}</p>
+                <p className="text-xs uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                  {row.label} · {row.eventType}
+                  {row.sourceName ? ` · ${row.sourceName}` : ""}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="font-[family-name:var(--font-mono)] text-sm text-[var(--text-primary)]">
+                  {typeof row.netContribution === "number"
+                    ? `${row.netContribution >= 0 ? "+" : ""}${row.netContribution.toFixed(2)}`
+                    : `${row.scoreDelta >= 0 ? "+" : ""}${row.scoreDelta.toFixed(2)}`}
+                </p>
+                <p className="text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">Net contribution</p>
+              </div>
+            </div>
+
+            <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">{row.explanation}</p>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {row.sourceTierLabel ? (
+                <span className="rounded-full border border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                  {row.sourceTierLabel}
+                </span>
+              ) : null}
+              {row.confidenceLabel ? (
+                <span className="rounded-full border border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                  Confidence: {row.confidenceLabel}
+                  {typeof row.confidenceScore === "number" ? ` (${row.confidenceScore}/10)` : ""}
+                </span>
+              ) : null}
+              {typeof row.baseWeight === "number" ? (
+                <span className="rounded-full border border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                  Base weight: {row.baseWeight >= 0 ? `+${row.baseWeight}` : row.baseWeight}
+                </span>
+              ) : null}
+              {typeof row.ageDays === "number" ? (
+                <span className="rounded-full border border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                  Age: {row.ageDays}d
+                </span>
+              ) : null}
+              {typeof row.decayFactor === "number" ? (
+                <span className="rounded-full border border-[var(--border)] px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                  Decay: {row.decayFactor.toFixed(2)}x
+                </span>
+              ) : null}
+            </div>
+
+            {row.companyAssignmentReason ? (
+              <p className="mt-3 text-xs leading-5 text-[var(--text-secondary)]">{row.companyAssignmentReason}</p>
+            ) : null}
+          </div>
+        ))}
       </div>
     </div>
   );

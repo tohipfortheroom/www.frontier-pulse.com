@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
-import { getCompaniesIndexData, getLeaderboardRefreshState, getSiteLastUpdatedAt } from "@/lib/db/queries";
-import { getTrackedCompanySummary } from "@/lib/company-registry";
+import { getCompaniesIndexData, getLeaderboardRefreshState, getSiteStatsData } from "@/lib/db/queries";
 
 import { CompaniesIndexClient } from "@/components/companies-index-client";
 import { ModuleStatusStrip } from "@/components/module-status-strip";
@@ -22,12 +21,11 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function CompaniesPage() {
-  const [records, siteLastUpdatedAt, refreshState] = await Promise.all([
+  const [records, stats, refreshState] = await Promise.all([
     getCompaniesIndexData(),
-    getSiteLastUpdatedAt(),
+    getSiteStatsData(),
     getLeaderboardRefreshState(),
   ]);
-  const trackingSummary = getTrackedCompanySummary(records);
   const staleWarning = refreshState.status === "stale" ? refreshState.reason : null;
 
   return (
@@ -41,10 +39,10 @@ export default async function CompaniesPage() {
         />
         <ModuleStatusStrip
           items={[
-            { label: "Coverage", value: siteLastUpdatedAt ? formatUpdateTimestamp(siteLastUpdatedAt) : "" },
-            { label: "Tracked", value: trackingSummary.trackedCount.toString() },
-            { label: "Ranked", value: trackingSummary.rankedCount.toString() },
-            { label: "Surface", value: `Top ${trackingSummary.rankingSurfaceCount}` },
+            { label: "Coverage", value: stats.lastUpdatedAt ? formatUpdateTimestamp(stats.lastUpdatedAt) : "" },
+            { label: "Tracked", value: stats.trackedCompanyCount.toString() },
+            { label: "Ranked", value: stats.rankedCompanyCount.toString() },
+            { label: "Surface", value: `Top ${stats.leaderboardSurfaceCount}` },
           ]}
           warning={staleWarning}
         />

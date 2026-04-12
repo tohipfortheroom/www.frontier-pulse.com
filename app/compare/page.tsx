@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
-import { getCompaniesIndexData, getLeaderboardRefreshState, getNewsItemsData } from "@/lib/db/queries";
-import { getTrackedCompanySummary } from "@/lib/company-registry";
+import { getCompaniesIndexData, getLeaderboardRefreshState, getNewsItemsData, getSiteStatsData } from "@/lib/db/queries";
 import { formatUpdateTimestamp } from "@/lib/utils";
 import { ComparePageClient } from "@/components/compare-page-client";
 import { ModuleStatusStrip } from "@/components/module-status-strip";
@@ -15,12 +14,12 @@ export const metadata: Metadata = {
 export const revalidate = 300;
 
 export default async function ComparePage() {
-  const [records, newsItems, refreshState] = await Promise.all([
+  const [records, newsItems, refreshState, stats] = await Promise.all([
     getCompaniesIndexData(),
     getNewsItemsData(),
     getLeaderboardRefreshState(),
+    getSiteStatsData(),
   ]);
-  const trackingSummary = getTrackedCompanySummary(records);
   const latestCoverageAt = newsItems[0]?.publishedAt ?? null;
   const staleWarning = refreshState.status === "stale" ? refreshState.reason : null;
 
@@ -37,8 +36,9 @@ export default async function ComparePage() {
           items={[
             { label: "Coverage", value: latestCoverageAt ? formatUpdateTimestamp(latestCoverageAt) : "" },
             { label: "Rankings", value: refreshState.lastUpdatedAt ? formatUpdateTimestamp(refreshState.lastUpdatedAt) : "Unavailable" },
-            { label: "Tracked", value: trackingSummary.trackedCount.toString() },
-            { label: "Ranked", value: trackingSummary.rankingSurfaceCount.toString() },
+            { label: "Tracked", value: stats.trackedCompanyCount.toString() },
+            { label: "Ranked", value: stats.rankedCompanyCount.toString() },
+            { label: "Surface", value: `Top ${stats.leaderboardSurfaceCount}` },
           ]}
           warning={staleWarning}
         />

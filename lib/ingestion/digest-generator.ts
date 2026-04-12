@@ -1,4 +1,4 @@
-import { format, subHours } from "date-fns";
+import { format } from "date-fns";
 
 import { BRAND_DIGEST_NAME, BRAND_NAME } from "../brand.ts";
 import { getSupabaseServiceClient } from "../db/client.ts";
@@ -84,6 +84,25 @@ export function normalizeDigestCategorySlugs(
   return researchCategories.length > 0 ? uniqueValues(["research", ...researchCategories]) : ["research"];
 }
 
+export function getDigestDateWindow(referenceDate: Date) {
+  const windowStart = new Date(Date.UTC(
+    referenceDate.getUTCFullYear(),
+    referenceDate.getUTCMonth(),
+    referenceDate.getUTCDate(),
+    0,
+    0,
+    0,
+    0,
+  ));
+  const windowEnd = new Date(windowStart.getTime() + 86_400_000);
+
+  return {
+    digestDate: windowStart.toISOString().slice(0, 10),
+    windowStart: windowStart.toISOString(),
+    windowEnd: windowEnd.toISOString(),
+  };
+}
+
 function clampStorySlugs(candidates: string[], availableSlugs: string[]) {
   const available = new Set(availableSlugs);
   const deduped = Array.from(new Set(candidates.filter((slug) => available.has(slug))));
@@ -103,6 +122,10 @@ function buildWatchItem(story: DigestStory) {
 
   if (story.categorySlugs.includes("product-launch")) {
     return `Watch whether ${subject} moves from announcement into customer rollout and paid usage.`;
+  }
+
+  if (story.categorySlugs.includes("acquisition")) {
+    return `Watch for integration plans, control changes, and whether ${subject} turns into faster shipping or wider distribution.`;
   }
 
   if (story.categorySlugs.includes("partnership")) {
@@ -137,6 +160,10 @@ function digestPriority(story: DigestStory) {
 
   if (story.categorySlugs.includes("product-launch")) {
     score += 12;
+  }
+
+  if (story.categorySlugs.includes("acquisition")) {
+    score += 14;
   }
 
   if (story.categorySlugs.includes("partnership") || story.categorySlugs.includes("funding") || story.categorySlugs.includes("infrastructure")) {
@@ -434,14 +461,14 @@ export async function generateDailyDigest(referenceDate = new Date()) {
     };
   }
 
-  const digestDate = format(referenceDate, "yyyy-MM-dd");
-  const since = subHours(referenceDate, 24).toISOString();
+  const { digestDate, windowStart, windowEnd } = getDigestDateWindow(referenceDate);
 
   const [newsResult, companyNewsResult, companiesResult, momentumResult, categoryResult, newsCategoryResult] = await Promise.all([
     client
       .from("news_items")
       .select("id, slug, headline, summary, short_summary, why_it_matters, importance_score, confidence_score, published_at, source_name, source_url")
-      .gte("published_at", since)
+      .gte("published_at", windowStart)
+      .lt("published_at", windowEnd)
       .order("published_at", { ascending: false }),
     client.from("company_news").select("company_id, news_item_id"),
     client.from("companies").select("id, slug, name"),

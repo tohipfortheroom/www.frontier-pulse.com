@@ -41,6 +41,18 @@ export type LeaderboardRefreshState = {
   reason: string;
 };
 
+export type SiteStatsSnapshot = {
+  totalStories: number;
+  trackedCompanyCount: number;
+  rankedCompanyCount: number;
+  leaderboardSurfaceCount: number;
+  totalLaunches: number;
+  totalEvents: number;
+  heatmapEventTotal: number;
+  lastUpdatedAt: string;
+  seedMode: boolean;
+};
+
 export type CompanyDetailRecord = {
   company: CompanyProfile;
   momentum?: MomentumSnapshot;
@@ -55,6 +67,18 @@ export type CompanyDetailRecord = {
     eventType: string;
     scoreDelta: number;
     explanation: string;
+    headline?: string;
+    newsSlug?: string;
+    sourceName?: string;
+    sourceUrl?: string;
+    sourceTierLabel?: string;
+    baseWeight?: number;
+    ageDays?: number;
+    decayFactor?: number;
+    netContribution?: number;
+    confidenceScore?: number | null;
+    confidenceLabel?: string | null;
+    companyAssignmentReason?: string;
   }>;
   categoryBreakdown: Array<{
     slug: string;
@@ -80,13 +104,7 @@ export type HomePageData = {
     leaderboard: SectionFreshness;
   };
   leaderboardRefreshState: LeaderboardRefreshState;
-  stats: {
-    totalStories: number;
-    totalCompanies: number;
-    totalLaunches: number;
-    lastUpdatedAt: string;
-    seedMode: boolean;
-  };
+  stats: SiteStatsSnapshot;
 };
 
 export type DailyDigestRecord = {

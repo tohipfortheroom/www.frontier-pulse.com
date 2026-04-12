@@ -5,11 +5,13 @@ const {
   mockGetCompaniesIndexData,
   mockGetNewsItemsData,
   mockGetLeaderboardRefreshState,
+  mockGetSiteStatsData,
   mockGetSourceHealthSnapshot,
 } = vi.hoisted(() => ({
   mockGetCompaniesIndexData: vi.fn(),
   mockGetNewsItemsData: vi.fn(),
   mockGetLeaderboardRefreshState: vi.fn(),
+  mockGetSiteStatsData: vi.fn(),
   mockGetSourceHealthSnapshot: vi.fn(),
 }));
 
@@ -17,6 +19,7 @@ vi.mock("@/lib/db/queries", () => ({
   getCompaniesIndexData: mockGetCompaniesIndexData,
   getNewsItemsData: mockGetNewsItemsData,
   getLeaderboardRefreshState: mockGetLeaderboardRefreshState,
+  getSiteStatsData: mockGetSiteStatsData,
 }));
 
 vi.mock("@/lib/ingestion/pipeline", () => ({
@@ -78,6 +81,7 @@ describe("route rendering regressions", () => {
     mockGetCompaniesIndexData.mockReset();
     mockGetNewsItemsData.mockReset();
     mockGetLeaderboardRefreshState.mockReset();
+    mockGetSiteStatsData.mockReset();
     mockGetSourceHealthSnapshot.mockReset();
   });
 
@@ -123,13 +127,25 @@ describe("route rendering regressions", () => {
       reason: "Leaderboard snapshot is behind the news feed.",
       isRunning: false,
     });
+    mockGetSiteStatsData.mockResolvedValue({
+      totalStories: 24,
+      trackedCompanyCount: 15,
+      rankedCompanyCount: 2,
+      leaderboardSurfaceCount: 2,
+      totalLaunches: 6,
+      totalEvents: 12,
+      heatmapEventTotal: 12,
+      lastUpdatedAt: "2026-04-10T09:00:00.000Z",
+      seedMode: false,
+    });
 
     const html = renderToStaticMarkup(await ComparePage());
 
     expect(html).toContain("Stack the contenders side by side");
     expect(html).toContain("Leaderboard snapshot is behind the news feed.");
-    expect(html).toContain("Tracked:2");
+    expect(html).toContain("Tracked:15");
     expect(html).toContain("Ranked:2");
+    expect(html).toContain("Surface:Top 2");
     expect(html).toContain("<div></div>");
   });
 });

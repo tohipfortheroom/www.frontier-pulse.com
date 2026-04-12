@@ -9,6 +9,11 @@ type StoryAttributionContext = {
   companyHint?: string | null;
 };
 
+type CompanyScore = {
+  slug: string;
+  score: number;
+};
+
 function countKeywordMatches(text: string, keywords: string[]) {
   return keywords.reduce((count, keyword) => count + (matchesKeyword(text, keyword) ? 1 : 0), 0);
 }
@@ -58,6 +63,13 @@ function scoreCompany(slug: string, context: StoryAttributionContext) {
   return score;
 }
 
+function scoreCompanies(companySlugs: string[], context: StoryAttributionContext): CompanyScore[] {
+  return Array.from(new Set(companySlugs.filter(Boolean))).map((slug) => ({
+    slug,
+    score: scoreCompany(slug, context),
+  }));
+}
+
 export function inferPrimaryCompanySlug(
   context: StoryAttributionContext,
   options?: {
@@ -67,11 +79,7 @@ export function inferPrimaryCompanySlug(
 ) {
   const minScore = options?.minScore ?? 6;
   const minimumLead = options?.minimumLead ?? 3;
-  const scored = Object.keys(companiesBySlug)
-    .map((slug) => ({
-      slug,
-      score: scoreCompany(slug, context),
-    }))
+  const scored = scoreCompanies(Object.keys(companiesBySlug), context)
     .sort((left, right) => right.score - left.score);
 
   const best = scored[0];
@@ -88,6 +96,49 @@ export function inferPrimaryCompanySlug(
   return best.slug;
 }
 
+export function filterCompanySlugsByStoryContext(
+  companySlugs: string[],
+  context: StoryAttributionContext,
+  options?: {
+    minimumScore?: number;
+    relativeFloor?: number;
+  },
+) {
+  const uniqueSlugs = Array.from(new Set(companySlugs.filter(Boolean)));
+
+  if (uniqueSlugs.length <= 1) {
+    return uniqueSlugs;
+  }
+
+  const scored = scoreCompanies(uniqueSlugs, context).sort((left, right) => right.score - left.score);
+  const best = scored[0];
+
+  if (!best) {
+    return uniqueSlugs;
+  }
+
+  const minimumScore = options?.minimumScore ?? 6;
+  const relativeFloor = options?.relativeFloor ?? 0.35;
+  const scoreFloor = Math.max(4, Math.ceil(best.score * relativeFloor));
+  const keepers = scored.filter((entry) => entry.score >= minimumScore && entry.score >= scoreFloor);
+
+  if (keepers.length > 0) {
+    return keepers.map((entry) => entry.slug);
+  }
+
+  if (context.companyHint && uniqueSlugs.includes(context.companyHint)) {
+    return [context.companyHint];
+  }
+
+  const inferredPrimary = inferPrimaryCompanySlug(context);
+
+  if (inferredPrimary && uniqueSlugs.includes(inferredPrimary)) {
+    return [inferredPrimary];
+  }
+
+  return [best.slug];
+}
+
 export function rankCompanySlugsByStoryContext(companySlugs: string[], context: StoryAttributionContext) {
   const uniqueSlugs = Array.from(new Set(companySlugs.filter(Boolean)));
 
@@ -95,10 +146,10 @@ export function rankCompanySlugsByStoryContext(companySlugs: string[], context: 
     return uniqueSlugs;
   }
 
-  const scored = uniqueSlugs.map((slug, index) => ({
-    slug,
+  const scored = scoreCompanies(uniqueSlugs, context).map((entry, index) => ({
+    slug: entry.slug,
     index,
-    score: scoreCompany(slug, context),
+    score: entry.score,
   }));
 
   const hasSignal = scored.some((entry) => entry.score > 0);

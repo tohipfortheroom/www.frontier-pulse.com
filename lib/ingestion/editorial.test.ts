@@ -147,4 +147,39 @@ describe("applyEditorialRules", () => {
     expect(editorial.candidate.categorySlugs).toContain("product-launch");
     expect(scored.importanceScore).toBeGreaterThanOrEqual(7);
   });
+
+  it("keeps acquisitions distinct from partnerships", () => {
+    const rawItem = buildRawItem({
+      title: "Microsoft acquires Windsurf to deepen enterprise coding automation",
+      excerpt: "Microsoft is acquiring Windsurf in a move that adds ownership of the coding assistant stack.",
+    });
+
+    const { editorial, scored } = prepare(rawItem);
+
+    expect(editorial.candidate.categorySlugs).toContain("acquisition");
+    expect(editorial.candidate.categorySlugs).not.toContain("partnership");
+    expect(scored.importanceScore).toBeGreaterThanOrEqual(8);
+  });
+
+  it("does not mark generic product shipping language as infrastructure", () => {
+    const rawItem = buildRawItem({
+      title: "Anthropic ships new Claude admin controls for enterprise teams",
+      excerpt: "The update adds policy controls and audit logs, but does not describe any data center or compute expansion.",
+    });
+
+    const { editorial } = prepare(rawItem);
+
+    expect(editorial.candidate.categorySlugs).not.toContain("infrastructure");
+  });
+
+  it("allows infrastructure only when compute evidence is explicit", () => {
+    const rawItem = buildRawItem({
+      title: "OpenAI expands Stargate training cluster capacity with new GPU buildout",
+      excerpt: "The company said the new buildout adds more GPU capacity and server racks for training and inference workloads.",
+    });
+
+    const { editorial } = prepare(rawItem);
+
+    expect(editorial.candidate.categorySlugs).toContain("infrastructure");
+  });
 });

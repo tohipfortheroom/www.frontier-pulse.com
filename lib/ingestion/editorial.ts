@@ -1,6 +1,8 @@
 import { companiesBySlug } from "../seed/data.ts";
+import { filterCompanySlugsByStoryContext } from "../company-attribution.ts";
 
 import { companyKeywordMap, matchesAnyKeyword } from "./keywords.ts";
+import { hasAcquisitionSignal, hasInfrastructureSignal, hasPartnershipSignal } from "./story-signals.ts";
 import type { NormalizedCandidate, RawIngestedItem, SourceTier } from "./types.ts";
 
 const CATEGORY_PRIORITY = [
@@ -20,6 +22,7 @@ const CATEGORY_PRIORITY = [
 const HIGH_CONFIDENCE_CATEGORIES = new Set([
   "model-release",
   "product-launch",
+  "acquisition",
   "funding",
   "partnership",
   "infrastructure",
@@ -34,13 +37,9 @@ const OPINION_PATTERN = /\b(says|said|tells|told|urges|urged|advises|advised|com
 const RESEARCH_PATTERN = /\b(arxiv|paper|preprint|researchers?|study|technical report|working paper)\b/i;
 const BENCHMARK_PATTERN = /\b(benchmark|benchmarks|eval|evals|evaluation|leaderboard|scores?|scored)\b/i;
 const FUNDING_PATTERN = /\b(funding|raises|raised|financing|valuation|series [a-z]|seed round)\b/i;
-const PARTNERSHIP_PATTERN = /\b(partner|partnership|agreement|deal|distribution deal|joint venture|integrates with|rollout with)\b/i;
-const ACQUISITION_PATTERN = /\b(acquires|acquisition|acquire|merger|merges with|buyout|takes stake)\b/i;
 const LEADERSHIP_PATTERN =
   /\b(appoints|appointed|hires|hired|names|named|joins as|steps down|stepping down|resigns|resignation|chief executive|ceo|cto|leadership)\b/i;
 const POLICY_PATTERN = /\b(policy|regulation|regulatory|complaint|antitrust|rule|rules|law|export control|compliance|ban)\b/i;
-const INFRASTRUCTURE_PATTERN =
-  /\b(data center|cluster|capacity|training cluster|gpu|gpus|accelerator|silicon|chip|chips|inference capacity|server racks?)\b/i;
 const MODEL_PATTERN = /\b(model|llm|gpt|claude|gemini|llama|grok|frontier model|foundation model|reasoning model)\b/i;
 const COMMERCIAL_ROLLOUT_PATTERN =
   /\b(now available|general availability|ga\b|for customers|for developers|enterprise customers?|pricing|priced|subscription|api|rolls out|rolled out|launches|launched|announces|announced|releases|released|ships|shipping|available in)\b/i;
@@ -146,18 +145,19 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
   const opinionOnly =
     OPINION_PATTERN.test(headline) &&
     !FUNDING_PATTERN.test(headline) &&
-    !PARTNERSHIP_PATTERN.test(headline) &&
-    !ACQUISITION_PATTERN.test(headline) &&
+    !hasPartnershipSignal(headline) &&
+    !hasAcquisitionSignal(headline) &&
     !LEADERSHIP_PATTERN.test(headline) &&
     !POLICY_PATTERN.test(headline) &&
     !COMMERCIAL_ROLLOUT_PATTERN.test(headline);
   const researchSignal = RESEARCH_PATTERN.test(combinedText) || sourceTier === "research-repository";
   const benchmarkSignal = BENCHMARK_PATTERN.test(combinedText);
   const fundingSignal = FUNDING_PATTERN.test(combinedText);
-  const partnershipSignal = PARTNERSHIP_PATTERN.test(combinedText) || ACQUISITION_PATTERN.test(combinedText);
+  const acquisitionSignal = hasAcquisitionSignal(combinedText);
+  const partnershipSignal = hasPartnershipSignal(combinedText);
   const leadershipSignal = LEADERSHIP_PATTERN.test(combinedText);
   const policySignal = POLICY_PATTERN.test(combinedText);
-  const infrastructureSignal = INFRASTRUCTURE_PATTERN.test(combinedText);
+  const infrastructureSignal = hasInfrastructureSignal(combinedText);
   const modelSignal = MODEL_PATTERN.test(combinedText);
   const productSignal = PRODUCT_SIGNAL_PATTERN.test(combinedText);
   const commercialRolloutSignal = COMMERCIAL_ROLLOUT_PATTERN.test(combinedText);
@@ -212,6 +212,11 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
   if (fundingSignal) {
     categories.add("funding");
     classificationConfidence += 2;
+  }
+
+  if (acquisitionSignal) {
+    categories.add("acquisition");
+    classificationConfidence += 3;
   }
 
   if (partnershipSignal) {
@@ -290,6 +295,14 @@ export function applyEditorialRules(candidate: NormalizedCandidate, rawItem: Raw
     reviewFlags.push("company-association-pruned");
     classificationConfidence -= 1;
   }
+
+  companySlugs = filterCompanySlugsByStoryContext(companySlugs, {
+    headline,
+    body: combinedText,
+    sourceName: rawItem.sourceName,
+    sourceUrl: rawItem.url,
+    companyHint: rawItem.companyHint,
+  });
 
   if (communityShowcase || researchOnly || opinionOnly) {
     companySlugs = pruneCompanyAssociations({ ...candidate, companySlugs }, headline, true);

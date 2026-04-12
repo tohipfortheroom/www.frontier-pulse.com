@@ -191,6 +191,14 @@ export function TimelinePageClient({ entries, newsItems, companies }: TimelinePa
                 <div className="space-y-4">
                   {group.events.map((event) => {
                     const impactDirection = event.matchingNews?.impactDirection;
+                    const audit = event.entry.audit;
+                    const linkedSlug = audit?.newsSlug ?? event.matchingNews?.slug;
+                    const relationLabel =
+                      event.entry.relationType === "secondary"
+                        ? "Secondary company"
+                        : event.entry.relationType === "shared"
+                          ? "Shared event"
+                          : "Primary company";
 
                     return (
                       <div key={event.entry.slug} className="relative ml-8">
@@ -207,9 +215,9 @@ export function TimelinePageClient({ entries, newsItems, companies }: TimelinePa
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             {/* Headline */}
                             <div className="min-w-0 flex-1">
-                              {event.matchingNews ? (
+                              {linkedSlug ? (
                                 <Link
-                                  href={`/news/${event.matchingNews.slug}`}
+                                  href={`/news/${linkedSlug}`}
                                   className="text-sm font-medium text-[var(--text-primary)] underline decoration-[var(--border)] underline-offset-2 transition-colors hover:decoration-[var(--text-primary)]"
                                 >
                                   {event.entry.headline}
@@ -261,6 +269,22 @@ export function TimelinePageClient({ entries, newsItems, companies }: TimelinePa
                               </span>
                             ) : null}
 
+                            <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 py-0.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                              {relationLabel}
+                            </span>
+
+                            {audit?.assignedCompanies && audit.assignedCompanies.length > 1 ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--accent-amber-border)] bg-[var(--accent-amber-soft)] px-2.5 py-0.5 text-[11px] uppercase tracking-[0.12em] text-[var(--accent-amber)]">
+                                {audit.assignedCompanies.length} companies linked
+                              </span>
+                            ) : null}
+
+                            {audit?.sourceTierLabel ? (
+                              <span className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--surface-soft)] px-2.5 py-0.5 text-[11px] uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                                {audit.sourceTierLabel}
+                              </span>
+                            ) : null}
+
                             {/* Live badge */}
                             {event.entry.live ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-[var(--accent-green-soft)] px-2.5 py-0.5 text-xs font-medium text-[var(--accent-green)]">
@@ -269,6 +293,28 @@ export function TimelinePageClient({ entries, newsItems, companies }: TimelinePa
                               </span>
                             ) : null}
                           </div>
+
+                          {audit ? (
+                            <details className="mt-4 rounded-2xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
+                              <summary className="cursor-pointer text-xs font-medium uppercase tracking-[0.12em] text-[var(--text-tertiary)]">
+                                Audit trail
+                              </summary>
+                              <div className="mt-3 grid gap-2 text-sm text-[var(--text-secondary)]">
+                                {audit.sourceName ? <p>Source: {audit.sourceName}</p> : null}
+                                {audit.categorySlugs?.length ? <p>Category: {audit.categorySlugs.join(", ")}</p> : null}
+                                {audit.assignedCompanies?.length ? <p>Assigned companies: {audit.assignedCompanies.join(", ")}</p> : null}
+                                {audit.confidenceLabel ? (
+                                  <p>
+                                    Confidence: {audit.confidenceLabel}
+                                    {typeof audit.confidenceScore === "number" ? ` (${audit.confidenceScore}/10)` : ""}
+                                  </p>
+                                ) : null}
+                                {typeof audit.scoreContribution === "number" ? <p>Score contribution: {audit.scoreContribution.toFixed(2)}</p> : null}
+                                {typeof audit.decayAdjustedContribution === "number" ? <p>Decay-adjusted contribution: {audit.decayAdjustedContribution.toFixed(2)}</p> : null}
+                                {audit.companyAssignmentReason ? <p>{audit.companyAssignmentReason}</p> : null}
+                              </div>
+                            </details>
+                          ) : null}
                         </div>
                       </div>
                     );
